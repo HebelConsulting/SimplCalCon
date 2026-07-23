@@ -1,6 +1,7 @@
 @page "/address-books/{AddressBookId:guid}"
 @attribute [Authorize]
 @inject ApiClient Api
+@inject IJSRuntime JS
 
 <PageTitle>Contacts</PageTitle>
 
@@ -33,6 +34,21 @@ else
         <input placeholder="Email" @bind="email" />
         <button @onclick="AddAsync">Add</button>
     </div>
+
+    <h2>Import / export</h2>
+    <div>
+        <InputFile OnChange="OnImportFile" accept=".vcf" />
+        <select @bind="conflict">
+            <option value="skip">Skip duplicates</option>
+            <option value="replace">Replace duplicates</option>
+        </select>
+        <button @onclick="ImportAsync" disabled="@(pendingImport is null)">Import</button>
+        <button @onclick="ExportAsync">Export .vcf</button>
+    </div>
+    @if (importMessage is not null)
+    {
+        <p>@importMessage</p>
+    }
 }
 
 @code {
@@ -42,6 +58,9 @@ else
     private IReadOnlyList<ContactDto>? contacts;
     private string name = string.Empty;
     private string email = string.Empty;
+    private IBrowserFile? pendingImport;
+    private string conflict = "skip";
+    private string? importMessage;
 
     protected override Task OnParametersSetAsync() => LoadAsync();
 
@@ -57,5 +76,28 @@ else
             email = string.Empty;
             await LoadAsync();
         }
+    }
+
+    private void OnImportFile(InputFileChangeEventArgs e) => pendingImport = e.File;
+
+    private async Task ImportAsync()
+    {
+        if (pendingImport is null)
+        {
+            return;
+        }
+
+        using var buffer = new MemoryStream();
+        await pendingImport.OpenReadStream(32 * 1024 * 1024).CopyToAsync(buffer);
+        var result = await Api.ImportCollectionAsync("address-books", AddressBookId, buffer.ToArray(), pendingImport.Name, conflict);
+        importMessage = $"Imported {result?.Imported}, skipped {result?.Skipped}, failed {result?.Failed}.";
+        pendingImport = null;
+        await LoadAsync();
+    }
+
+    private async Task ExportAsync()
+    {
+        var bytes = await Api.ExportCollectionAsync("address-books", AddressBookId);
+        await JS.InvokeVoidAsync("simplDownload", "contacts.vcf", "text/vcard", Convert.ToBase64String(bytes));
     }
 }

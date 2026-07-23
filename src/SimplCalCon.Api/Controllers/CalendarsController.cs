@@ -12,7 +12,8 @@ namespace SimplCalCon.Api.Controllers;
 
 /// <summary>Calendars the caller owns or has a grant on (ADR 0009, 0010).</summary>
 [Route("api/calendars")]
-public sealed class CalendarsController(IDavRepository repository, IAclService acl) : ApiControllerBase(acl)
+public sealed class CalendarsController(
+    IDavRepository repository, IObjectImportExport importExport, IAclService acl) : ApiControllerBase(acl)
 {
     [HttpGet]
     public async Task<ActionResult<CollectionResource<CalendarResource>>> List(CancellationToken cancellationToken)
@@ -69,5 +70,43 @@ public sealed class CalendarsController(IDavRepository repository, IAclService a
         EnsureIfMatch(calendar.ConcurrencyToken);
         await repository.DeleteCalendarAsync(calendar.OwnerId, calendar.ResourceName, cancellationToken);
         return NoContent();
+    }
+
+    // --- Import / export (ADR 0013/0029). A bulk write/read is a genuine action, so a verb sub-resource is used. ---
+
+    [HttpPost("{id:guid}/import")]
+    public async Task<ActionResult<ImportResultResource>> Import(
+        Guid id, IFormFile? file, [FromForm] string? onConflict, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(id, AclRight.WriteContent, cancellationToken);
+        if (file is null or { Length: 0 })
+        {
+            return BadRequest("An .ics file is required.");
+        }
+
+        var content = await Portability.ReadAsync(file, cancellationToken);
+        var outcome = await importExport.ImportAsync(
+            id, content, Portability.Conflict(onConflict), CurrentUserId, cancellationToken);
+        return Portability.Map(outcome);
+    }
+
+    [HttpGet("{id:guid}/export")]
+    public async Task<IActionResult> Export(Guid id, CancellationToken cancellationToken)
+    {
+        var calendar = await repository.GetCalendarByIdAsync(id, cancellationToken)
+            ?? throw new ResourceNotFoundException("Calendar", id);
+        await RequireRightsAsync(id, AclRight.Read, cancellationToken);
+
+        var document = await importExport.ExportAsync(id, cancellationToken);
+        return Portability.Download(document, "text/calendar", $"{calendar.ResourceName}.ics");
+    }
+
+    [HttpHead("{id:guid}/export")]
+    public async Task<IActionResult> HeadExport(Guid id, CancellationToken cancellationToken)
+    {
+        _ = await repository.GetCalendarByIdAsync(id, cancellationToken)
+            ?? throw new ResourceNotFoundException("Calendar", id);
+        await RequireRightsAsync(id, AclRight.Read, cancellationToken);
+        return Ok();
     }
 }

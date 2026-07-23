@@ -34,6 +34,8 @@ public sealed class ProblemDetailsExceptionHandler(
                 StatusCodes.Status400BadRequest, "CROSS_TENANT_SHARE", exception.Message),
             SimplCalCon.Domain.Objects.Exceptions.RevisionNotFoundException => (
                 StatusCodes.Status404NotFound, "REVISION_NOT_FOUND", exception.Message),
+            SimplCalCon.Domain.Objects.Exceptions.InvalidTakeoutException => (
+                StatusCodes.Status400BadRequest, "INVALID_TAKEOUT", exception.Message),
             _ => (StatusCodes.Status500InternalServerError, "INTERNAL_ERROR", "An unexpected error occurred."),
         };
 
