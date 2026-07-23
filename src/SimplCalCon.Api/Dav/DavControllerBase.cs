@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SimplCalCon.Api.Authentication;
 using SimplCalCon.Api.Http;
+using SimplCalCon.Application.Abstractions.Acl;
+using SimplCalCon.Domain.Acl;
+using SimplCalCon.Domain.Collections;
 
 namespace SimplCalCon.Api.Dav;
 
@@ -17,9 +20,27 @@ public abstract class DavControllerBase : ControllerBase
 
     protected Guid? CurrentTenantId => User.GetTenantId();
 
-    /// <summary>403 unless the route principal is the authenticated user.</summary>
+    /// <summary>403 unless the route principal is the authenticated user (owner-only operations).</summary>
     protected IActionResult? RequireOwner(Guid routeUserId) =>
-        routeUserId == CurrentUserId ? null : Forbid(DavAuthenticationDefaults.Scheme);
+        routeUserId == CurrentUserId ? null : ForbidDav();
+
+    protected IActionResult ForbidDav() => Forbid(DavAuthenticationDefaults.Scheme);
+
+    /// <summary>
+    /// True when the caller may perform an operation needing <paramref name="required"/> on
+    /// the collection: they own it, or their effective rights (direct + group grants) include it (ADR 0007).
+    /// </summary>
+    protected async Task<bool> HasAccessAsync(
+        Collection collection, AclRight required, IAclService acl, CancellationToken cancellationToken)
+    {
+        if (collection.OwnerId == CurrentUserId)
+        {
+            return true;
+        }
+
+        var rights = await acl.GetEffectiveRightsAsync(CurrentUserId, collection.Id, cancellationToken);
+        return (rights & required) == required;
+    }
 
     protected int Depth()
     {

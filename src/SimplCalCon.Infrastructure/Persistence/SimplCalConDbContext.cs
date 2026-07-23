@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using SimplCalCon.Domain.Acl;
 using SimplCalCon.Domain.Authentication;
 using SimplCalCon.Domain.Collections;
 using SimplCalCon.Domain.Common;
@@ -33,6 +34,7 @@ public class SimplCalConDbContext(DbContextOptions<SimplCalConDbContext> options
     public DbSet<CalendarObject> CalendarObjects => Set<CalendarObject>();
     public DbSet<ContactObject> ContactObjects => Set<ContactObject>();
     public DbSet<ObjectRevision> ObjectRevisions => Set<ObjectRevision>();
+    public DbSet<AclEntry> AclEntries => Set<AclEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

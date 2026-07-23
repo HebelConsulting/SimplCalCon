@@ -27,10 +27,12 @@ public sealed class CardDavHomeController(IDavRepository repository) : DavContro
 
         if (Depth() >= 1)
         {
-            foreach (var book in await repository.ListAddressBooksAsync(userId, cancellationToken))
+            // Own collections plus collections shared with the user; a shared collection is
+            // rendered at its owner's URL (ADR 0007).
+            foreach (var book in await repository.ListAccessibleAddressBooksAsync(userId, cancellationToken))
             {
                 resources.Add(CardDavResources.AddressBookCollection(
-                    CollectionHref(userId, book.ResourceName), PrincipalHref(userId), book));
+                    CollectionHref(book.OwnerId, book.ResourceName), PrincipalHref(book.OwnerId), book));
             }
         }
 

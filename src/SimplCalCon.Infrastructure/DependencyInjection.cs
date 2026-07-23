@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SimplCalCon.Application.Abstractions;
+using SimplCalCon.Application.Abstractions.Acl;
 using SimplCalCon.Application.Abstractions.Identity;
 using SimplCalCon.Application.Abstractions.Security;
 using SimplCalCon.Application.Abstractions.Storage;
@@ -55,6 +56,7 @@ public static class DependencyInjection
         services.AddScoped<IObjectStore, ObjectStore>();
         services.AddScoped<IObjectImportExport, ObjectImportExport>();
         services.AddScoped<IDavRepository, DavRepository>();
+        services.AddScoped<IAclService, AclService>();
 
         services.AddHostedService<BootstrapHostedService>();
 
