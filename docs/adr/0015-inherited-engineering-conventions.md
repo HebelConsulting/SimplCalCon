@@ -29,15 +29,7 @@ The following carry over **unchanged** (normative wording lives in CLAUDE.md):
   show-schema-before-migrating, as stated in CLAUDE.md.
 
 **Dropped as not applicable** (removed from CLAUDE.md):
-
-- The Avalonia desktop client — desktop is served by native DAV clients and the web
-  UI (spec interview decision; see ADR 0010).
-- The Blazor workbench `.wb-tabs` bottom-tab-bar convention and `WebTabBarTests` —
-  SimplArchive UI-specific; SimplCalCon's UI will define its own layout guards when
-  the UI exists.
 - JSON+XML dual content negotiation on REST (superseded by ADR 0009).
-- All SimplArchive-specific as-built facts (its controllers, endpoints, error
-  areas).
 
 ## Consequences
 - Nothing in this ADR is new machinery; it fixes the baseline so future ADRs only
