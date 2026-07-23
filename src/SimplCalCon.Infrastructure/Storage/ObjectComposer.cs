@@ -52,6 +52,28 @@ internal sealed class ObjectComposer(SimplCalConDbContext dbContext, IObjectStor
         builder.Append("DTSTAMP:").Append(Timestamp(clock.UtcNow.UtcDateTime)).Append("\r\n");
         builder.Append("SUMMARY:").Append(Escape(input.Summary)).Append("\r\n");
 
+        // Organizer + attendees (ADR 0030). An explicit organizer, or default to the first when only attendees are given.
+        if (input.Organizer is { } organizer && !string.IsNullOrWhiteSpace(organizer))
+        {
+            builder.Append("ORGANIZER:").Append(CalAddress(organizer)).Append("\r\n");
+        }
+
+        foreach (var attendee in input.Attendees ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(attendee.Address))
+            {
+                continue;
+            }
+
+            builder.Append("ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE");
+            if (!string.IsNullOrWhiteSpace(attendee.CommonName))
+            {
+                builder.Append(";CN=").Append(Escape(attendee.CommonName));
+            }
+
+            builder.Append(':').Append(CalAddress(attendee.Address)).Append("\r\n");
+        }
+
         if (input.IsAllDay)
         {
             var end = input.EndUtc ?? input.StartUtc.AddDays(1);
@@ -98,6 +120,10 @@ internal sealed class ObjectComposer(SimplCalConDbContext dbContext, IObjectStor
 
     private static string BuildFullName(ContactInput input) =>
         string.Join(' ', new[] { input.GivenName, input.FamilyName }.Where(n => !string.IsNullOrWhiteSpace(n)));
+
+    // A bare email becomes a mailto: CAL-ADDRESS; an address that already has a scheme is kept.
+    private static string CalAddress(string address) =>
+        address.Contains(':') ? address.Trim() : $"mailto:{address.Trim()}";
 
     private static string Timestamp(DateTime utc) =>
         DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);

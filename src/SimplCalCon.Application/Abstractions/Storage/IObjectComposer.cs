@@ -15,7 +15,15 @@ public interface IObjectComposer
         Guid collectionId, string? resourceName, ContactInput input, Guid? authorPrincipalId, CancellationToken cancellationToken);
 }
 
-public sealed record EventInput(string Summary, DateTime StartUtc, DateTime? EndUtc, bool IsAllDay);
+public sealed record EventInput(
+    string Summary,
+    DateTime StartUtc,
+    DateTime? EndUtc,
+    bool IsAllDay,
+    string? Organizer = null,
+    IReadOnlyList<AttendeeInput>? Attendees = null);
+
+public sealed record AttendeeInput(string Address, string? CommonName);
 
 public sealed record ContactInput(
     string? FormattedName,

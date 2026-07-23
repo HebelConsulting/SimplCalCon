@@ -21,11 +21,28 @@ public sealed class EventResource : HypermediaResource, IETaggedResource
 
     public bool IsRecurring { get; init; }
 
+    /// <summary>Organizer + attendees (ADR 0030); the organizer is the entry with <c>isOrganizer</c>.</summary>
+    public IReadOnlyList<AttendeeResource> Attendees { get; init; } = [];
+
     /// <summary>Set only when the event is in the trash (ADR 0028); null otherwise.</summary>
     public DateTime? DeletedAt { get; init; }
 
     [JsonIgnore]
     public Guid ConcurrencyToken { get; init; }
+}
+
+/// <summary>An ORGANIZER/ATTENDEE of an event (ADR 0030).</summary>
+public sealed class AttendeeResource
+{
+    public required string Address { get; init; }
+
+    public string? CommonName { get; init; }
+
+    public required string Role { get; init; }
+
+    public required string ParticipationStatus { get; init; }
+
+    public bool IsOrganizer { get; init; }
 }
 
 /// <summary>The result of splitting an event: the truncated original and the newly created tail copy (ADR 0027).</summary>

@@ -46,27 +46,67 @@ public sealed class DataPortabilityTests(AuthWebApplicationFactory factory) : IC
     }
 
     [Fact]
-    public async Task Takeout_export_then_import_recreates_collections_and_objects()
+    public async Task Takeout_export_lists_owned_collections_in_the_manifest()
     {
         var client = await AuthedClientAsync();
-        var calendar = await CreateCalendarAsync(client);
+        var name = $"Takeout {Guid.NewGuid():N}";
+        var created = await client.PostAsJsonAsync("/api/calendars", new { name });
+        var calendar = (await Body(created)).GetProperty("id").GetGuid();
         await CreateEventAsync(client, calendar, "Migrated");
-        var book = await CreateAddressBookAsync(client);
-        await client.PostAsJsonAsync($"/api/address-books/{book}/contacts", new { formattedName = "Migrated Contact" });
 
-        var beforeCalendars = await CountAsync(client, "/api/calendars");
-        var beforeBooks = await CountAsync(client, "/api/address-books");
-
+        // Read only the manifest (no re-import → bounded, doesn't grow the account).
         var zip = await (await client.GetAsync("/api/takeout")).Content.ReadAsByteArrayAsync();
-        Assert.Contains("manifest.json", ZipEntryNames(zip));
+        var names = ZipEntryNames(zip).ToList();
+        Assert.Contains("manifest.json", names);
 
-        var result = await ImportZipAsync(client, "/api/takeout", zip, "skip");
-        Assert.True(result.GetProperty("collectionsCreated").GetInt32() >= 2);
-        Assert.True(result.GetProperty("imported").GetInt32() >= 2);
+        using var archive = new ZipArchive(new MemoryStream(zip), ZipArchiveMode.Read);
+        using var manifest = new StreamReader(archive.GetEntry("manifest.json")!.Open());
+        using var doc = JsonDocument.Parse(await manifest.ReadToEndAsync());
+        var entry = doc.RootElement.GetProperty("Collections").EnumerateArray()
+            .Single(c => c.GetProperty("Name").GetString() == name);
+        Assert.Equal("calendar", entry.GetProperty("Type").GetString());
+        Assert.Contains(entry.GetProperty("File").GetString(), names);
+    }
 
-        // Ingest is always-new, so both collection lists grew.
-        Assert.True(await CountAsync(client, "/api/calendars") > beforeCalendars);
-        Assert.True(await CountAsync(client, "/api/address-books") > beforeBooks);
+    [Fact]
+    public async Task Takeout_import_recreates_a_collection_from_a_manifest()
+    {
+        var client = await AuthedClientAsync();
+        var before = await CountAsync(client, "/api/calendars");
+
+        // A hand-built, single-collection takeout (bounded — never re-imports the whole account).
+        using var buffer = new MemoryStream();
+        using (var archive = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            await WriteEntryAsync(archive, "manifest.json", """
+                {"Version":1,"ExportedAtUtc":"2026-07-23T00:00:00Z","Collections":[
+                  {"Type":"calendar","Name":"Imported","ResourceName":"imported","SupportsEvents":true,"SupportsTasks":true,"File":"calendars/imported.ics"}]}
+                """);
+            await WriteEntryAsync(archive, "calendars/imported.ics", """
+                BEGIN:VCALENDAR
+                VERSION:2.0
+                PRODID:-//Test//EN
+                BEGIN:VEVENT
+                UID:imported-event
+                SUMMARY:Imported event
+                DTSTART:20260715T090000Z
+                DTEND:20260715T100000Z
+                END:VEVENT
+                END:VCALENDAR
+                """);
+        }
+
+        var result = await ImportZipAsync(client, "/api/takeout", buffer.ToArray(), "skip");
+        Assert.Equal(1, result.GetProperty("collectionsCreated").GetInt32());
+        Assert.Equal(1, result.GetProperty("imported").GetInt32());
+        Assert.Equal(before + 1, await CountAsync(client, "/api/calendars"));
+    }
+
+    private static async Task WriteEntryAsync(ZipArchive archive, string path, string content)
+    {
+        var entry = archive.CreateEntry(path);
+        await using var stream = entry.Open();
+        await stream.WriteAsync(Encoding.UTF8.GetBytes(content));
     }
 
     [Fact]

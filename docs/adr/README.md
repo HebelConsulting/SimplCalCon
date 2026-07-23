@@ -35,5 +35,6 @@ rather than an edit.
 | [0027](0027-event-splitting.md) | Event splitting (split one event into two same-kind events) |
 | [0028](0028-phase1-trash-and-version-history.md) | Phase 1 trash & version history (restore/purge + revisions) |
 | [0029](0029-phase1-data-portability.md) | Phase 1 data portability (import/export + migration takeout) |
+| [0030](0030-phase2-attendees-and-free-busy.md) | Phase 2 attendees & free/busy (CalDAV free-busy path) |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

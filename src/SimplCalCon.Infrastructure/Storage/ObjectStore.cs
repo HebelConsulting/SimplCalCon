@@ -155,6 +155,7 @@ internal sealed class ObjectStore(SimplCalConDbContext dbContext, IClock clock) 
             calendarObject.IsAllDay = extracted.IsAllDay;
             calendarObject.IsRecurring = extracted.IsRecurring;
             calendarObject.Blob = blob;
+            await RebuildAttendeesAsync(calendarObject, created, extracted.Attendees, cancellationToken);
             stored = calendarObject;
         }
         else
@@ -240,6 +241,32 @@ internal sealed class ObjectStore(SimplCalConDbContext dbContext, IClock clock) 
         await transaction.CommitAsync(cancellationToken);
 
         return true;
+    }
+
+    // Rebuild the indexed attendee rows from the parsed blob (ADR 0030); the blob stays the source of truth.
+    private async Task RebuildAttendeesAsync(
+        CalendarObject calendarObject, bool created, IReadOnlyList<ExtractedAttendee> attendees, CancellationToken cancellationToken)
+    {
+        if (!created)
+        {
+            await dbContext.EventAttendees.Where(a => a.ObjectId == calendarObject.Id).ExecuteDeleteAsync(cancellationToken);
+        }
+
+        calendarObject.Attendees.Clear();
+        foreach (var attendee in attendees)
+        {
+            calendarObject.Attendees.Add(new EventAttendee
+            {
+                Id = Guid.NewGuid(),
+                ObjectId = calendarObject.Id,
+                Address = attendee.Address,
+                NormalizedAddress = attendee.Address.ToUpperInvariant(),
+                CommonName = attendee.CommonName,
+                Role = attendee.Role,
+                ParticipationStatus = attendee.ParticipationStatus,
+                IsOrganizer = attendee.IsOrganizer,
+            });
+        }
     }
 
     private async Task EnsureUidFreeAsync(

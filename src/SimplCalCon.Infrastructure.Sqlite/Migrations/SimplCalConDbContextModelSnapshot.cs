@@ -462,6 +462,51 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
                     b.UseTphMappingStrategy();
                 });
 
+            modelBuilder.Entity("SimplCalCon.Domain.Objects.EventAttendee", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CommonName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsOrganizer")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("NormalizedAddress")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ObjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ParticipationStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedAddress");
+
+                    b.HasIndex("ObjectId");
+
+                    b.ToTable("EventAttendees", (string)null);
+                });
+
             modelBuilder.Entity("SimplCalCon.Domain.Objects.ObjectRevision", b =>
                 {
                     b.Property<Guid>("Id")
@@ -831,6 +876,17 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
                     b.Navigation("Collection");
                 });
 
+            modelBuilder.Entity("SimplCalCon.Domain.Objects.EventAttendee", b =>
+                {
+                    b.HasOne("SimplCalCon.Domain.Objects.CalendarObject", "Object")
+                        .WithMany("Attendees")
+                        .HasForeignKey("ObjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Object");
+                });
+
             modelBuilder.Entity("SimplCalCon.Domain.Objects.ObjectRevision", b =>
                 {
                     b.HasOne("SimplCalCon.Domain.Objects.CollectionObject", "Object")
@@ -891,6 +947,11 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
             modelBuilder.Entity("SimplCalCon.Domain.Objects.CollectionObject", b =>
                 {
                     b.Navigation("Revisions");
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Objects.CalendarObject", b =>
+                {
+                    b.Navigation("Attendees");
                 });
 
             modelBuilder.Entity("SimplCalCon.Domain.Principals.Group", b =>

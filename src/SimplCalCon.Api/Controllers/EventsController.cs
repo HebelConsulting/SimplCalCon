@@ -232,5 +232,7 @@ public sealed class EventsController(
     }
 
     private static EventInput ToInput(EventWriteRequest request) =>
-        new(request.Summary, request.StartUtc, request.EndUtc, request.IsAllDay);
+        new(request.Summary, request.StartUtc, request.EndUtc, request.IsAllDay,
+            request.Organizer,
+            request.Attendees.Select(a => new AttendeeInput(a.Address, a.CommonName)).ToList());
 }

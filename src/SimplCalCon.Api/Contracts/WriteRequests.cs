@@ -33,6 +33,20 @@ public sealed class EventWriteRequest
     public DateTime? EndUtc { get; init; }
 
     public bool IsAllDay { get; init; }
+
+    /// <summary>Organizer calendar-user address (ADR 0030); defaults to the caller when attendees are present.</summary>
+    public string? Organizer { get; init; }
+
+    public IReadOnlyList<AttendeeWriteRequest> Attendees { get; init; } = [];
+}
+
+public sealed class AttendeeWriteRequest
+{
+    [Required]
+    [StringLength(320, MinimumLength = 1)]
+    public required string Address { get; init; }
+
+    public string? CommonName { get; init; }
 }
 
 public sealed class SplitEventRequest

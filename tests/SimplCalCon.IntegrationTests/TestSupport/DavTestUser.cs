@@ -18,6 +18,13 @@ internal static class DavTestUser
     public static async Task<(HttpClient Client, Guid UserId)> CreateAsync(
         AuthWebApplicationFactory factory, string label)
     {
+        var (client, userId, _) = await CreateDetailedAsync(factory, label);
+        return (client, userId);
+    }
+
+    public static async Task<(HttpClient Client, Guid UserId, string Email)> CreateDetailedAsync(
+        AuthWebApplicationFactory factory, string label)
+    {
         factory.CreateClient();
         using var scope = factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<SimplCalConDbContext>();
@@ -44,6 +51,6 @@ internal static class DavTestUser
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
             "Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"{email}:{issued.Secret}")));
-        return (client, user.Id);
+        return (client, user.Id, email);
     }
 }

@@ -12,7 +12,8 @@ namespace SimplCalCon.Api.Dav;
 internal static class CardDavResources
 {
     public static DavResource Principal(
-        string principalHref, string addressBookHomeHref, string calendarHomeHref, string displayName)
+        string principalHref, string addressBookHomeHref, string calendarHomeHref, string displayName,
+        string? email, string inboxHref, string outboxHref)
     {
         var resource = new DavResource(principalHref);
         resource.Set(DavNames.ResourceType, new XElement(DavNames.Principal));
@@ -21,6 +22,17 @@ internal static class CardDavResources
         resource.Set(DavNames.PrincipalUrl, new XElement(DavNames.Href, principalHref));
         resource.Set(DavNames.AddressBookHomeSet, new XElement(DavNames.Href, addressBookHomeHref));
         resource.Set(DavNames.CalendarHomeSet, new XElement(DavNames.Href, calendarHomeHref));
+
+        // RFC 6638 scheduling discovery: the user's calendar addresses + inbox/outbox.
+        var addresses = new List<object> { new XElement(DavNames.Href, principalHref) };
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            addresses.Insert(0, new XElement(DavNames.Href, $"mailto:{email}"));
+        }
+
+        resource.Set(DavNames.CalendarUserAddressSet, addresses);
+        resource.Set(DavNames.ScheduleInboxUrl, new XElement(DavNames.Href, inboxHref));
+        resource.Set(DavNames.ScheduleOutboxUrl, new XElement(DavNames.Href, outboxHref));
         return resource;
     }
 
