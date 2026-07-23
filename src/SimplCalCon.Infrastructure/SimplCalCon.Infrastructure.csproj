@@ -5,6 +5,27 @@
     <ProjectReference Include="..\SimplCalCon.Domain\SimplCalCon.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Provider-agnostic: the concrete providers live in the per-provider migration projects. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="OpenIddict.EntityFrameworkCore" />
+    <PackageReference Include="Ical.Net" />
+    <PackageReference Include="FolkerKinzel.VCards" />
+  </ItemGroup>
+
+  <!--
+    The auth services use framework-provided primitives (PasswordHasher<T>,
+    IMemoryCache, IHostEnvironment, options binding). The shared framework supplies
+    them without extra packages; provider packages stay in the migration projects.
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SimplCalCon.UnitTests" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

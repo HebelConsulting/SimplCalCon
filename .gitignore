@@ -55,3 +55,8 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Local SQLite databases (created by applying migrations locally)
+*.db
+*.db-shm
+*.db-wal
