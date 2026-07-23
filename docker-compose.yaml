@@ -5,16 +5,18 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    # Bootstrap as the postgres superuser; db-init.sql creates the simplcalcon app roles
+    # (LOGIN user + NOLOGIN group) and the database on first init (empty data dir).
     environment:
-      POSTGRES_USER: simplcalcon
-      POSTGRES_PASSWORD: simplcalcon
-      POSTGRES_DB: simplcalcon
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U simplcalcon -d simplcalcon"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 10
     volumes:
+      - ./deploy/db-init.sql:/docker-entrypoint-initdb.d/db-init.sql:ro
       - db-data:/var/lib/postgresql/data
 
   api:
