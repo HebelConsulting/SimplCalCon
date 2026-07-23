@@ -53,6 +53,14 @@ PostgreSQL **and** SQLite are both production providers, configurable per deploy
 
 **DbContext conventions:** `IHasConcurrencyToken.ConcurrencyToken` is configured as the EF concurrency token and regenerated to a fresh `Guid` on every insert/update in `SaveChanges` (never set by hand). DbContext invariants (currently the nested-group cycle check) throw `InvalidOperationException` for the Api boundary to translate. Enums are stored as strings; case-insensitive uniqueness uses normalized shadow columns (`NormalizedEmail`/`NormalizedName`), never a provider collation.
 
+## Authentication (ADR 0005, 0016, 0018)
+
+Two auth surfaces over one identity store. **Web/REST** uses OpenIddict (auth code + PKCE + refresh + logout); the Blazor WASM app is a seeded public client (`simplcalcon-spa`). Interactive login is a cookie session from a minimal `/Account/Login`; every token exchange re-checks the account is Active. Dev uses ephemeral in-memory keys and disables the HTTPS-transport requirement; **production requires signing + encryption certificates from config and fails fast without them**. **DAV** uses HTTP Basic on `/dav` via `DavBasicAuthenticationHandler`, backed by per-device app passwords only (never the account password) — slow PBKDF2 hash at rest + a short-lived fast-verify cache keyed by a hash of (email, secret).
+
+Account/app-password hashing is `PasswordHasher<T>` (PBKDF2) with rehash-on-login; policy is length-first (min 12) + denylist + lockout via the `AccessFailedCount`/`LockoutEnd` fields. Activation/reset tokens are SHA-256-hashed, single-use, expiring. The auth services live in `Infrastructure` behind `Application/Abstractions` ports; internal services are `internal` with `InternalsVisibleTo(SimplCalCon.UnitTests)`.
+
+**Provider selection + first-run** happen in the Api host: it reads `SimplCalCon:Database:Provider` (`Sqlite`|`Postgres`) and passes the provider to `AddSimplCalConInfrastructure` (Infrastructure stays provider-agnostic). A bootstrap `IHostedService` migrates, seeds the SPA client + platform admin (password from config → Active, else Invited + activation link logged), and — Development only — an optional demo tenant/admin. Gotcha: OpenIddict's `HttpContext` helpers (`GetOpenIddictServerRequest`) are in the **`Microsoft.AspNetCore`** namespace. The integration test assembly disables test parallelization (WebApplicationFactory cold-start contention).
+
 ## Client (Blazor WASM)
 
 Blazor WebAssembly app (ADR 0010), served by the Api host, consuming `/api` with OIDC (code + PKCE), live updates via SignalR (ADR 0012). No conventions yet — establish layout/test guards (bUnit-style) as the UI takes shape and record them here.

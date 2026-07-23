@@ -18,6 +18,7 @@ public class SqliteDesignTimeDbContextFactory : IDesignTimeDbContextFactory<Simp
             .UseSqlite(
                 "Data Source=simplcalcon.db",
                 sqlite => sqlite.MigrationsAssembly(typeof(SqliteDesignTimeDbContextFactory).Assembly.FullName))
+            .UseOpenIddict()
             .Options;
 
         return new SimplCalConDbContext(options);

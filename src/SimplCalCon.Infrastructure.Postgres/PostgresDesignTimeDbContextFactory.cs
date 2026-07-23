@@ -18,6 +18,7 @@ public class PostgresDesignTimeDbContextFactory : IDesignTimeDbContextFactory<Si
             .UseNpgsql(
                 "Host=localhost;Database=simplcalcon;Username=simplcalcon;Password=simplcalcon",
                 npgsql => npgsql.MigrationsAssembly(typeof(PostgresDesignTimeDbContextFactory).Assembly.FullName))
+            .UseOpenIddict()
             .Options;
 
         return new SimplCalConDbContext(options);
