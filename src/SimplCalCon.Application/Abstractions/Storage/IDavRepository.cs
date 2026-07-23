@@ -20,6 +20,8 @@ public interface IDavRepository
 
     Task<AddressBook?> GetAddressBookAsync(Guid ownerId, string resourceName, CancellationToken cancellationToken);
 
+    Task<AddressBook?> GetAddressBookByIdAsync(Guid id, CancellationToken cancellationToken);
+
     Task<AddressBook> CreateAddressBookAsync(
         Guid ownerId, Guid tenantId, string resourceName, string? displayName, CancellationToken cancellationToken);
 
@@ -28,6 +30,8 @@ public interface IDavRepository
     Task<IReadOnlyList<ContactObject>> ListObjectsAsync(Guid collectionId, CancellationToken cancellationToken);
 
     Task<ContactObject?> GetObjectAsync(Guid collectionId, string resourceName, CancellationToken cancellationToken);
+
+    Task<ContactObject?> GetContactObjectByIdAsync(Guid id, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ContactObject>> GetObjectsAsync(
         Guid collectionId, IReadOnlyCollection<string> resourceNames, CancellationToken cancellationToken);
@@ -49,6 +53,8 @@ public interface IDavRepository
 
     Task<Calendar?> GetCalendarAsync(Guid ownerId, string resourceName, CancellationToken cancellationToken);
 
+    Task<Calendar?> GetCalendarByIdAsync(Guid id, CancellationToken cancellationToken);
+
     Task<Calendar> CreateCalendarAsync(
         Guid ownerId,
         Guid tenantId,
@@ -63,6 +69,8 @@ public interface IDavRepository
     Task<IReadOnlyList<CalendarObject>> ListCalendarObjectsAsync(Guid collectionId, CancellationToken cancellationToken);
 
     Task<CalendarObject?> GetCalendarObjectAsync(Guid collectionId, string resourceName, CancellationToken cancellationToken);
+
+    Task<CalendarObject?> GetCalendarObjectByIdAsync(Guid id, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<CalendarObject>> GetCalendarObjectsAsync(
         Guid collectionId, IReadOnlyCollection<string> resourceNames, CancellationToken cancellationToken);
