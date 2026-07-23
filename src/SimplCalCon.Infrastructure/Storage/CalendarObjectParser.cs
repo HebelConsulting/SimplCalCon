@@ -43,6 +43,39 @@ internal static class CalendarObjectParser
         throw new MalformedObjectException("No VEVENT or VTODO component was found.");
     }
 
+    /// <summary>
+    /// Splits a single VEVENT at <paramref name="atUtc"/> into two blobs: the original
+    /// truncated to end at the split point, and a copy (fresh UID) that starts at the
+    /// split point and keeps the original end (ADR 0027). Callers validate splittability
+    /// (single non-recurring, non-all-day, in-range event) beforehand from the extracted
+    /// fields; this method performs only the mechanical blob transform.
+    /// </summary>
+    public static (string OriginalBlob, string CopyBlob, string CopyUid) SplitEventAt(string blob, DateTime atUtc)
+    {
+        var at = new CalDateTime(DateTime.SpecifyKind(atUtc, DateTimeKind.Utc));
+
+        // Two independent loads so mutating one half never touches the other.
+        var original = Load(blob);
+        PrimaryEvent(original).DtEnd = at;
+
+        var copy = Load(blob);
+        var copyEvent = PrimaryEvent(copy);
+        var copyUid = Guid.NewGuid().ToString();
+        copyEvent.Uid = copyUid;
+        copyEvent.DtStart = at;
+
+        var serializer = new CalendarSerializer();
+        return (
+            serializer.SerializeToString(original) ?? string.Empty,
+            serializer.SerializeToString(copy) ?? string.Empty,
+            copyUid);
+    }
+
+    private static Ical.Net.CalendarComponents.CalendarEvent PrimaryEvent(Ical.Net.Calendar calendar) =>
+        calendar.Events.FirstOrDefault(e => e.RecurrenceIdentifier is null)
+            ?? calendar.Events.FirstOrDefault()
+            ?? throw new MalformedObjectException("No VEVENT component was found to split.");
+
     /// <summary>Splits a multi-object calendar file into one self-contained blob per UID.</summary>
     public static IEnumerable<(string Uid, string Blob)> Split(string content)
     {

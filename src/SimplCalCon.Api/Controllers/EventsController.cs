@@ -1,18 +1,20 @@
 using Microsoft.AspNetCore.Mvc;
 using SimplCalCon.Api.Contracts;
+using SimplCalCon.Api.Errors.Exceptions.Calendars;
 using SimplCalCon.Api.Errors.Exceptions.Resources;
 using SimplCalCon.Api.Http;
 using SimplCalCon.Api.Hypermedia;
 using SimplCalCon.Application.Abstractions.Acl;
 using SimplCalCon.Application.Abstractions.Storage;
 using SimplCalCon.Domain.Acl;
+using SimplCalCon.Domain.Objects;
 
 namespace SimplCalCon.Api.Controllers;
 
 /// <summary>Events in a calendar. Reads need `read`; writes need `write-content` (ADR 0007, 0009).</summary>
 [Route("api/calendars/{calendarId:guid}/events")]
 public sealed class EventsController(
-    IDavRepository repository, IObjectStore objectStore, IObjectComposer composer, IAclService acl)
+    IDavRepository repository, IObjectStore objectStore, IObjectComposer composer, IEventSplitter splitter, IAclService acl)
     : ApiControllerBase(acl)
 {
     [HttpGet]
@@ -74,6 +76,68 @@ public sealed class EventsController(
 
         await objectStore.DeleteAsync(calendarId, existing.ResourceName, CurrentUserId, cancellationToken);
         return NoContent();
+    }
+
+    /// <summary>
+    /// Splits an event at a point in time into two same-kind events in this calendar: the
+    /// original truncated to end at the split point, and a new copy covering the remainder
+    /// (ADR 0027). A genuine state transition, so a verb sub-resource is used (ADR 0009).
+    /// </summary>
+    [HttpPost("{id:guid}/split")]
+    [RequireIfMatch]
+    public async Task<ActionResult<SplitEventResource>> Split(
+        Guid calendarId, Guid id, [FromBody] SplitEventRequest request, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(calendarId, AclRight.WriteContent, cancellationToken);
+        var existing = await FindAsync(calendarId, id, cancellationToken);
+        EnsureIfMatch(existing.ConcurrencyToken);
+
+        var atUtc = DateTime.SpecifyKind(request.AtUtc, DateTimeKind.Utc);
+        EnsureSplittable(existing, atUtc);
+
+        var result = await splitter.SplitEventAsync(calendarId, existing.ResourceName, atUtc, CurrentUserId, cancellationToken);
+        var original = await repository.GetCalendarObjectByIdAsync(result.Original.Id, cancellationToken);
+        var created = await repository.GetCalendarObjectByIdAsync(result.Copy.Id, cancellationToken);
+
+        return new SplitEventResource
+        {
+            Original = ResourceMapper.MapEvent(original!),
+            Created = ResourceMapper.MapEvent(created!),
+            Links =
+            {
+                new Link("self", $"/api/calendars/{calendarId}/events/{id}"),
+                new Link("created", $"/api/calendars/{calendarId}/events/{result.Copy.Id}"),
+            },
+        };
+    }
+
+    // Splittable = a non-recurring, non-all-day event whose start/end straddle the split point.
+    private static void EnsureSplittable(CalendarObject calendarObject, DateTime atUtc)
+    {
+        if (calendarObject.ComponentType != CalendarComponentType.Event)
+        {
+            throw new EventNotSplittableException("Only events can be split.");
+        }
+
+        if (calendarObject.IsRecurring)
+        {
+            throw new CannotSplitRecurringException();
+        }
+
+        if (calendarObject.IsAllDay)
+        {
+            throw new EventNotSplittableException("All-day events cannot be split.");
+        }
+
+        if (calendarObject.DtStartUtc is not { } start || calendarObject.DtEndUtc is not { } end)
+        {
+            throw new EventNotSplittableException("The event has no start and end to split.");
+        }
+
+        if (atUtc <= start || atUtc >= end)
+        {
+            throw new SplitPointOutOfRangeException();
+        }
     }
 
     private async Task<Domain.Objects.CalendarObject> FindAsync(Guid calendarId, Guid id, CancellationToken cancellationToken)

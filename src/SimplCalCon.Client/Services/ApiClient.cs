@@ -24,6 +24,17 @@ public sealed class ApiClient(HttpClient http)
     public Task CreateEventAsync(Guid calendarId, string summary, DateTime startUtc, DateTime? endUtc, bool isAllDay) =>
         http.PostAsJsonAsync($"api/calendars/{calendarId}/events", new { summary, startUtc, endUtc, isAllDay });
 
+    // Split an event at a point in time into two (ADR 0027). If-Match:* — the UI splits the current version.
+    public async Task SplitEventAsync(Guid calendarId, Guid eventId, DateTime atUtc)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"api/calendars/{calendarId}/events/{eventId}/split")
+        {
+            Content = JsonContent.Create(new { atUtc }),
+        };
+        request.Headers.TryAddWithoutValidation("If-Match", "*");
+        (await http.SendAsync(request)).EnsureSuccessStatusCode();
+    }
+
     public async Task<IReadOnlyList<ContactDto>> GetContactsAsync(Guid addressBookId) =>
         (await http.GetFromJsonAsync<Collection<ContactDto>>($"api/address-books/{addressBookId}/contacts"))?.Items ?? [];
 

@@ -25,6 +25,14 @@ public sealed class EventResource : HypermediaResource, IETaggedResource
     public Guid ConcurrencyToken { get; init; }
 }
 
+/// <summary>The result of splitting an event: the truncated original and the newly created tail copy (ADR 0027).</summary>
+public sealed class SplitEventResource : HypermediaResource
+{
+    public required EventResource Original { get; init; }
+
+    public required EventResource Created { get; init; }
+}
+
 /// <summary>A contact (extracted fields).</summary>
 public sealed class ContactResource : HypermediaResource, IETaggedResource
 {

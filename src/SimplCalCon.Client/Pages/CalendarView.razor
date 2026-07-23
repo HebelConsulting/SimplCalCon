@@ -19,7 +19,22 @@ else
         <ul>
             @foreach (var item in day.OrderBy(e => e.StartUtc))
             {
-                <li>@(item.IsAllDay ? "All day" : item.StartUtc!.Value.ToString("HH:mm")) — @item.Summary@(item.IsRecurring ? " ↻" : "")</li>
+                <li>
+                    @(item.IsAllDay ? "All day" : item.StartUtc!.Value.ToString("HH:mm")) — @item.Summary@(item.IsRecurring ? " ↻" : "")
+                    @if (CanSplit(item))
+                    {
+                        @if (splittingId == item.Id)
+                        {
+                            <input type="datetime-local" @bind="splitAt" />
+                            <button @onclick="() => ConfirmSplitAsync(item)">Split here</button>
+                            <button @onclick="CancelSplit">Cancel</button>
+                        }
+                        else
+                        {
+                            <button @onclick="() => BeginSplit(item)">Split</button>
+                        }
+                    }
+                </li>
             }
         </ul>
     }
@@ -43,10 +58,31 @@ else
     private IReadOnlyList<EventDto>? events;
     private string summary = string.Empty;
     private DateTime start = DateTime.UtcNow;
+    private Guid? splittingId;
+    private DateTime splitAt;
 
     protected override Task OnParametersSetAsync() => LoadAsync();
 
     private async Task LoadAsync() => events = await Api.GetEventsAsync(CalendarId);
+
+    // Only timed, non-recurring events with a start/end window can be split (ADR 0027).
+    private static bool CanSplit(EventDto e) =>
+        !e.IsAllDay && !e.IsRecurring && e.StartUtc is { } s && e.EndUtc is { } end && end > s;
+
+    private void BeginSplit(EventDto e)
+    {
+        splittingId = e.Id;
+        splitAt = e.StartUtc!.Value + (e.EndUtc!.Value - e.StartUtc!.Value) / 2;
+    }
+
+    private void CancelSplit() => splittingId = null;
+
+    private async Task ConfirmSplitAsync(EventDto e)
+    {
+        await Api.SplitEventAsync(CalendarId, e.Id, DateTime.SpecifyKind(splitAt, DateTimeKind.Utc));
+        splittingId = null;
+        await LoadAsync();
+    }
 
     private async Task AddAsync()
     {
