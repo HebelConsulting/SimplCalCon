@@ -3,7 +3,10 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Server.AspNetCore;
+using Scalar.AspNetCore;
 using SimplCalCon.Api.Authentication;
+using SimplCalCon.Api.Errors;
+using SimplCalCon.Api.Http;
 using SimplCalCon.Infrastructure;
 using SimplCalCon.Infrastructure.Configuration;
 using SimplCalCon.Infrastructure.Postgres;
@@ -12,8 +15,12 @@ using static OpenIddict.Abstractions.OpenIddictConstants;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(options => options.Filters.Add<ETagResultFilter>());
 builder.Services.AddOpenApi();
+
+// RFC 7807 Problem Details for every error (ADR 0009).
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<ProblemDetailsExceptionHandler>();
 
 // Persistence + auth services. The provider is chosen here (the host owns the
 // provider packages and migrations assemblies); Infrastructure stays agnostic.
@@ -102,9 +109,12 @@ builder.Services.AddOpenIddict()
 
 var app = builder.Build();
 
+app.UseExceptionHandler();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapScalarApiReference();
 }
 
 app.UseAuthentication();

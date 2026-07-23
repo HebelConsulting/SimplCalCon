@@ -14,6 +14,8 @@
   <ItemGroup>
     <!-- ASP.NET Core API -->
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <!-- Scalar (MIT): browsable OpenAPI UI at /scalar in Development (ADR 0009) -->
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.16.16" />
     <!--
       Security pin: Microsoft.AspNetCore.OpenApi floors Microsoft.OpenApi at the
       vulnerable 2.0.0 (GHSA-v5pm-xwqc-g5wc / NU1903, vulnerable <= 2.7.4). With

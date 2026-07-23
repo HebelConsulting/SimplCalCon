@@ -19,11 +19,6 @@ public sealed class WhoAmIController : ControllerBase
     [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     public IActionResult UserInfo() => Ok(Describe());
 
-    /// <summary>Bearer-protected REST probe.</summary>
-    [HttpGet("~/api/whoami")]
-    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    public IActionResult ApiWhoAmI() => Ok(Describe());
-
     /// <summary>DAV Basic (app-password) probe.</summary>
     [HttpGet("~/dav/whoami")]
     [Authorize(AuthenticationSchemes = DavAuthenticationDefaults.Scheme)]

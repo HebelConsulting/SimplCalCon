@@ -79,7 +79,7 @@ public sealed class AuthorizationController(SimplCalConDbContext dbContext) : Co
             return Forbid(
                 new AuthenticationProperties(new Dictionary<string, string?>
                 {
-                    [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.InvalidGrant,
+                    [OpenIddictServerAspNetCoreConstants.Properties.Error] = OpenIddictConstants.Errors.InvalidGrant,
                     [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] =
                         "The account is no longer valid.",
                 }),
