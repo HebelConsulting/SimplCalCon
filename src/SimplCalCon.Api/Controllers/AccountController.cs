@@ -8,8 +8,9 @@ using SimplCalCon.Application.Abstractions.Identity;
 namespace SimplCalCon.Api.Controllers;
 
 /// <summary>
-/// Minimal interactive login for the OIDC authorization flow (ADR 0005). The page is
-/// deliberately plain; it gets re-dressed when the web UI / ADR 0009 plumbing lands.
+/// Minimal interactive login for the OIDC authorization flow (ADR 0005). The page reuses
+/// the hosted Blazor app's stylesheets (Bootstrap + <c>css/app.css</c>, served at root by
+/// the Api) so it matches the web UI's look (ADR 0025).
 /// </summary>
 public sealed class AccountController(IUserAuthenticationService authentication) : ControllerBase
 {
@@ -54,21 +55,42 @@ public sealed class AccountController(IUserAuthenticationService authentication)
         var encodedReturn = HtmlEncoder.Default.Encode(returnUrl ?? string.Empty);
         var errorBlock = error is null
             ? string.Empty
-            : $"<p style=\"color:#b00\">{HtmlEncoder.Default.Encode(error)}</p>";
+            : $"""<div class="alert alert-danger" role="alert">{HtmlEncoder.Default.Encode(error)}</div>""";
 
         return $$"""
             <!doctype html>
-            <html><head><meta charset="utf-8"><title>Sign in — SimplCalCon</title></head>
-            <body style="font-family:system-ui;max-width:22rem;margin:4rem auto">
-            <h1>SimplCalCon</h1>
-            {{errorBlock}}
-            <form method="post" action="/Account/Login">
-              <input type="hidden" name="returnUrl" value="{{encodedReturn}}" />
-              <p><label>Email<br><input name="email" type="email" required autofocus style="width:100%"></label></p>
-              <p><label>Password<br><input name="password" type="password" required style="width:100%"></label></p>
-              <p><button type="submit">Sign in</button></p>
-            </form>
-            </body></html>
+            <html lang="en">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <title>Sign in — SimplCalCon</title>
+              <link rel="stylesheet" href="/lib/bootstrap/dist/css/bootstrap.min.css" />
+              <link rel="stylesheet" href="/css/app.css" />
+              <link rel="icon" type="image/png" href="/favicon.png" />
+            </head>
+            <body class="bg-light">
+              <main class="container" style="max-width: 24rem;">
+                <div class="card shadow-sm mt-5">
+                  <div class="card-body p-4">
+                    <h1 class="h3 mb-4 text-center">SimplCalCon</h1>
+                    {{errorBlock}}
+                    <form method="post" action="/Account/Login">
+                      <input type="hidden" name="returnUrl" value="{{encodedReturn}}" />
+                      <div class="mb-3">
+                        <label class="form-label" for="email">Email</label>
+                        <input class="form-control" id="email" name="email" type="email" required autofocus />
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label" for="password">Password</label>
+                        <input class="form-control" id="password" name="password" type="password" required />
+                      </div>
+                      <button class="btn btn-primary w-100" type="submit">Sign in</button>
+                    </form>
+                  </div>
+                </div>
+              </main>
+            </body>
+            </html>
             """;
     }
 }
