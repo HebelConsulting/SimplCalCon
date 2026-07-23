@@ -12,7 +12,11 @@ internal sealed record ExtractedCalendarObject(
     DateTime? DtStartUtc,
     DateTime? DtEndUtc,
     bool IsAllDay,
-    bool IsRecurring) : ExtractedObject(Uid);
+    bool IsRecurring,
+    IReadOnlyList<ExtractedAttendee> Attendees) : ExtractedObject(Uid);
+
+internal sealed record ExtractedAttendee(
+    string Address, string? CommonName, AttendeeRole Role, ParticipationStatus ParticipationStatus, bool IsOrganizer);
 
 internal sealed record ExtractedContact(
     string Uid,

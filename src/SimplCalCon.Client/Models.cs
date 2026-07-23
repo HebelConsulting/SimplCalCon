@@ -6,7 +6,15 @@ public sealed record CalendarDto(Guid Id, string Name, string? Color, bool Suppo
 
 public sealed record AddressBookDto(Guid Id, string Name, bool Shared);
 
-public sealed record EventDto(Guid Id, string? Summary, DateTime? StartUtc, DateTime? EndUtc, bool IsAllDay, bool IsRecurring);
+public sealed record EventDto(
+    Guid Id, string? Summary, DateTime? StartUtc, DateTime? EndUtc, bool IsAllDay, bool IsRecurring,
+    IReadOnlyList<AttendeeDto>? Attendees = null);
+
+public sealed record AttendeeDto(string Address, string? CommonName, string Role, string ParticipationStatus, bool IsOrganizer);
+
+public sealed record FreeBusyDto(string Address, DateTime FromUtc, DateTime ToUtc, bool Resolved, IReadOnlyList<BusyPeriodDto> Busy);
+
+public sealed record BusyPeriodDto(DateTime StartUtc, DateTime EndUtc);
 
 public sealed record ContactDto(
     Guid Id, string? FormattedName, string? Organization, IReadOnlyList<string> Emails, IReadOnlyList<string> Phones);

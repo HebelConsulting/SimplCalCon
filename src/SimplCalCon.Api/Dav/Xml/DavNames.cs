@@ -68,6 +68,18 @@ public static class DavNames
     public static readonly XName TimeRange = CalDav + "time-range";
     public static readonly XName CalendarTimeZone = CalDav + "calendar-timezone";
 
+    // CalDAV scheduling (RFC 6638) + free-busy (RFC 4791)
+    public static readonly XName CalendarUserAddressSet = CalDav + "calendar-user-address-set";
+    public static readonly XName ScheduleInboxUrl = CalDav + "schedule-inbox-URL";
+    public static readonly XName ScheduleOutboxUrl = CalDav + "schedule-outbox-URL";
+    public static readonly XName ScheduleInbox = CalDav + "schedule-inbox";
+    public static readonly XName ScheduleOutbox = CalDav + "schedule-outbox";
+    public static readonly XName FreeBusyQuery = CalDav + "free-busy-query";
+    public static readonly XName ScheduleResponse = CalDav + "schedule-response";
+    public static readonly XName CalResponse = CalDav + "response";
+    public static readonly XName Recipient = CalDav + "recipient";
+    public static readonly XName RequestStatus = CalDav + "request-status";
+
     // calendarserver.org (CTag)
     public static readonly XName GetCTag = CalendarServer + "getctag";
 

@@ -22,6 +22,10 @@ else
             {
                 <li>
                     @(item.IsAllDay ? "All day" : item.StartUtc!.Value.ToString("HH:mm")) — @item.Summary@(item.IsRecurring ? " ↻" : "")
+                    @if (item.Attendees is { Count: > 0 } people)
+                    {
+                        <span class="attendees"> — @string.Join(", ", people.Where(p => !p.IsOrganizer).Select(p => $"{p.CommonName ?? p.Address} ({p.ParticipationStatus})"))</span>
+                    }
                     <a href="history/calendars/@CalendarId/@item.Id">History</a>
                     @if (CanSplit(item))
                     {
@@ -49,6 +53,7 @@ else
     <div>
         <input placeholder="Summary" @bind="summary" />
         <input type="datetime-local" @bind="start" />
+        <input placeholder="Attendees (comma-separated emails)" @bind="attendees" />
         <button @onclick="AddAsync">Add</button>
     </div>
 
@@ -74,6 +79,7 @@ else
 
     private IReadOnlyList<EventDto>? events;
     private string summary = string.Empty;
+    private string attendees = string.Empty;
     private DateTime start = DateTime.UtcNow;
     private Guid? splittingId;
     private DateTime splitAt;
@@ -131,8 +137,10 @@ else
     {
         if (!string.IsNullOrWhiteSpace(summary))
         {
-            await Api.CreateEventAsync(CalendarId, summary, DateTime.SpecifyKind(start, DateTimeKind.Utc), null, false);
+            var invitees = attendees.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            await Api.CreateEventAsync(CalendarId, summary, DateTime.SpecifyKind(start, DateTimeKind.Utc), null, false, invitees);
             summary = string.Empty;
+            attendees = string.Empty;
             await LoadAsync();
         }
     }

@@ -47,6 +47,17 @@ internal static class ResourceMapper
         EndUtc = calendarObject.DtEndUtc,
         IsAllDay = calendarObject.IsAllDay,
         IsRecurring = calendarObject.IsRecurring,
+        Attendees = calendarObject.Attendees
+            .OrderByDescending(a => a.IsOrganizer)
+            .Select(a => new AttendeeResource
+            {
+                Address = a.Address,
+                CommonName = a.CommonName,
+                Role = a.Role.ToString(),
+                ParticipationStatus = a.ParticipationStatus.ToString(),
+                IsOrganizer = a.IsOrganizer,
+            })
+            .ToList(),
         DeletedAt = calendarObject.IsDeleted ? calendarObject.DeletedAt : null,
         ConcurrencyToken = calendarObject.ConcurrencyToken,
         Links = { new Link("self", $"/api/calendars/{calendarObject.CollectionId}/events/{calendarObject.Id}") },

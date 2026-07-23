@@ -56,6 +56,7 @@ public static class DependencyInjection
         services.AddScoped<IObjectStore, ObjectStore>();
         services.AddScoped<IObjectImportExport, ObjectImportExport>();
         services.AddScoped<IAccountTakeout, AccountTakeout>();
+        services.AddScoped<IFreeBusyService, FreeBusyService>();
         services.AddScoped<IObjectComposer, ObjectComposer>();
         services.AddScoped<IEventSplitter, EventSplitter>();
         services.AddScoped<IDavRepository, DavRepository>();

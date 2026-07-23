@@ -223,6 +223,7 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
     public async Task<IReadOnlyList<CalendarObject>> ListCalendarObjectsAsync(
         Guid collectionId, CancellationToken cancellationToken) =>
         await dbContext.CalendarObjects
+            .Include(o => o.Attendees)
             .Where(o => o.CollectionId == collectionId && !o.IsDeleted)
             .OrderBy(o => o.ResourceName)
             .ToListAsync(cancellationToken);
@@ -233,7 +234,9 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
             .FirstOrDefaultAsync(o => o.CollectionId == collectionId && o.ResourceName == resourceName && !o.IsDeleted, cancellationToken);
 
     public async Task<CalendarObject?> GetCalendarObjectByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        await dbContext.CalendarObjects.FirstOrDefaultAsync(o => o.Id == id && !o.IsDeleted, cancellationToken);
+        await dbContext.CalendarObjects
+            .Include(o => o.Attendees)
+            .FirstOrDefaultAsync(o => o.Id == id && !o.IsDeleted, cancellationToken);
 
     public async Task<IReadOnlyList<CalendarObject>> GetCalendarObjectsAsync(
         Guid collectionId, IReadOnlyCollection<string> resourceNames, CancellationToken cancellationToken) =>
@@ -244,7 +247,9 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
     public async Task<IReadOnlyList<CalendarObject>> QueryCalendarObjectsAsync(
         Guid collectionId, DateTime? startUtc, DateTime? endUtc, CancellationToken cancellationToken)
     {
-        var query = dbContext.CalendarObjects.Where(o => o.CollectionId == collectionId && !o.IsDeleted);
+        var query = dbContext.CalendarObjects
+            .Include(o => o.Attendees)
+            .Where(o => o.CollectionId == collectionId && !o.IsDeleted);
 
         if (startUtc is null && endUtc is null)
         {

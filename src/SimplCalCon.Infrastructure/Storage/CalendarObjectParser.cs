@@ -23,7 +23,8 @@ internal static class CalendarObjectParser
                 ToUtc(calendarEvent.DtStart),
                 ToUtc(calendarEvent.DtEnd),
                 calendarEvent.IsAllDay,
-                calendarEvent.RecurrenceRule is not null);
+                calendarEvent.RecurrenceRule is not null,
+                ExtractAttendees(calendarEvent.Organizer, calendarEvent.Attendees));
         }
 
         var todo = calendar.Todos.FirstOrDefault(t => t.RecurrenceIdentifier is null)
@@ -37,7 +38,8 @@ internal static class CalendarObjectParser
                 ToUtc(todo.DtStart),
                 ToUtc(todo.Due),
                 todo.DtStart is { HasTime: false },
-                todo.RecurrenceRule is not null);
+                todo.RecurrenceRule is not null,
+                ExtractAttendees(todo.Organizer, todo.Attendees));
         }
 
         throw new MalformedObjectException("No VEVENT or VTODO component was found.");
@@ -178,4 +180,46 @@ internal static class CalendarObjectParser
 
     private static string RequireUid(string? uid) =>
         string.IsNullOrWhiteSpace(uid) ? throw new MalformedObjectException("The component has no UID.") : uid;
+
+    // ORGANIZER (modelled as an attendee row with IsOrganizer=true) + ATTENDEEs, for the indexed table (ADR 0030).
+    private static IReadOnlyList<ExtractedAttendee> ExtractAttendees(Organizer? organizer, IList<Attendee>? attendees)
+    {
+        var result = new List<ExtractedAttendee>();
+
+        if (organizer?.Value is { } organizerAddress)
+        {
+            result.Add(new ExtractedAttendee(
+                organizerAddress.ToString(), organizer.CommonName,
+                AttendeeRole.Chair, ParticipationStatus.Accepted, IsOrganizer: true));
+        }
+
+        foreach (var attendee in attendees ?? [])
+        {
+            if (attendee.Value is { } address)
+            {
+                result.Add(new ExtractedAttendee(
+                    address.ToString(), attendee.CommonName,
+                    MapRole(attendee.Role), MapParticipationStatus(attendee.ParticipationStatus), IsOrganizer: false));
+            }
+        }
+
+        return result;
+    }
+
+    private static AttendeeRole MapRole(string? role) => role?.ToUpperInvariant() switch
+    {
+        "CHAIR" => AttendeeRole.Chair,
+        "OPT-PARTICIPANT" => AttendeeRole.OptionalParticipant,
+        "NON-PARTICIPANT" => AttendeeRole.NonParticipant,
+        _ => AttendeeRole.RequiredParticipant,
+    };
+
+    private static ParticipationStatus MapParticipationStatus(string? status) => status?.ToUpperInvariant() switch
+    {
+        "ACCEPTED" => ParticipationStatus.Accepted,
+        "DECLINED" => ParticipationStatus.Declined,
+        "TENTATIVE" => ParticipationStatus.Tentative,
+        "DELEGATED" => ParticipationStatus.Delegated,
+        _ => ParticipationStatus.NeedsAction,
+    };
 }

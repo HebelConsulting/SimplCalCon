@@ -11,7 +11,8 @@ using Calendar = SimplCalCon.Domain.Collections.Calendar;
 namespace SimplCalCon.Api.Dav.Controllers;
 
 /// <summary>A calendar collection: PROPFIND, REPORT (calendar-query/multiget/sync-collection), MKCALENDAR/MKCOL, DELETE.</summary>
-public sealed class CalDavCollectionController(IDavRepository repository, IAclService acl) : DavControllerBase
+public sealed class CalDavCollectionController(
+    IDavRepository repository, IFreeBusyService freeBusy, IAclService acl) : DavControllerBase
 {
     private static readonly string[] IcalDateFormats =
         ["yyyyMMdd'T'HHmmss'Z'", "yyyyMMdd'T'HHmmss", "yyyyMMdd"];
@@ -73,8 +74,19 @@ public sealed class CalDavCollectionController(IDavRepository repository, IAclSe
             var n when n == DavNames.SyncCollection => await SyncCollectionAsync(userId, cal, calendar, body, cancellationToken),
             var n when n == DavNames.CalendarMultiget => await MultigetAsync(userId, cal, calendar, body, cancellationToken),
             var n when n == DavNames.CalendarQuery => await QueryAsync(userId, cal, calendar, body, cancellationToken),
+            var n when n == DavNames.FreeBusyQuery => await FreeBusyAsync(calendar, body, cancellationToken),
             _ => BadRequest(),
         };
+    }
+
+    // RFC 4791 free-busy-query: return one VFREEBUSY for the calendar's owner over the time-range (ADR 0030).
+    private async Task<IActionResult> FreeBusyAsync(Calendar calendar, XElement body, CancellationToken cancellationToken)
+    {
+        var range = body.Descendants(DavNames.TimeRange).FirstOrDefault();
+        var from = ParseIcalUtc(range?.Attribute("start")?.Value) ?? DateTime.UtcNow;
+        var to = ParseIcalUtc(range?.Attribute("end")?.Value) ?? from.AddDays(7);
+        var busy = await freeBusy.GetBusyAsync(calendar.OwnerId, from, to, cancellationToken);
+        return Content(FreeBusyDocument.Build(from, to, busy), "text/calendar");
     }
 
     [HttpMkcalendar("~/dav/calendars/{userId:guid}/{cal}")]

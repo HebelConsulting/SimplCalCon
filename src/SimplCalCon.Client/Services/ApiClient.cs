@@ -22,8 +22,21 @@ public sealed class ApiClient(HttpClient http)
     public async Task<IReadOnlyList<EventDto>> GetEventsAsync(Guid calendarId) =>
         (await http.GetFromJsonAsync<Collection<EventDto>>($"api/calendars/{calendarId}/events"))?.Items ?? [];
 
-    public Task CreateEventAsync(Guid calendarId, string summary, DateTime startUtc, DateTime? endUtc, bool isAllDay) =>
-        http.PostAsJsonAsync($"api/calendars/{calendarId}/events", new { summary, startUtc, endUtc, isAllDay });
+    public Task CreateEventAsync(
+        Guid calendarId, string summary, DateTime startUtc, DateTime? endUtc, bool isAllDay,
+        IReadOnlyList<string>? attendees = null) =>
+        http.PostAsJsonAsync($"api/calendars/{calendarId}/events", new
+        {
+            summary,
+            startUtc,
+            endUtc,
+            isAllDay,
+            attendees = (attendees ?? []).Select(a => new { address = a }).ToList(),
+        });
+
+    public async Task<FreeBusyDto?> GetFreeBusyAsync(string address, DateTime fromUtc, DateTime toUtc) =>
+        await http.GetFromJsonAsync<FreeBusyDto>(
+            $"api/free-busy?address={Uri.EscapeDataString(address)}&fromUtc={fromUtc:o}&toUtc={toUtc:o}");
 
     // Split an event at a point in time into two (ADR 0027). If-Match:* — the UI splits the current version.
     public async Task SplitEventAsync(Guid calendarId, Guid eventId, DateTime atUtc)
