@@ -111,4 +111,138 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
 
         return new DavSyncResult(changed, removed, token);
     }
+
+    public async Task<Calendar?> EnsureDefaultCalendarAsync(
+        Guid ownerId, Guid? tenantId, CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.Calendars
+            .Where(c => c.OwnerId == ownerId && !c.IsDeleted)
+            .OrderBy(c => c.ResourceName)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (existing is not null)
+        {
+            return existing;
+        }
+
+        return tenantId is { } tenant
+            ? await CreateCalendarAsync(ownerId, tenant, "calendar", "Calendar", true, true, cancellationToken)
+            : null;
+    }
+
+    public async Task<IReadOnlyList<Calendar>> ListCalendarsAsync(Guid ownerId, CancellationToken cancellationToken) =>
+        await dbContext.Calendars
+            .Where(c => c.OwnerId == ownerId && !c.IsDeleted)
+            .OrderBy(c => c.ResourceName)
+            .ToListAsync(cancellationToken);
+
+    public async Task<Calendar?> GetCalendarAsync(Guid ownerId, string resourceName, CancellationToken cancellationToken) =>
+        await dbContext.Calendars
+            .FirstOrDefaultAsync(c => c.OwnerId == ownerId && c.ResourceName == resourceName && !c.IsDeleted, cancellationToken);
+
+    public async Task<Calendar> CreateCalendarAsync(
+        Guid ownerId,
+        Guid tenantId,
+        string resourceName,
+        string? displayName,
+        bool supportsEvents,
+        bool supportsTasks,
+        CancellationToken cancellationToken)
+    {
+        var calendar = new Calendar
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            OwnerId = ownerId,
+            Name = string.IsNullOrWhiteSpace(displayName) ? resourceName : displayName,
+            ResourceName = resourceName,
+            CreatedAt = clock.UtcNow.UtcDateTime,
+            SupportsEvents = supportsEvents,
+            SupportsTasks = supportsTasks,
+        };
+
+        dbContext.Calendars.Add(calendar);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return calendar;
+    }
+
+    public async Task<bool> DeleteCalendarAsync(Guid ownerId, string resourceName, CancellationToken cancellationToken)
+    {
+        var calendar = await dbContext.Calendars
+            .FirstOrDefaultAsync(c => c.OwnerId == ownerId && c.ResourceName == resourceName && !c.IsDeleted, cancellationToken);
+
+        if (calendar is null)
+        {
+            return false;
+        }
+
+        calendar.IsDeleted = true;
+        calendar.DeletedAt = clock.UtcNow.UtcDateTime;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<IReadOnlyList<CalendarObject>> ListCalendarObjectsAsync(
+        Guid collectionId, CancellationToken cancellationToken) =>
+        await dbContext.CalendarObjects
+            .Where(o => o.CollectionId == collectionId && !o.IsDeleted)
+            .OrderBy(o => o.ResourceName)
+            .ToListAsync(cancellationToken);
+
+    public async Task<CalendarObject?> GetCalendarObjectAsync(
+        Guid collectionId, string resourceName, CancellationToken cancellationToken) =>
+        await dbContext.CalendarObjects
+            .FirstOrDefaultAsync(o => o.CollectionId == collectionId && o.ResourceName == resourceName && !o.IsDeleted, cancellationToken);
+
+    public async Task<IReadOnlyList<CalendarObject>> GetCalendarObjectsAsync(
+        Guid collectionId, IReadOnlyCollection<string> resourceNames, CancellationToken cancellationToken) =>
+        await dbContext.CalendarObjects
+            .Where(o => o.CollectionId == collectionId && !o.IsDeleted && resourceNames.Contains(o.ResourceName))
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<CalendarObject>> QueryCalendarObjectsAsync(
+        Guid collectionId, DateTime? startUtc, DateTime? endUtc, CancellationToken cancellationToken)
+    {
+        var query = dbContext.CalendarObjects.Where(o => o.CollectionId == collectionId && !o.IsDeleted);
+
+        if (startUtc is null && endUtc is null)
+        {
+            return await query.ToListAsync(cancellationToken);
+        }
+
+        // Pre-filter in SQL: non-recurring objects by overlap; recurring and no-start
+        // objects are candidates that we expand precisely below.
+        query = query.Where(o => o.IsRecurring || o.DtStartUtc == null
+            || ((endUtc == null || o.DtStartUtc < endUtc)
+                && (startUtc == null || (o.DtEndUtc ?? o.DtStartUtc) >= startUtc)));
+
+        var candidates = await query.ToListAsync(cancellationToken);
+
+        return candidates
+            .Where(o => !o.IsRecurring || CalendarOccurrence.OverlapsRange(o.Blob, startUtc, endUtc))
+            .ToList();
+    }
+
+    public async Task<DavCalendarSyncResult> SyncCalendarAsync(
+        Guid collectionId, long? sinceToken, CancellationToken cancellationToken)
+    {
+        var token = await dbContext.Collections
+            .Where(c => c.Id == collectionId)
+            .Select(c => c.ChangeSequence)
+            .FirstAsync(cancellationToken);
+
+        var changed = await dbContext.CalendarObjects
+            .Where(o => o.CollectionId == collectionId && !o.IsDeleted
+                && (sinceToken == null || o.ChangeNumber > sinceToken))
+            .ToListAsync(cancellationToken);
+
+        var removed = sinceToken is null
+            ? []
+            : await dbContext.CalendarObjects
+                .Where(o => o.CollectionId == collectionId && o.IsDeleted && o.ChangeNumber > sinceToken)
+                .Select(o => o.ResourceName)
+                .ToListAsync(cancellationToken);
+
+        return new DavCalendarSyncResult(changed, removed, token);
+    }
 }

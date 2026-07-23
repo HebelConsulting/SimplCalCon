@@ -23,8 +23,8 @@ public sealed class CardDavServiceController : DavControllerBase
     [HttpOptions("~/dav/{**path}")]
     public IActionResult Options()
     {
-        Response.Headers["DAV"] = "1, 3, addressbook";
-        Response.Headers["Allow"] = "OPTIONS, GET, PUT, DELETE, PROPFIND, REPORT, MKCOL";
+        Response.Headers["DAV"] = "1, 3, addressbook, calendar-access";
+        Response.Headers["Allow"] = "OPTIONS, GET, PUT, DELETE, PROPFIND, REPORT, MKCOL, MKCALENDAR";
         return Ok();
     }
 

@@ -40,4 +40,11 @@ public abstract class DavControllerBase : ControllerBase
 
     protected static string ObjectHref(Guid userId, string book, string name) =>
         $"/dav/addressbooks/{userId}/{book}/{name}";
+
+    protected static string CalendarHomeHref(Guid userId) => $"/dav/calendars/{userId}/";
+
+    protected static string CalendarHref(Guid userId, string calendar) => $"/dav/calendars/{userId}/{calendar}/";
+
+    protected static string CalendarObjectHref(Guid userId, string calendar, string name) =>
+        $"/dav/calendars/{userId}/{calendar}/{name}";
 }

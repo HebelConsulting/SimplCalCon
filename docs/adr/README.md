@@ -27,5 +27,6 @@ rather than an edit.
 | [0019](0019-rest-plumbing-and-versioning-deferral.md) | REST plumbing as built; media-type versioning deferred |
 | [0020](0020-phase1-calendar-contact-object-store.md) | Phase 1 calendar/contact object store |
 | [0021](0021-phase1-carddav-surface.md) | Phase 1 CardDAV surface |
+| [0022](0022-phase1-caldav-surface.md) | Phase 1 CalDAV surface |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

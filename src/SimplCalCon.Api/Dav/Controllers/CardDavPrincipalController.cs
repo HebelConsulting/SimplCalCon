@@ -18,7 +18,8 @@ public sealed class CardDavPrincipalController : DavControllerBase
 
         var request = PropRequest.Parse(await DavXml.ReadBodyAsync(Request, cancellationToken));
         var displayName = User.FindFirstValue(ClaimTypes.Email) ?? userId.ToString();
-        var principal = CardDavResources.Principal(PrincipalHref(userId), HomeHref(userId), displayName);
+        var principal = CardDavResources.Principal(
+            PrincipalHref(userId), HomeHref(userId), CalendarHomeHref(userId), displayName);
 
         return DavXml.MultiStatus(MultiStatus.Build(request, [principal]));
     }
