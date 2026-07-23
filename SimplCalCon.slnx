@@ -4,6 +4,8 @@
     <Project Path="src/SimplCalCon.Application/SimplCalCon.Application.csproj" />
     <Project Path="src/SimplCalCon.Client/SimplCalCon.Client.csproj" />
     <Project Path="src/SimplCalCon.Domain/SimplCalCon.Domain.csproj" />
+    <Project Path="src/SimplCalCon.Infrastructure.Postgres/SimplCalCon.Infrastructure.Postgres.csproj" />
+    <Project Path="src/SimplCalCon.Infrastructure.Sqlite/SimplCalCon.Infrastructure.Sqlite.csproj" />
     <Project Path="src/SimplCalCon.Infrastructure/SimplCalCon.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">

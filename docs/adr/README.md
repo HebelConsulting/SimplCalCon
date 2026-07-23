@@ -21,5 +21,7 @@ rather than an edit.
 | [0013](0013-data-portability.md) | Data portability: import/export, takeout, server-to-server migration |
 | [0014](0014-scale-target.md) | Scale target: medium (hundreds of tenants) |
 | [0015](0015-inherited-engineering-conventions.md) | Inherited engineering conventions from the sibling project |
+| [0016](0016-phase1-identity-tenancy-data-model.md) | Phase 1 identity & tenancy data model |
+| [0017](0017-ef-core-persistence-and-dual-provider-migrations.md) | EF Core persistence & dual-provider migration layout |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

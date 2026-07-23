@@ -1,0 +1,162 @@
+using Microsoft.EntityFrameworkCore;
+using SimplCalCon.Domain.Authentication;
+using SimplCalCon.Domain.Common;
+using SimplCalCon.Domain.Principals;
+using SimplCalCon.Domain.Tenants;
+
+namespace SimplCalCon.Infrastructure.Persistence;
+
+public class SimplCalConDbContext(DbContextOptions<SimplCalConDbContext> options) : DbContext(options)
+{
+    public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<Principal> Principals => Set<Principal>();
+    public DbSet<User> Users => Set<User>();
+    public DbSet<Group> Groups => Set<Group>();
+    public DbSet<GroupMembership> GroupMemberships => Set<GroupMembership>();
+    public DbSet<AppPassword> AppPasswords => Set<AppPassword>();
+    public DbSet<Token> Tokens => Set<Token>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(SimplCalConDbContext).Assembly);
+
+        // Every IHasConcurrencyToken entity exposes ConcurrencyToken as its ETag
+        // concurrency token (ADR 0009). Configure it once on each root type; TPH
+        // derived types (User/Group) inherit it from Principal.
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            if (entityType.BaseType is null
+                && typeof(IHasConcurrencyToken).IsAssignableFrom(entityType.ClrType))
+            {
+                modelBuilder.Entity(entityType.ClrType)
+                    .Property(nameof(IHasConcurrencyToken.ConcurrencyToken))
+                    .IsConcurrencyToken();
+            }
+        }
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        ApplyInvariants();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override async Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        ApplyInvariants();
+        return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void ApplyInvariants()
+    {
+        RegenerateConcurrencyTokens();
+        ValidateGroupMembershipGraph();
+    }
+
+    // Never trust a caller-supplied ConcurrencyToken: stamp a fresh one on every
+    // insert/update so the stored ETag always reflects the new state.
+    private void RegenerateConcurrencyTokens()
+    {
+        foreach (var entry in ChangeTracker.Entries<IHasConcurrencyToken>())
+        {
+            if (entry.State is EntityState.Added or EntityState.Modified)
+            {
+                entry.Entity.ConcurrencyToken = Guid.NewGuid();
+            }
+        }
+    }
+
+    // Groups may nest (a member can be a group); reject any added/modified edge that
+    // would let a group transitively contain itself. Mirrors the sibling project's
+    // deliberate use of InvalidOperationException for DbContext invariants (CLAUDE.md):
+    // the Api boundary translates it into a specific ApiException.
+    private void ValidateGroupMembershipGraph()
+    {
+        var pending = ChangeTracker.Entries<GroupMembership>()
+            .Where(e => e.State is EntityState.Added or EntityState.Modified)
+            .Select(e => e.Entity)
+            .ToList();
+
+        if (pending.Count == 0)
+        {
+            return;
+        }
+
+        var groupIds = Groups.AsNoTracking().Select(g => g.Id).ToHashSet();
+        foreach (var added in ChangeTracker.Entries<Group>().Where(e => e.State == EntityState.Added))
+        {
+            groupIds.Add(added.Entity.Id);
+        }
+
+        var removed = ChangeTracker.Entries<GroupMembership>()
+            .Where(e => e.State == EntityState.Deleted)
+            .Select(e => (e.Entity.GroupId, e.Entity.MemberId))
+            .ToHashSet();
+
+        // Adjacency of "group contains group" edges only — user members are leaves
+        // and can never close a cycle.
+        var containsGroup = new Dictionary<Guid, List<Guid>>();
+        void AddEdge(Guid groupId, Guid memberId)
+        {
+            if (!groupIds.Contains(memberId))
+            {
+                return;
+            }
+
+            (containsGroup.TryGetValue(groupId, out var members)
+                ? members
+                : containsGroup[groupId] = []).Add(memberId);
+        }
+
+        foreach (var edge in GroupMemberships.AsNoTracking().Select(m => new { m.GroupId, m.MemberId }))
+        {
+            if (!removed.Contains((edge.GroupId, edge.MemberId)))
+            {
+                AddEdge(edge.GroupId, edge.MemberId);
+            }
+        }
+
+        foreach (var edge in pending)
+        {
+            AddEdge(edge.GroupId, edge.MemberId);
+        }
+
+        foreach (var edge in pending)
+        {
+            if (edge.MemberId == edge.GroupId || CanReach(containsGroup, edge.MemberId, edge.GroupId))
+            {
+                throw new InvalidOperationException(
+                    $"Group membership would create a cycle: group '{edge.GroupId}' cannot contain principal '{edge.MemberId}'.");
+            }
+        }
+    }
+
+    private static bool CanReach(Dictionary<Guid, List<Guid>> adjacency, Guid from, Guid target)
+    {
+        var stack = new Stack<Guid>();
+        var visited = new HashSet<Guid>();
+        stack.Push(from);
+
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            if (current == target)
+            {
+                return true;
+            }
+
+            if (!visited.Add(current) || !adjacency.TryGetValue(current, out var next))
+            {
+                continue;
+            }
+
+            foreach (var member in next)
+            {
+                stack.Push(member);
+            }
+        }
+
+        return false;
+    }
+}
