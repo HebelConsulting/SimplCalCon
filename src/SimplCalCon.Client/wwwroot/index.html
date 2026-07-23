@@ -29,6 +29,17 @@
         <span class="dismiss">🗙</span>
     </div>
     <script src="_content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js"></script>
+    <script>
+        // Trigger a browser download of bytes fetched with the access token (ADR 0029).
+        window.simplDownload = (fileName, contentType, base64) => {
+            const link = document.createElement('a');
+            link.href = `data:${contentType};base64,${base64}`;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        };
+    </script>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
 </body>
 

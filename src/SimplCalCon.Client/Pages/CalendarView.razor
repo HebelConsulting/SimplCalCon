@@ -1,6 +1,7 @@
 @page "/calendars/{CalendarId:guid}"
 @attribute [Authorize]
 @inject ApiClient Api
+@inject IJSRuntime JS
 
 <PageTitle>Calendar</PageTitle>
 
@@ -50,6 +51,21 @@ else
         <input type="datetime-local" @bind="start" />
         <button @onclick="AddAsync">Add</button>
     </div>
+
+    <h2>Import / export</h2>
+    <div>
+        <InputFile OnChange="OnImportFile" accept=".ics" />
+        <select @bind="conflict">
+            <option value="skip">Skip duplicates</option>
+            <option value="replace">Replace duplicates</option>
+        </select>
+        <button @onclick="ImportAsync" disabled="@(pendingImport is null)">Import</button>
+        <button @onclick="ExportAsync">Export .ics</button>
+    </div>
+    @if (importMessage is not null)
+    {
+        <p>@importMessage</p>
+    }
 }
 
 @code {
@@ -61,6 +77,9 @@ else
     private DateTime start = DateTime.UtcNow;
     private Guid? splittingId;
     private DateTime splitAt;
+    private IBrowserFile? pendingImport;
+    private string conflict = "skip";
+    private string? importMessage;
 
     protected override Task OnParametersSetAsync() => LoadAsync();
 
@@ -83,6 +102,29 @@ else
         await Api.SplitEventAsync(CalendarId, e.Id, DateTime.SpecifyKind(splitAt, DateTimeKind.Utc));
         splittingId = null;
         await LoadAsync();
+    }
+
+    private void OnImportFile(InputFileChangeEventArgs e) => pendingImport = e.File;
+
+    private async Task ImportAsync()
+    {
+        if (pendingImport is null)
+        {
+            return;
+        }
+
+        using var buffer = new MemoryStream();
+        await pendingImport.OpenReadStream(32 * 1024 * 1024).CopyToAsync(buffer);
+        var result = await Api.ImportCollectionAsync("calendars", CalendarId, buffer.ToArray(), pendingImport.Name, conflict);
+        importMessage = $"Imported {result?.Imported}, skipped {result?.Skipped}, failed {result?.Failed}.";
+        pendingImport = null;
+        await LoadAsync();
+    }
+
+    private async Task ExportAsync()
+    {
+        var bytes = await Api.ExportCollectionAsync("calendars", CalendarId);
+        await JS.InvokeVoidAsync("simplDownload", "calendar.ics", "text/calendar", Convert.ToBase64String(bytes));
     }
 
     private async Task AddAsync()

@@ -55,6 +55,7 @@ public static class DependencyInjection
         services.AddScoped<IDavCredentialAuthenticator, DavCredentialAuthenticator>();
         services.AddScoped<IObjectStore, ObjectStore>();
         services.AddScoped<IObjectImportExport, ObjectImportExport>();
+        services.AddScoped<IAccountTakeout, AccountTakeout>();
         services.AddScoped<IObjectComposer, ObjectComposer>();
         services.AddScoped<IEventSplitter, EventSplitter>();
         services.AddScoped<IDavRepository, DavRepository>();

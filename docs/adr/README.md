@@ -34,5 +34,6 @@ rather than an edit.
 | [0026](0026-phase1-sharing-management.md) | Phase 1 sharing management (REST grants + DAV privileges + UI) |
 | [0027](0027-event-splitting.md) | Event splitting (split one event into two same-kind events) |
 | [0028](0028-phase1-trash-and-version-history.md) | Phase 1 trash & version history (restore/purge + revisions) |
+| [0029](0029-phase1-data-portability.md) | Phase 1 data portability (import/export + migration takeout) |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

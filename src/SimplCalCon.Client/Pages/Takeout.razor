@@ -1,0 +1,59 @@
+@page "/takeout"
+@attribute [Authorize]
+@inject ApiClient Api
+@inject IJSRuntime JS
+
+<PageTitle>Takeout</PageTitle>
+
+<h1>Data takeout</h1>
+<p><a href="">← Collections</a></p>
+
+<h2>Download</h2>
+<p>Download all your collections as one ZIP — a self-describing archive you can import into another SimplCalCon server.</p>
+<button @onclick="DownloadAsync">Download my data (.zip)</button>
+
+<h2>Import a takeout</h2>
+<p>Upload a takeout ZIP to recreate its collections here (each is imported as a new collection).</p>
+<div>
+    <InputFile OnChange="OnFile" accept=".zip" />
+    <select @bind="conflict">
+        <option value="skip">Skip duplicate objects</option>
+        <option value="replace">Replace duplicate objects</option>
+    </select>
+    <button @onclick="ImportAsync" disabled="@(pending is null || busy)">Import</button>
+</div>
+@if (message is not null)
+{
+    <p>@message</p>
+}
+
+@code {
+    private IBrowserFile? pending;
+    private string conflict = "skip";
+    private string? message;
+    private bool busy;
+
+    private void OnFile(InputFileChangeEventArgs e) => pending = e.File;
+
+    private async Task DownloadAsync()
+    {
+        var bytes = await Api.DownloadTakeoutAsync();
+        await JS.InvokeVoidAsync("simplDownload", "takeout.zip", "application/zip", Convert.ToBase64String(bytes));
+    }
+
+    private async Task ImportAsync()
+    {
+        if (pending is null)
+        {
+            return;
+        }
+
+        busy = true;
+        using var buffer = new MemoryStream();
+        await pending.OpenReadStream(64 * 1024 * 1024).CopyToAsync(buffer);
+        var result = await Api.ImportTakeoutAsync(buffer.ToArray(), pending.Name, conflict);
+        message = $"Created {result?.CollectionsCreated} collections; imported {result?.Imported}, skipped {result?.Skipped}, failed {result?.Failed}.";
+        pending = null;
+        busy = false;
+    }
+}
