@@ -230,6 +230,38 @@ namespace SimplCalCon.Infrastructure.Postgres.Migrations
                     b.ToTable("OpenIddictTokens", (string)null);
                 });
 
+            modelBuilder.Entity("SimplCalCon.Domain.Acl.AclEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PrincipalId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Rights")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PrincipalId");
+
+                    b.HasIndex("CollectionId", "PrincipalId")
+                        .IsUnique();
+
+                    b.ToTable("AclEntries", (string)null);
+                });
+
             modelBuilder.Entity("SimplCalCon.Domain.Authentication.AppPassword", b =>
                 {
                     b.Property<Guid>("Id")
@@ -731,6 +763,25 @@ namespace SimplCalCon.Infrastructure.Postgres.Migrations
                     b.Navigation("Application");
 
                     b.Navigation("Authorization");
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Acl.AclEntry", b =>
+                {
+                    b.HasOne("SimplCalCon.Domain.Collections.Collection", "Collection")
+                        .WithMany()
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SimplCalCon.Domain.Principals.Principal", "Principal")
+                        .WithMany()
+                        .HasForeignKey("PrincipalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Collection");
+
+                    b.Navigation("Principal");
                 });
 
             modelBuilder.Entity("SimplCalCon.Domain.Authentication.AppPassword", b =>

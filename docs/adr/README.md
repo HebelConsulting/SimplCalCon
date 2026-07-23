@@ -28,5 +28,6 @@ rather than an edit.
 | [0020](0020-phase1-calendar-contact-object-store.md) | Phase 1 calendar/contact object store |
 | [0021](0021-phase1-carddav-surface.md) | Phase 1 CardDAV surface |
 | [0022](0022-phase1-caldav-surface.md) | Phase 1 CalDAV surface |
+| [0023](0023-phase1-acl-sharing.md) | Phase 1 ACL sharing (as built) |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

@@ -3,24 +3,29 @@ using Microsoft.AspNetCore.Mvc;
 using SimplCalCon.Api.Dav.Http;
 using SimplCalCon.Api.Dav.Xml;
 using SimplCalCon.Api.Http;
+using SimplCalCon.Application.Abstractions.Acl;
 using SimplCalCon.Application.Abstractions.Storage;
+using SimplCalCon.Domain.Acl;
+using SimplCalCon.Domain.Collections;
 using SimplCalCon.Domain.Objects;
 using SimplCalCon.Domain.Objects.Exceptions;
 
 namespace SimplCalCon.Api.Dav.Controllers;
 
-/// <summary>A contact resource: GET/PUT/DELETE with ETag conditionals, and PROPFIND.</summary>
-public sealed class CardDavObjectController(IDavRepository repository, IObjectStore objectStore) : DavControllerBase
+/// <summary>A contact resource: GET/PUT/DELETE with ETag conditionals, and PROPFIND (ACL-enforced, ADR 0007).</summary>
+public sealed class CardDavObjectController(
+    IDavRepository repository, IObjectStore objectStore, IAclService acl) : DavControllerBase
 {
     [HttpGet("~/dav/addressbooks/{userId:guid}/{book}/{name}")]
     public async Task<IActionResult> Get(Guid userId, string book, string name, CancellationToken cancellationToken)
     {
-        if (RequireOwner(userId) is { } forbid)
+        var (addressBook, access) = await ResolveAsync(userId, book, AclRight.Read, cancellationToken);
+        if (access is not null)
         {
-            return forbid;
+            return access;
         }
 
-        var contact = await FindObjectAsync(userId, book, name, cancellationToken);
+        var contact = await repository.GetObjectAsync(addressBook!.Id, name, cancellationToken);
         if (contact is null)
         {
             return NotFound();
@@ -33,12 +38,13 @@ public sealed class CardDavObjectController(IDavRepository repository, IObjectSt
     [HttpPropfind("~/dav/addressbooks/{userId:guid}/{book}/{name}")]
     public async Task<IActionResult> Propfind(Guid userId, string book, string name, CancellationToken cancellationToken)
     {
-        if (RequireOwner(userId) is { } forbid)
+        var (addressBook, access) = await ResolveAsync(userId, book, AclRight.Read, cancellationToken);
+        if (access is not null)
         {
-            return forbid;
+            return access;
         }
 
-        var contact = await FindObjectAsync(userId, book, name, cancellationToken);
+        var contact = await repository.GetObjectAsync(addressBook!.Id, name, cancellationToken);
         if (contact is null)
         {
             return NotFound();
@@ -52,19 +58,14 @@ public sealed class CardDavObjectController(IDavRepository repository, IObjectSt
     [HttpPut("~/dav/addressbooks/{userId:guid}/{book}/{name}")]
     public async Task<IActionResult> Put(Guid userId, string book, string name, CancellationToken cancellationToken)
     {
-        if (RequireOwner(userId) is { } forbid)
+        var (addressBook, access) = await ResolveAsync(userId, book, AclRight.WriteContent, cancellationToken);
+        if (access is not null)
         {
-            return forbid;
+            return access;
         }
 
-        var addressBook = await repository.GetAddressBookAsync(userId, book, cancellationToken);
-        if (addressBook is null)
-        {
-            return NotFound();
-        }
-
-        var existing = await repository.GetObjectAsync(addressBook.Id, name, cancellationToken);
-        if (PreconditionFailed(existing))
+        var existing = await repository.GetObjectAsync(addressBook!.Id, name, cancellationToken);
+        if (PreconditionFailed(existing?.ConcurrencyToken, existing is not null))
         {
             return StatusCode(StatusCodes.Status412PreconditionFailed);
         }
@@ -92,24 +93,19 @@ public sealed class CardDavObjectController(IDavRepository repository, IObjectSt
     [HttpDelete("~/dav/addressbooks/{userId:guid}/{book}/{name}")]
     public async Task<IActionResult> Delete(Guid userId, string book, string name, CancellationToken cancellationToken)
     {
-        if (RequireOwner(userId) is { } forbid)
+        var (addressBook, access) = await ResolveAsync(userId, book, AclRight.WriteContent, cancellationToken);
+        if (access is not null)
         {
-            return forbid;
+            return access;
         }
 
-        var addressBook = await repository.GetAddressBookAsync(userId, book, cancellationToken);
-        if (addressBook is null)
-        {
-            return NotFound();
-        }
-
-        var existing = await repository.GetObjectAsync(addressBook.Id, name, cancellationToken);
+        var existing = await repository.GetObjectAsync(addressBook!.Id, name, cancellationToken);
         if (existing is null)
         {
             return NotFound();
         }
 
-        if (PreconditionFailed(existing))
+        if (PreconditionFailed(existing.ConcurrencyToken, true))
         {
             return StatusCode(StatusCodes.Status412PreconditionFailed);
         }
@@ -118,18 +114,26 @@ public sealed class CardDavObjectController(IDavRepository repository, IObjectSt
         return NoContent();
     }
 
-    private async Task<ContactObject?> FindObjectAsync(
-        Guid userId, string book, string name, CancellationToken cancellationToken)
+    // Resolves the collection (owned by the route principal) and checks the caller's rights;
+    // returns a non-null result to short-circuit with 404/403.
+    private async Task<(AddressBook? Collection, IActionResult? Result)> ResolveAsync(
+        Guid ownerId, string book, AclRight required, CancellationToken cancellationToken)
     {
-        var addressBook = await repository.GetAddressBookAsync(userId, book, cancellationToken);
-        return addressBook is null ? null : await repository.GetObjectAsync(addressBook.Id, name, cancellationToken);
+        var addressBook = await repository.GetAddressBookAsync(ownerId, book, cancellationToken);
+        if (addressBook is null)
+        {
+            return (null, NotFound());
+        }
+
+        return await HasAccessAsync(addressBook, required, acl, cancellationToken)
+            ? (addressBook, null)
+            : (null, ForbidDav());
     }
 
-    // Enforces If-Match (must match current ETag) and If-None-Match: * (must not exist).
-    private bool PreconditionFailed(ContactObject? existing)
+    private bool PreconditionFailed(Guid? currentToken, bool exists)
     {
         var ifNoneMatch = Request.Headers.IfNoneMatch.ToString();
-        if (ifNoneMatch == "*" && existing is not null)
+        if (ifNoneMatch == "*" && exists)
         {
             return true;
         }
@@ -140,8 +144,8 @@ public sealed class CardDavObjectController(IDavRepository repository, IObjectSt
             return false;
         }
 
-        return existing is null
+        return currentToken is null
             || !ETag.TryParse(ifMatch, out var token)
-            || token != existing.ConcurrencyToken;
+            || token != currentToken;
     }
 }

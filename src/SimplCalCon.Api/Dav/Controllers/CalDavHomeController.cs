@@ -37,10 +37,12 @@ public sealed class CalDavHomeController(IDavRepository repository) : DavControl
 
         if (Depth() >= 1)
         {
-            foreach (var calendar in await repository.ListCalendarsAsync(userId, cancellationToken))
+            // Own calendars plus calendars shared with the user; a shared calendar is
+            // rendered at its owner's URL (ADR 0007).
+            foreach (var calendar in await repository.ListAccessibleCalendarsAsync(userId, cancellationToken))
             {
                 resources.Add(CalDavResources.CalendarCollection(
-                    CalendarHref(userId, calendar.ResourceName), PrincipalHref(userId), calendar));
+                    CalendarHref(calendar.OwnerId, calendar.ResourceName), PrincipalHref(calendar.OwnerId), calendar));
             }
         }
 

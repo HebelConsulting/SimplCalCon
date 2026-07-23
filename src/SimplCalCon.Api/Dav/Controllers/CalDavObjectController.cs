@@ -3,24 +3,28 @@ using Microsoft.AspNetCore.Mvc;
 using SimplCalCon.Api.Dav.Http;
 using SimplCalCon.Api.Dav.Xml;
 using SimplCalCon.Api.Http;
+using SimplCalCon.Application.Abstractions.Acl;
 using SimplCalCon.Application.Abstractions.Storage;
-using SimplCalCon.Domain.Objects;
+using SimplCalCon.Domain.Acl;
 using SimplCalCon.Domain.Objects.Exceptions;
+using Calendar = SimplCalCon.Domain.Collections.Calendar;
 
 namespace SimplCalCon.Api.Dav.Controllers;
 
-/// <summary>A calendar object resource: GET/PUT/DELETE with ETag conditionals, and PROPFIND.</summary>
-public sealed class CalDavObjectController(IDavRepository repository, IObjectStore objectStore) : DavControllerBase
+/// <summary>A calendar object resource: GET/PUT/DELETE with ETag conditionals, and PROPFIND (ACL-enforced, ADR 0007).</summary>
+public sealed class CalDavObjectController(
+    IDavRepository repository, IObjectStore objectStore, IAclService acl) : DavControllerBase
 {
     [HttpGet("~/dav/calendars/{userId:guid}/{cal}/{name}")]
     public async Task<IActionResult> Get(Guid userId, string cal, string name, CancellationToken cancellationToken)
     {
-        if (RequireOwner(userId) is { } forbid)
+        var (calendar, access) = await ResolveAsync(userId, cal, AclRight.Read, cancellationToken);
+        if (access is not null)
         {
-            return forbid;
+            return access;
         }
 
-        var calendarObject = await FindObjectAsync(userId, cal, name, cancellationToken);
+        var calendarObject = await repository.GetCalendarObjectAsync(calendar!.Id, name, cancellationToken);
         if (calendarObject is null)
         {
             return NotFound();
@@ -33,12 +37,13 @@ public sealed class CalDavObjectController(IDavRepository repository, IObjectSto
     [HttpPropfind("~/dav/calendars/{userId:guid}/{cal}/{name}")]
     public async Task<IActionResult> Propfind(Guid userId, string cal, string name, CancellationToken cancellationToken)
     {
-        if (RequireOwner(userId) is { } forbid)
+        var (calendar, access) = await ResolveAsync(userId, cal, AclRight.Read, cancellationToken);
+        if (access is not null)
         {
-            return forbid;
+            return access;
         }
 
-        var calendarObject = await FindObjectAsync(userId, cal, name, cancellationToken);
+        var calendarObject = await repository.GetCalendarObjectAsync(calendar!.Id, name, cancellationToken);
         if (calendarObject is null)
         {
             return NotFound();
@@ -52,19 +57,14 @@ public sealed class CalDavObjectController(IDavRepository repository, IObjectSto
     [HttpPut("~/dav/calendars/{userId:guid}/{cal}/{name}")]
     public async Task<IActionResult> Put(Guid userId, string cal, string name, CancellationToken cancellationToken)
     {
-        if (RequireOwner(userId) is { } forbid)
+        var (calendar, access) = await ResolveAsync(userId, cal, AclRight.WriteContent, cancellationToken);
+        if (access is not null)
         {
-            return forbid;
+            return access;
         }
 
-        var calendar = await repository.GetCalendarAsync(userId, cal, cancellationToken);
-        if (calendar is null)
-        {
-            return NotFound();
-        }
-
-        var existing = await repository.GetCalendarObjectAsync(calendar.Id, name, cancellationToken);
-        if (PreconditionFailed(existing))
+        var existing = await repository.GetCalendarObjectAsync(calendar!.Id, name, cancellationToken);
+        if (PreconditionFailed(existing?.ConcurrencyToken, existing is not null))
         {
             return StatusCode(StatusCodes.Status412PreconditionFailed);
         }
@@ -92,24 +92,19 @@ public sealed class CalDavObjectController(IDavRepository repository, IObjectSto
     [HttpDelete("~/dav/calendars/{userId:guid}/{cal}/{name}")]
     public async Task<IActionResult> Delete(Guid userId, string cal, string name, CancellationToken cancellationToken)
     {
-        if (RequireOwner(userId) is { } forbid)
+        var (calendar, access) = await ResolveAsync(userId, cal, AclRight.WriteContent, cancellationToken);
+        if (access is not null)
         {
-            return forbid;
+            return access;
         }
 
-        var calendar = await repository.GetCalendarAsync(userId, cal, cancellationToken);
-        if (calendar is null)
-        {
-            return NotFound();
-        }
-
-        var existing = await repository.GetCalendarObjectAsync(calendar.Id, name, cancellationToken);
+        var existing = await repository.GetCalendarObjectAsync(calendar!.Id, name, cancellationToken);
         if (existing is null)
         {
             return NotFound();
         }
 
-        if (PreconditionFailed(existing))
+        if (PreconditionFailed(existing.ConcurrencyToken, true))
         {
             return StatusCode(StatusCodes.Status412PreconditionFailed);
         }
@@ -118,17 +113,24 @@ public sealed class CalDavObjectController(IDavRepository repository, IObjectSto
         return NoContent();
     }
 
-    private async Task<CalendarObject?> FindObjectAsync(
-        Guid userId, string cal, string name, CancellationToken cancellationToken)
+    private async Task<(Calendar? Collection, IActionResult? Result)> ResolveAsync(
+        Guid ownerId, string cal, AclRight required, CancellationToken cancellationToken)
     {
-        var calendar = await repository.GetCalendarAsync(userId, cal, cancellationToken);
-        return calendar is null ? null : await repository.GetCalendarObjectAsync(calendar.Id, name, cancellationToken);
+        var calendar = await repository.GetCalendarAsync(ownerId, cal, cancellationToken);
+        if (calendar is null)
+        {
+            return (null, NotFound());
+        }
+
+        return await HasAccessAsync(calendar, required, acl, cancellationToken)
+            ? (calendar, null)
+            : (null, ForbidDav());
     }
 
-    private bool PreconditionFailed(CalendarObject? existing)
+    private bool PreconditionFailed(Guid? currentToken, bool exists)
     {
         var ifNoneMatch = Request.Headers.IfNoneMatch.ToString();
-        if (ifNoneMatch == "*" && existing is not null)
+        if (ifNoneMatch == "*" && exists)
         {
             return true;
         }
@@ -139,8 +141,8 @@ public sealed class CalDavObjectController(IDavRepository repository, IObjectSto
             return false;
         }
 
-        return existing is null
+        return currentToken is null
             || !ETag.TryParse(ifMatch, out var token)
-            || token != existing.ConcurrencyToken;
+            || token != currentToken;
     }
 }

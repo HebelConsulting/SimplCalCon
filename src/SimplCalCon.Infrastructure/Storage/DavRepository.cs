@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SimplCalCon.Application.Abstractions;
 using SimplCalCon.Application.Abstractions.Storage;
+using SimplCalCon.Domain.Acl;
 using SimplCalCon.Domain.Collections;
 using SimplCalCon.Domain.Objects;
 using SimplCalCon.Infrastructure.Persistence;
@@ -32,6 +33,20 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
             .Where(a => a.OwnerId == ownerId && !a.IsDeleted)
             .OrderBy(a => a.ResourceName)
             .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<AddressBook>> ListAccessibleAddressBooksAsync(
+        Guid userId, CancellationToken cancellationToken)
+    {
+        var principalIds = await PrincipalGraph.GetPrincipalIdsAsync(dbContext, userId, cancellationToken);
+
+        return await dbContext.AddressBooks
+            .Where(a => !a.IsDeleted && (a.OwnerId == userId
+                || dbContext.AclEntries.Any(e => e.CollectionId == a.Id
+                    && principalIds.Contains(e.PrincipalId)
+                    && (e.Rights & AclRight.Read) == AclRight.Read)))
+            .OrderBy(a => a.ResourceName)
+            .ToListAsync(cancellationToken);
+    }
 
     public async Task<AddressBook?> GetAddressBookAsync(
         Guid ownerId, string resourceName, CancellationToken cancellationToken) =>
@@ -135,6 +150,20 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
             .Where(c => c.OwnerId == ownerId && !c.IsDeleted)
             .OrderBy(c => c.ResourceName)
             .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Calendar>> ListAccessibleCalendarsAsync(
+        Guid userId, CancellationToken cancellationToken)
+    {
+        var principalIds = await PrincipalGraph.GetPrincipalIdsAsync(dbContext, userId, cancellationToken);
+
+        return await dbContext.Calendars
+            .Where(c => !c.IsDeleted && (c.OwnerId == userId
+                || dbContext.AclEntries.Any(e => e.CollectionId == c.Id
+                    && principalIds.Contains(e.PrincipalId)
+                    && (e.Rights & AclRight.Read) == AclRight.Read)))
+            .OrderBy(c => c.ResourceName)
+            .ToListAsync(cancellationToken);
+    }
 
     public async Task<Calendar?> GetCalendarAsync(Guid ownerId, string resourceName, CancellationToken cancellationToken) =>
         await dbContext.Calendars

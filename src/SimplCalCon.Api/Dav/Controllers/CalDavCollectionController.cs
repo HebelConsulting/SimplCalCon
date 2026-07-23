@@ -3,13 +3,15 @@ using System.Xml.Linq;
 using Microsoft.AspNetCore.Mvc;
 using SimplCalCon.Api.Dav.Http;
 using SimplCalCon.Api.Dav.Xml;
+using SimplCalCon.Application.Abstractions.Acl;
 using SimplCalCon.Application.Abstractions.Storage;
+using SimplCalCon.Domain.Acl;
 using Calendar = SimplCalCon.Domain.Collections.Calendar;
 
 namespace SimplCalCon.Api.Dav.Controllers;
 
 /// <summary>A calendar collection: PROPFIND, REPORT (calendar-query/multiget/sync-collection), MKCALENDAR/MKCOL, DELETE.</summary>
-public sealed class CalDavCollectionController(IDavRepository repository) : DavControllerBase
+public sealed class CalDavCollectionController(IDavRepository repository, IAclService acl) : DavControllerBase
 {
     private static readonly string[] IcalDateFormats =
         ["yyyyMMdd'T'HHmmss'Z'", "yyyyMMdd'T'HHmmss", "yyyyMMdd"];
@@ -17,15 +19,15 @@ public sealed class CalDavCollectionController(IDavRepository repository) : DavC
     [HttpPropfind("~/dav/calendars/{userId:guid}/{cal}")]
     public async Task<IActionResult> Propfind(Guid userId, string cal, CancellationToken cancellationToken)
     {
-        if (RequireOwner(userId) is { } forbid)
-        {
-            return forbid;
-        }
-
         var calendar = await repository.GetCalendarAsync(userId, cal, cancellationToken);
         if (calendar is null)
         {
             return NotFound();
+        }
+
+        if (!await HasAccessAsync(calendar, AclRight.Read, acl, cancellationToken))
+        {
+            return ForbidDav();
         }
 
         var request = PropRequest.Parse(await DavXml.ReadBodyAsync(Request, cancellationToken));
@@ -48,15 +50,15 @@ public sealed class CalDavCollectionController(IDavRepository repository) : DavC
     [HttpReport("~/dav/calendars/{userId:guid}/{cal}")]
     public async Task<IActionResult> Report(Guid userId, string cal, CancellationToken cancellationToken)
     {
-        if (RequireOwner(userId) is { } forbid)
-        {
-            return forbid;
-        }
-
         var calendar = await repository.GetCalendarAsync(userId, cal, cancellationToken);
         if (calendar is null)
         {
             return NotFound();
+        }
+
+        if (!await HasAccessAsync(calendar, AclRight.Read, acl, cancellationToken))
+        {
+            return ForbidDav();
         }
 
         var body = await DavXml.ReadBodyAsync(Request, cancellationToken);

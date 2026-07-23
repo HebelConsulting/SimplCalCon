@@ -2,26 +2,28 @@ using System.Xml.Linq;
 using Microsoft.AspNetCore.Mvc;
 using SimplCalCon.Api.Dav.Http;
 using SimplCalCon.Api.Dav.Xml;
+using SimplCalCon.Application.Abstractions.Acl;
 using SimplCalCon.Application.Abstractions.Storage;
+using SimplCalCon.Domain.Acl;
 using SimplCalCon.Domain.Collections;
 
 namespace SimplCalCon.Api.Dav.Controllers;
 
 /// <summary>An address-book collection: PROPFIND listing, REPORT (multiget/query/sync-collection), MKCOL, DELETE.</summary>
-public sealed class CardDavCollectionController(IDavRepository repository) : DavControllerBase
+public sealed class CardDavCollectionController(IDavRepository repository, IAclService acl) : DavControllerBase
 {
     [HttpPropfind("~/dav/addressbooks/{userId:guid}/{book}")]
     public async Task<IActionResult> Propfind(Guid userId, string book, CancellationToken cancellationToken)
     {
-        if (RequireOwner(userId) is { } forbid)
-        {
-            return forbid;
-        }
-
         var addressBook = await repository.GetAddressBookAsync(userId, book, cancellationToken);
         if (addressBook is null)
         {
             return NotFound();
+        }
+
+        if (!await HasAccessAsync(addressBook, AclRight.Read, acl, cancellationToken))
+        {
+            return ForbidDav();
         }
 
         var request = PropRequest.Parse(await DavXml.ReadBodyAsync(Request, cancellationToken));
@@ -45,15 +47,15 @@ public sealed class CardDavCollectionController(IDavRepository repository) : Dav
     [HttpReport("~/dav/addressbooks/{userId:guid}/{book}")]
     public async Task<IActionResult> Report(Guid userId, string book, CancellationToken cancellationToken)
     {
-        if (RequireOwner(userId) is { } forbid)
-        {
-            return forbid;
-        }
-
         var addressBook = await repository.GetAddressBookAsync(userId, book, cancellationToken);
         if (addressBook is null)
         {
             return NotFound();
+        }
+
+        if (!await HasAccessAsync(addressBook, AclRight.Read, acl, cancellationToken))
+        {
+            return ForbidDav();
         }
 
         var body = await DavXml.ReadBodyAsync(Request, cancellationToken);

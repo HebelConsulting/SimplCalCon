@@ -15,6 +15,9 @@ public interface IDavRepository
 
     Task<IReadOnlyList<AddressBook>> ListAddressBooksAsync(Guid ownerId, CancellationToken cancellationToken);
 
+    /// <summary>Address books the user owns or has a read grant on (directly or via a group) — ADR 0007.</summary>
+    Task<IReadOnlyList<AddressBook>> ListAccessibleAddressBooksAsync(Guid userId, CancellationToken cancellationToken);
+
     Task<AddressBook?> GetAddressBookAsync(Guid ownerId, string resourceName, CancellationToken cancellationToken);
 
     Task<AddressBook> CreateAddressBookAsync(
@@ -40,6 +43,9 @@ public interface IDavRepository
     Task<Calendar?> EnsureDefaultCalendarAsync(Guid ownerId, Guid? tenantId, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<Calendar>> ListCalendarsAsync(Guid ownerId, CancellationToken cancellationToken);
+
+    /// <summary>Calendars the user owns or has a read grant on (directly or via a group) — ADR 0007.</summary>
+    Task<IReadOnlyList<Calendar>> ListAccessibleCalendarsAsync(Guid userId, CancellationToken cancellationToken);
 
     Task<Calendar?> GetCalendarAsync(Guid ownerId, string resourceName, CancellationToken cancellationToken);
 
