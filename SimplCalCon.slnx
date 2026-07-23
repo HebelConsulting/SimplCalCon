@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SimplCalCon.Api/SimplCalCon.Api.csproj" />
+    <Project Path="src/SimplCalCon.Application/SimplCalCon.Application.csproj" />
+    <Project Path="src/SimplCalCon.Client/SimplCalCon.Client.csproj" />
+    <Project Path="src/SimplCalCon.Domain/SimplCalCon.Domain.csproj" />
+    <Project Path="src/SimplCalCon.Infrastructure/SimplCalCon.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SimplCalCon.E2ETests/SimplCalCon.E2ETests.csproj" />
+    <Project Path="tests/SimplCalCon.IntegrationTests/SimplCalCon.IntegrationTests.csproj" />
+    <Project Path="tests/SimplCalCon.UnitTests/SimplCalCon.UnitTests.csproj" />
+  </Folder>
+</Solution>

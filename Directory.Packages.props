@@ -1,0 +1,40 @@
+<Project>
+
+  <!--
+    Central Package Management: every NuGet version is declared here once,
+    and each project references packages without a Version attribute. This is
+    the single source of truth the CI license gate and the version-pinned
+    security overrides key off (docs/adr/0009, 0015).
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- ASP.NET Core API -->
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <!--
+      Security pin: Microsoft.AspNetCore.OpenApi floors Microsoft.OpenApi at the
+      vulnerable 2.0.0 (GHSA-v5pm-xwqc-g5wc / NU1903, vulnerable <= 2.7.4). With
+      transitive pinning enabled, declaring the fixed version here bumps it
+      without needing an explicit PackageReference. See docs/adr/0009.
+    -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Blazor WebAssembly client -->
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Test stack -->
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+</Project>
