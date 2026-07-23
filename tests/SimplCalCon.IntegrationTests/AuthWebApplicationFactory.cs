@@ -19,6 +19,14 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
     public const string DemoAdminEmail = "admin@demo.test";
     public const string DemoAdminPassword = "Demo-Admin-Passphrase-2026";
 
+    // CI can run the suite against PostgreSQL by setting these; the default is a
+    // throwaway per-factory SQLite file (ADR 0001, 0024).
+    private static readonly bool UsePostgres = string.Equals(
+        Environment.GetEnvironmentVariable("SIMPLCALCON_TEST_DB_PROVIDER"), "Postgres", StringComparison.OrdinalIgnoreCase);
+
+    private static readonly string? PostgresConnection =
+        Environment.GetEnvironmentVariable("SIMPLCALCON_TEST_DB_CONNECTION");
+
     private readonly string _databasePath =
         Path.Combine(Path.GetTempPath(), $"simplcalcon-it-{Guid.NewGuid():N}.db");
 
@@ -30,8 +38,9 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
         {
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["SimplCalCon:Database:Provider"] = "Sqlite",
-                ["SimplCalCon:Database:ConnectionString"] = $"Data Source={_databasePath}",
+                ["SimplCalCon:Database:Provider"] = UsePostgres ? "Postgres" : "Sqlite",
+                ["SimplCalCon:Database:ConnectionString"] =
+                    UsePostgres ? PostgresConnection : $"Data Source={_databasePath}",
                 ["SimplCalCon:SpaClient:BaseUrl"] = SpaBaseUrl,
                 ["SimplCalCon:Bootstrap:PlatformAdmin:Email"] = "platform@simplcalcon.test",
                 ["SimplCalCon:Bootstrap:PlatformAdmin:Password"] = "Platform-Admin-Passphrase-2026",
@@ -46,7 +55,7 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        if (disposing && File.Exists(_databasePath))
+        if (disposing && !UsePostgres && File.Exists(_databasePath))
         {
             try
             {

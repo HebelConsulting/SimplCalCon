@@ -2,10 +2,12 @@ using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using OpenIddict.Server.AspNetCore;
 using Scalar.AspNetCore;
 using SimplCalCon.Api.Authentication;
 using SimplCalCon.Api.Errors;
+using SimplCalCon.Api.Health;
 using SimplCalCon.Api.Http;
 using SimplCalCon.Infrastructure;
 using SimplCalCon.Infrastructure.Configuration;
@@ -17,6 +19,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers(options => options.Filters.Add<ETagResultFilter>());
 builder.Services.AddOpenApi();
+
+// Liveness (/health/live) reports process health; readiness (/health/ready) also
+// checks the database (ADR 0024). Kubernetes and the Docker HEALTHCHECK target these.
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
 
 // RFC 7807 Problem Details for every error (ADR 0009).
 builder.Services.AddProblemDetails();
@@ -120,6 +127,9 @@ if (app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") });
 
 app.Run();
 

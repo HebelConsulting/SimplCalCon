@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "simplcalcon.fullname" . }}
+  labels:
+    {{- include "simplcalcon.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "simplcalcon.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "simplcalcon.selectorLabels" . | nindent 8 }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: {{ .Values.aspnetcoreEnvironment | quote }}
+            - name: SimplCalCon__Database__Provider
+              value: {{ .Values.database.provider | quote }}
+            - name: SimplCalCon__Database__ConnectionString
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "simplcalcon.secretName" . }}
+                  key: connection-string
+            {{- with .Values.bootstrap.platformAdminEmail }}
+            - name: SimplCalCon__Bootstrap__PlatformAdmin__Email
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if .Values.bootstrap.platformAdminPassword }}
+            - name: SimplCalCon__Bootstrap__PlatformAdmin__Password
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "simplcalcon.secretName" . }}
+                  key: platform-admin-password
+            {{- end }}
+            {{- if .Values.openIddict.certificateSecretName }}
+            - name: SimplCalCon__OpenIddict__SigningCertificatePath
+              value: /certs/signing.pfx
+            - name: SimplCalCon__OpenIddict__EncryptionCertificatePath
+              value: /certs/encryption.pfx
+            - name: SimplCalCon__OpenIddict__CertificatePassword
+              value: {{ .Values.openIddict.certificatePassword | quote }}
+            {{- end }}
+            {{- range $name, $value := .Values.env }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- if .Values.openIddict.certificateSecretName }}
+          volumeMounts:
+            - name: oidc-certs
+              mountPath: /certs
+              readOnly: true
+          {{- end }}
+          startupProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- if .Values.openIddict.certificateSecretName }}
+      volumes:
+        - name: oidc-certs
+          secret:
+            secretName: {{ .Values.openIddict.certificateSecretName }}
+      {{- end }}

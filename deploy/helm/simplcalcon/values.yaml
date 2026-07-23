@@ -1,0 +1,52 @@
+replicaCount: 1
+
+image:
+  repository: simplcalcon
+  tag: ""              # defaults to the chart appVersion
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 9080
+
+# Runs in Production by default (requires OIDC certificates — see openIddict below).
+aspnetcoreEnvironment: Production
+
+database:
+  provider: Postgres
+  # Provide the connection string here (rendered into a Secret) or reference an
+  # existing Secret with key `connection-string`.
+  connectionString: ""
+  existingSecretName: ""
+
+bootstrap:
+  platformAdminEmail: ""
+  platformAdminPassword: ""
+
+openIddict:
+  # Production requires signing + encryption certificates. Point this at a Secret
+  # containing signing.pfx / encryption.pfx; it is mounted at /certs and wired via env.
+  certificateSecretName: ""
+  certificatePassword: ""
+
+# Extra environment variables (map of name: value).
+env: {}
+
+resources: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1654
+  fsGroup: 1654
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts: []
+  tls: []
