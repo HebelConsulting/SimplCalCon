@@ -58,6 +58,7 @@ public static class DependencyInjection
         services.AddScoped<IObjectComposer, ObjectComposer>();
         services.AddScoped<IDavRepository, DavRepository>();
         services.AddScoped<IAclService, AclService>();
+        services.AddScoped<IPrincipalDirectory, PrincipalDirectory>();
 
         services.AddHostedService<BootstrapHostedService>();
 

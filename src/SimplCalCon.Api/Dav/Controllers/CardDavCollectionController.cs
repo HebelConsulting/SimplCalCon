@@ -27,9 +27,10 @@ public sealed class CardDavCollectionController(IDavRepository repository, IAclS
         }
 
         var request = PropRequest.Parse(await DavXml.ReadBodyAsync(Request, cancellationToken));
+        var rights = await EffectiveRightsAsync(addressBook, acl, cancellationToken);
         var resources = new List<DavResource>
         {
-            CardDavResources.AddressBookCollection(CollectionHref(userId, book), PrincipalHref(userId), addressBook),
+            CardDavResources.AddressBookCollection(CollectionHref(userId, book), PrincipalHref(userId), addressBook, rights),
         };
 
         if (Depth() >= 1)
