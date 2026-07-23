@@ -26,6 +26,9 @@ public abstract class DavControllerBase : ControllerBase
 
     protected IActionResult ForbidDav() => Forbid(DavAuthenticationDefaults.Scheme);
 
+    protected const AclRight AllRights =
+        AclRight.Read | AclRight.WriteContent | AclRight.Create | AclRight.Delete | AclRight.Share | AclRight.Admin;
+
     /// <summary>
     /// True when the caller may perform an operation needing <paramref name="required"/> on
     /// the collection: they own it, or their effective rights (direct + group grants) include it (ADR 0007).
@@ -41,6 +44,13 @@ public abstract class DavControllerBase : ControllerBase
         var rights = await acl.GetEffectiveRightsAsync(CurrentUserId, collection.Id, cancellationToken);
         return (rights & required) == required;
     }
+
+    /// <summary>The caller's effective rights on the collection (owner ⇒ all), for privilege reporting (ADR 0023).</summary>
+    protected async Task<AclRight> EffectiveRightsAsync(
+        Collection collection, IAclService acl, CancellationToken cancellationToken) =>
+        collection.OwnerId == CurrentUserId
+            ? AllRights
+            : await acl.GetEffectiveRightsAsync(CurrentUserId, collection.Id, cancellationToken);
 
     protected int Depth()
     {

@@ -2,6 +2,7 @@ using System.Text;
 using System.Xml.Linq;
 using SimplCalCon.Api.Dav.Xml;
 using SimplCalCon.Api.Http;
+using SimplCalCon.Domain.Acl;
 using SimplCalCon.Domain.Collections;
 using SimplCalCon.Domain.Objects;
 
@@ -32,7 +33,8 @@ internal static class CardDavResources
         return resource;
     }
 
-    public static DavResource AddressBookCollection(string collectionHref, string principalHref, AddressBook book)
+    public static DavResource AddressBookCollection(
+        string collectionHref, string principalHref, AddressBook book, AclRight callerRights)
     {
         var resource = new DavResource(collectionHref);
         resource.Set(DavNames.ResourceType, new object[]
@@ -46,7 +48,7 @@ internal static class CardDavResources
         resource.Set(DavNames.CurrentUserPrincipal, new XElement(DavNames.Href, principalHref));
         resource.Set(DavNames.Owner, new XElement(DavNames.Href, principalHref));
         resource.Set(DavNames.SupportedReportSet, SupportedReports());
-        resource.Set(DavNames.CurrentUserPrivilegeSet, OwnerPrivileges());
+        resource.Set(DavNames.CurrentUserPrivilegeSet, DavPrivileges.From(callerRights));
         resource.Set(DavNames.SupportedAddressData, new[]
         {
             AddressDataType("3.0"),
@@ -75,10 +77,6 @@ internal static class CardDavResources
 
     private static XElement SupportedReport(XName report) =>
         new(DavNames.SupportedReport, new XElement(DavNames.Report, new XElement(report)));
-
-    private static IEnumerable<XElement> OwnerPrivileges() =>
-        new[] { DavNames.Read, DavNames.Write, DavNames.WriteContent, DavNames.WriteProperties, DavNames.Bind, DavNames.Unbind }
-            .Select(p => new XElement(DavNames.Privilege, new XElement(p)));
 
     private static XElement AddressDataType(string version) =>
         new(DavNames.AddressDataType, new XAttribute("content-type", "text/vcard"), new XAttribute("version", version));

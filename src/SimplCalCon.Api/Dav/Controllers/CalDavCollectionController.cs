@@ -31,9 +31,10 @@ public sealed class CalDavCollectionController(IDavRepository repository, IAclSe
         }
 
         var request = PropRequest.Parse(await DavXml.ReadBodyAsync(Request, cancellationToken));
+        var rights = await EffectiveRightsAsync(calendar, acl, cancellationToken);
         var resources = new List<DavResource>
         {
-            CalDavResources.CalendarCollection(CalendarHref(userId, cal), PrincipalHref(userId), calendar),
+            CalDavResources.CalendarCollection(CalendarHref(userId, cal), PrincipalHref(userId), calendar, rights),
         };
 
         if (Depth() >= 1)

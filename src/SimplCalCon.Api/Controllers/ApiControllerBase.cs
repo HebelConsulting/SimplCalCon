@@ -14,6 +14,8 @@ namespace SimplCalCon.Api.Controllers;
 [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 public abstract class ApiControllerBase(IAclService acl) : ControllerBase
 {
+    protected IAclService Acl { get; } = acl;
+
     protected Guid CurrentUserId => User.GetUserId();
 
     protected Guid? CurrentTenantId => User.GetTenantId();
@@ -21,8 +23,18 @@ public abstract class ApiControllerBase(IAclService acl) : ControllerBase
     /// <summary>Throws 403 unless the caller's effective rights on the collection include <paramref name="required"/>.</summary>
     protected async Task RequireRightsAsync(Guid collectionId, AclRight required, CancellationToken cancellationToken)
     {
-        var rights = await acl.GetEffectiveRightsAsync(CurrentUserId, collectionId, cancellationToken);
+        var rights = await Acl.GetEffectiveRightsAsync(CurrentUserId, collectionId, cancellationToken);
         if ((rights & required) != required)
+        {
+            throw new InsufficientRightsException();
+        }
+    }
+
+    /// <summary>Throws 403 unless the caller may manage the collection's grants (owner, or the `share`/`admin` right, ADR 0007).</summary>
+    protected async Task RequireCanShareAsync(Guid collectionId, CancellationToken cancellationToken)
+    {
+        var rights = await Acl.GetEffectiveRightsAsync(CurrentUserId, collectionId, cancellationToken);
+        if ((rights & AclRight.Share) != AclRight.Share && (rights & AclRight.Admin) != AclRight.Admin)
         {
             throw new InsufficientRightsException();
         }

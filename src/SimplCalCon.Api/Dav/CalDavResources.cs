@@ -2,6 +2,7 @@ using System.Text;
 using System.Xml.Linq;
 using SimplCalCon.Api.Dav.Xml;
 using SimplCalCon.Api.Http;
+using SimplCalCon.Domain.Acl;
 using SimplCalCon.Domain.Collections;
 using SimplCalCon.Domain.Objects;
 
@@ -19,7 +20,8 @@ internal static class CalDavResources
         return resource;
     }
 
-    public static DavResource CalendarCollection(string calendarHref, string principalHref, Calendar calendar)
+    public static DavResource CalendarCollection(
+        string calendarHref, string principalHref, Calendar calendar, AclRight callerRights)
     {
         var resource = new DavResource(calendarHref);
         resource.Set(DavNames.ResourceType, new object[]
@@ -33,7 +35,7 @@ internal static class CalDavResources
         resource.Set(DavNames.CurrentUserPrincipal, new XElement(DavNames.Href, principalHref));
         resource.Set(DavNames.Owner, new XElement(DavNames.Href, principalHref));
         resource.Set(DavNames.SupportedReportSet, SupportedReports());
-        resource.Set(DavNames.CurrentUserPrivilegeSet, OwnerPrivileges());
+        resource.Set(DavNames.CurrentUserPrivilegeSet, DavPrivileges.From(callerRights));
         resource.Set(DavNames.SupportedCalendarComponentSet, SupportedComponents(calendar));
         resource.Set(DavNames.SupportedCalendarData,
             new XElement(DavNames.CalendarData,
@@ -61,10 +63,6 @@ internal static class CalDavResources
 
     private static XElement SupportedReport(XName report) =>
         new(DavNames.SupportedReport, new XElement(DavNames.Report, new XElement(report)));
-
-    private static IEnumerable<XElement> OwnerPrivileges() =>
-        new[] { DavNames.Read, DavNames.Write, DavNames.WriteContent, DavNames.WriteProperties, DavNames.Bind, DavNames.Unbind }
-            .Select(p => new XElement(DavNames.Privilege, new XElement(p)));
 
     private static IEnumerable<XElement> SupportedComponents(Calendar calendar)
     {

@@ -30,6 +30,8 @@ public sealed class ProblemDetailsExceptionHandler(
                 StatusCodes.Status412PreconditionFailed,
                 new EtagMismatchException().ErrorCode,
                 new EtagMismatchException().Message),
+            SimplCalCon.Domain.Acl.Exceptions.CrossTenantGrantException => (
+                StatusCodes.Status400BadRequest, "CROSS_TENANT_SHARE", exception.Message),
             _ => (StatusCodes.Status500InternalServerError, "INTERNAL_ERROR", "An unexpected error occurred."),
         };
 

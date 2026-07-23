@@ -35,4 +35,17 @@ public sealed class ApiClient(HttpClient http)
 
     public async Task<CreatedAppPassword?> CreateAppPasswordAsync(string label) =>
         await (await http.PostAsJsonAsync("api/app-passwords", new { label })).Content.ReadFromJsonAsync<CreatedAppPassword>();
+
+    // Sharing (ADR 0007, 0023). `kind` is "calendars" or "address-books".
+    public async Task<IReadOnlyList<ShareDto>> GetSharesAsync(string kind, Guid collectionId) =>
+        (await http.GetFromJsonAsync<Collection<ShareDto>>($"api/{kind}/{collectionId}/shares"))?.Items ?? [];
+
+    public Task PutShareAsync(string kind, Guid collectionId, Guid principalId, IReadOnlyList<string> rights) =>
+        http.PutAsJsonAsync($"api/{kind}/{collectionId}/shares/{principalId}", new { rights });
+
+    public Task DeleteShareAsync(string kind, Guid collectionId, Guid principalId) =>
+        http.DeleteAsync($"api/{kind}/{collectionId}/shares/{principalId}");
+
+    public async Task<IReadOnlyList<PrincipalDto>> SearchPrincipalsAsync(string query) =>
+        (await http.GetFromJsonAsync<Collection<PrincipalDto>>($"api/principals?q={Uri.EscapeDataString(query)}"))?.Items ?? [];
 }
