@@ -10,8 +10,8 @@ jobs:
     name: Build & test (SQLite)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
       - run: dotnet build SimplCalCon.slnx -c Release
@@ -36,8 +36,8 @@ jobs:
       SIMPLCALCON_TEST_DB_PROVIDER: Postgres
       SIMPLCALCON_TEST_DB_CONNECTION: "Host=localhost;Port=5432;Database=simplcalcon;Username=simplcalcon;Password=simplcalcon"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
       - run: dotnet build SimplCalCon.slnx -c Release
@@ -47,8 +47,8 @@ jobs:
     name: License gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
       - run: dotnet tool install --global nuget-license
