@@ -35,6 +35,12 @@ public sealed class EventWriteRequest
     public bool IsAllDay { get; init; }
 }
 
+public sealed class SplitEventRequest
+{
+    /// <summary>The instant (UTC) at which to split: the original ends here, the copy starts here.</summary>
+    public required DateTime AtUtc { get; init; }
+}
+
 public sealed class ContactWriteRequest
 {
     public string? FormattedName { get; init; }

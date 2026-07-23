@@ -56,6 +56,7 @@ public static class DependencyInjection
         services.AddScoped<IObjectStore, ObjectStore>();
         services.AddScoped<IObjectImportExport, ObjectImportExport>();
         services.AddScoped<IObjectComposer, ObjectComposer>();
+        services.AddScoped<IEventSplitter, EventSplitter>();
         services.AddScoped<IDavRepository, DavRepository>();
         services.AddScoped<IAclService, AclService>();
         services.AddScoped<IPrincipalDirectory, PrincipalDirectory>();
