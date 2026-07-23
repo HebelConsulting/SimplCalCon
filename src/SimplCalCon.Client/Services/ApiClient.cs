@@ -59,4 +59,25 @@ public sealed class ApiClient(HttpClient http)
 
     public async Task<IReadOnlyList<PrincipalDto>> SearchPrincipalsAsync(string query) =>
         (await http.GetFromJsonAsync<Collection<PrincipalDto>>($"api/principals?q={Uri.EscapeDataString(query)}"))?.Items ?? [];
+
+    // Trash & version history (ADR 0028). `kind` is "calendars" or "address-books"; its child resource is events/contacts.
+    private static string Child(string kind) => kind == "calendars" ? "events" : "contacts";
+
+    public async Task<IReadOnlyList<TrashItemDto>> GetTrashAsync(string kind, Guid collectionId) =>
+        (await http.GetFromJsonAsync<Collection<TrashItemDto>>($"api/{kind}/{collectionId}/{Child(kind)}/trash"))?.Items ?? [];
+
+    public Task RestoreAsync(string kind, Guid collectionId, Guid id) =>
+        http.PostAsync($"api/{kind}/{collectionId}/{Child(kind)}/trash/{id}/restore", null);
+
+    public Task PurgeAsync(string kind, Guid collectionId, Guid id) =>
+        http.DeleteAsync($"api/{kind}/{collectionId}/{Child(kind)}/trash/{id}");
+
+    public Task EmptyTrashAsync(string kind, Guid collectionId) =>
+        http.DeleteAsync($"api/{kind}/{collectionId}/{Child(kind)}/trash");
+
+    public async Task<IReadOnlyList<RevisionDto>> GetRevisionsAsync(string kind, Guid collectionId, Guid id) =>
+        (await http.GetFromJsonAsync<Collection<RevisionDto>>($"api/{kind}/{collectionId}/{Child(kind)}/{id}/revisions"))?.Items ?? [];
+
+    public Task RestoreRevisionAsync(string kind, Guid collectionId, Guid id, long number) =>
+        http.PostAsync($"api/{kind}/{collectionId}/{Child(kind)}/{id}/revisions/{number}/restore", null);
 }

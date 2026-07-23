@@ -32,6 +32,8 @@ public sealed class ProblemDetailsExceptionHandler(
                 new EtagMismatchException().Message),
             SimplCalCon.Domain.Acl.Exceptions.CrossTenantGrantException => (
                 StatusCodes.Status400BadRequest, "CROSS_TENANT_SHARE", exception.Message),
+            SimplCalCon.Domain.Objects.Exceptions.RevisionNotFoundException => (
+                StatusCodes.Status404NotFound, "REVISION_NOT_FOUND", exception.Message),
             _ => (StatusCodes.Status500InternalServerError, "INTERNAL_ERROR", "An unexpected error occurred."),
         };
 

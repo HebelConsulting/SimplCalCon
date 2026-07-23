@@ -5,7 +5,7 @@
 <PageTitle>Contacts</PageTitle>
 
 <h1>Contacts</h1>
-<p><a href="">← Collections</a> · <a href="share/address-books/@AddressBookId">Share</a></p>
+<p><a href="">← Collections</a> · <a href="share/address-books/@AddressBookId">Share</a> · <a href="trash/address-books/@AddressBookId">Trash</a></p>
 
 @if (contacts is null)
 {
@@ -16,7 +16,10 @@ else
     <ul>
         @foreach (var contact in contacts)
         {
-            <li>@contact.FormattedName @(contact.Emails.Count > 0 ? "— " + string.Join(", ", contact.Emails) : "")</li>
+            <li>
+                @contact.FormattedName @(contact.Emails.Count > 0 ? "— " + string.Join(", ", contact.Emails) : "")
+                <a href="history/address-books/@AddressBookId/@contact.Id">History</a>
+            </li>
         }
     </ul>
     @if (contacts.Count == 0)

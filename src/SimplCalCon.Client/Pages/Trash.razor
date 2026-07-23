@@ -1,0 +1,66 @@
+@page "/trash/{Kind}/{CollectionId:guid}"
+@attribute [Authorize]
+@inject ApiClient Api
+
+<PageTitle>Trash</PageTitle>
+
+<h1>Trash</h1>
+<p><a href="@BackUrl">← Back</a></p>
+
+@if (items is null)
+{
+    <p>Loading…</p>
+}
+else if (items.Count == 0)
+{
+    <p>Trash is empty.</p>
+}
+else
+{
+    <p><button @onclick="EmptyAsync">Empty trash</button></p>
+    <ul>
+        @foreach (var item in items)
+        {
+            <li>
+                @item.Title
+                @if (item.DeletedAt is { } d)
+                {
+                    <span> — deleted @d.ToLocalTime().ToString("g")</span>
+                }
+                <button @onclick="() => RestoreAsync(item.Id)">Restore</button>
+                <button @onclick="() => PurgeAsync(item.Id)">Delete forever</button>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    [Parameter] public string Kind { get; set; } = "calendars";
+    [Parameter] public Guid CollectionId { get; set; }
+
+    private IReadOnlyList<TrashItemDto>? items;
+
+    private string BackUrl => Kind == "calendars" ? $"calendars/{CollectionId}" : $"address-books/{CollectionId}";
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync() => items = await Api.GetTrashAsync(Kind, CollectionId);
+
+    private async Task RestoreAsync(Guid id)
+    {
+        await Api.RestoreAsync(Kind, CollectionId, id);
+        await LoadAsync();
+    }
+
+    private async Task PurgeAsync(Guid id)
+    {
+        await Api.PurgeAsync(Kind, CollectionId, id);
+        await LoadAsync();
+    }
+
+    private async Task EmptyAsync()
+    {
+        await Api.EmptyTrashAsync(Kind, CollectionId);
+        await LoadAsync();
+    }
+}

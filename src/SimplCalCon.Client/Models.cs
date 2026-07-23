@@ -18,3 +18,10 @@ public sealed record CreatedAppPassword(Guid Id, string Label, string Secret);
 public sealed record ShareDto(Guid PrincipalId, string Kind, string DisplayName, string? Email, IReadOnlyList<string> Rights);
 
 public sealed record PrincipalDto(Guid Id, string Kind, string DisplayName, string? Email);
+
+public sealed record TrashItemDto(Guid Id, string? Summary, string? FormattedName, DateTime? DeletedAt)
+{
+    public string Title => Summary ?? FormattedName ?? "(untitled)";
+}
+
+public sealed record RevisionDto(long RevisionNumber, string Operation, DateTime CreatedAt, Guid? AuthorPrincipalId);
