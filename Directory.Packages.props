@@ -33,6 +33,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Calendar/contact format parsers (both MIT) for blob <-> indexed-field extraction (ADR 0003, 0004) -->
+    <PackageVersion Include="Ical.Net" Version="5.2.3" />
+    <PackageVersion Include="FolkerKinzel.VCards" Version="8.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Persistence (EF Core, dual provider: PostgreSQL + SQLite per ADR 0001) -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.10" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />

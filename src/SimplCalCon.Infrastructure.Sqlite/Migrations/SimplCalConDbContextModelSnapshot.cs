@@ -302,6 +302,172 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
                     b.ToTable("Tokens", (string)null);
                 });
 
+            modelBuilder.Entity("SimplCalCon.Domain.Collections.Collection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ChangeSequence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CollectionType")
+                        .IsRequired()
+                        .HasMaxLength(13)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ResourceName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("OwnerId", "ResourceName")
+                        .IsUnique();
+
+                    b.ToTable("Collections", (string)null);
+
+                    b.HasDiscriminator<string>("CollectionType").HasValue("Collection");
+
+                    b.UseTphMappingStrategy();
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Objects.CollectionObject", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Blob")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ChangeNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ObjectType")
+                        .IsRequired()
+                        .HasMaxLength(21)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ResourceName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("RevisionNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Uid")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId", "ChangeNumber");
+
+                    b.HasIndex("CollectionId", "ResourceName")
+                        .IsUnique();
+
+                    b.HasIndex("CollectionId", "Uid")
+                        .IsUnique();
+
+                    b.ToTable("Objects", (string)null);
+
+                    b.HasDiscriminator<string>("ObjectType").HasValue("CollectionObject");
+
+                    b.UseTphMappingStrategy();
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Objects.ObjectRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("AuthorPrincipalId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Blob")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ETag")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ObjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("RevisionNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ObjectId", "RevisionNumber")
+                        .IsUnique();
+
+                    b.ToTable("ObjectRevisions", (string)null);
+                });
+
             modelBuilder.Entity("SimplCalCon.Domain.Principals.GroupMembership", b =>
                 {
                     b.Property<Guid>("GroupId")
@@ -388,6 +554,97 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
                         .IsUnique();
 
                     b.ToTable("Tenants", (string)null);
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Collections.AddressBook", b =>
+                {
+                    b.HasBaseType("SimplCalCon.Domain.Collections.Collection");
+
+                    b.HasDiscriminator().HasValue("AddressBook");
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Collections.Calendar", b =>
+                {
+                    b.HasBaseType("SimplCalCon.Domain.Collections.Collection");
+
+                    b.Property<string>("Color")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("SupportsEvents")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("SupportsTasks")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TimeZoneId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.HasDiscriminator().HasValue("Calendar");
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Objects.CalendarObject", b =>
+                {
+                    b.HasBaseType("SimplCalCon.Domain.Objects.CollectionObject");
+
+                    b.Property<string>("ComponentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DtEndUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DtStartUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsAllDay")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsRecurring")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Summary")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.HasIndex("CollectionId", "DtStartUtc");
+
+                    b.HasDiscriminator().HasValue("CalendarObject");
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Objects.ContactObject", b =>
+                {
+                    b.HasBaseType("SimplCalCon.Domain.Objects.CollectionObject");
+
+                    b.Property<string>("Emails")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FamilyName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FormattedName")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GivenName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Organization")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Phones")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.HasIndex("CollectionId", "FamilyName");
+
+                    b.HasDiscriminator().HasValue("ContactObject");
                 });
 
             modelBuilder.Entity("SimplCalCon.Domain.Principals.Group", b =>
@@ -493,6 +750,47 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("SimplCalCon.Domain.Collections.Collection", b =>
+                {
+                    b.HasOne("SimplCalCon.Domain.Principals.User", "Owner")
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SimplCalCon.Domain.Tenants.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Owner");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Objects.CollectionObject", b =>
+                {
+                    b.HasOne("SimplCalCon.Domain.Collections.Collection", "Collection")
+                        .WithMany("Objects")
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Collection");
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Objects.ObjectRevision", b =>
+                {
+                    b.HasOne("SimplCalCon.Domain.Objects.CollectionObject", "Object")
+                        .WithMany("Revisions")
+                        .HasForeignKey("ObjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Object");
+                });
+
             modelBuilder.Entity("SimplCalCon.Domain.Principals.GroupMembership", b =>
                 {
                     b.HasOne("SimplCalCon.Domain.Principals.Group", "Group")
@@ -532,6 +830,16 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
             modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreAuthorization", b =>
                 {
                     b.Navigation("Tokens");
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Collections.Collection", b =>
+                {
+                    b.Navigation("Objects");
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Objects.CollectionObject", b =>
+                {
+                    b.Navigation("Revisions");
                 });
 
             modelBuilder.Entity("SimplCalCon.Domain.Principals.Group", b =>

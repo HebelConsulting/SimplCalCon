@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SimplCalCon.Domain.Authentication;
+using SimplCalCon.Domain.Collections;
 using SimplCalCon.Domain.Common;
+using SimplCalCon.Domain.Objects;
 using SimplCalCon.Domain.Principals;
 using SimplCalCon.Domain.Tenants;
 
@@ -8,6 +11,14 @@ namespace SimplCalCon.Infrastructure.Persistence;
 
 public class SimplCalConDbContext(DbContextOptions<SimplCalConDbContext> options) : DbContext(options)
 {
+    private static readonly ValueConverter<DateTime, DateTime> UtcConverter = new(
+        write => write.Kind == DateTimeKind.Utc ? write : write.ToUniversalTime(),
+        read => DateTime.SpecifyKind(read, DateTimeKind.Utc));
+
+    private static readonly ValueConverter<DateTime?, DateTime?> NullableUtcConverter = new(
+        write => write == null ? null : (write.Value.Kind == DateTimeKind.Utc ? write : write.Value.ToUniversalTime()),
+        read => read == null ? null : DateTime.SpecifyKind(read.Value, DateTimeKind.Utc));
+
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<Principal> Principals => Set<Principal>();
     public DbSet<User> Users => Set<User>();
@@ -15,6 +26,13 @@ public class SimplCalConDbContext(DbContextOptions<SimplCalConDbContext> options
     public DbSet<GroupMembership> GroupMemberships => Set<GroupMembership>();
     public DbSet<AppPassword> AppPasswords => Set<AppPassword>();
     public DbSet<Token> Tokens => Set<Token>();
+    public DbSet<Collection> Collections => Set<Collection>();
+    public DbSet<Calendar> Calendars => Set<Calendar>();
+    public DbSet<AddressBook> AddressBooks => Set<AddressBook>();
+    public DbSet<CollectionObject> Objects => Set<CollectionObject>();
+    public DbSet<CalendarObject> CalendarObjects => Set<CalendarObject>();
+    public DbSet<ContactObject> ContactObjects => Set<ContactObject>();
+    public DbSet<ObjectRevision> ObjectRevisions => Set<ObjectRevision>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -31,6 +49,21 @@ public class SimplCalConDbContext(DbContextOptions<SimplCalConDbContext> options
                 modelBuilder.Entity(entityType.ClrType)
                     .Property(nameof(IHasConcurrencyToken.ConcurrencyToken))
                     .IsConcurrencyToken();
+            }
+        }
+
+        // Every DateTime column is stored and read back as UTC (the DB is UTC-only;
+        // clients localize). Applies to the object-store columns; existing
+        // DateTimeOffset columns are unaffected.
+        foreach (var property in modelBuilder.Model.GetEntityTypes().SelectMany(e => e.GetProperties()))
+        {
+            if (property.ClrType == typeof(DateTime))
+            {
+                property.SetValueConverter(UtcConverter);
+            }
+            else if (property.ClrType == typeof(DateTime?))
+            {
+                property.SetValueConverter(NullableUtcConverter);
             }
         }
     }

@@ -9,6 +9,8 @@
     <!-- Provider-agnostic: the concrete providers live in the per-provider migration projects. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     <PackageReference Include="OpenIddict.EntityFrameworkCore" />
+    <PackageReference Include="Ical.Net" />
+    <PackageReference Include="FolkerKinzel.VCards" />
   </ItemGroup>
 
   <!--

@@ -4,7 +4,9 @@ using Microsoft.Extensions.DependencyInjection;
 using SimplCalCon.Application.Abstractions;
 using SimplCalCon.Application.Abstractions.Identity;
 using SimplCalCon.Application.Abstractions.Security;
+using SimplCalCon.Application.Abstractions.Storage;
 using SimplCalCon.Infrastructure.Bootstrap;
+using SimplCalCon.Infrastructure.Storage;
 using SimplCalCon.Infrastructure.Configuration;
 using SimplCalCon.Infrastructure.Identity;
 using SimplCalCon.Infrastructure.Persistence;
@@ -50,6 +52,8 @@ public static class DependencyInjection
         services.AddScoped<IAppPasswordService, AppPasswordService>();
         services.AddScoped<IAccountActivationService, AccountActivationService>();
         services.AddScoped<IDavCredentialAuthenticator, DavCredentialAuthenticator>();
+        services.AddScoped<IObjectStore, ObjectStore>();
+        services.AddScoped<IObjectImportExport, ObjectImportExport>();
 
         services.AddHostedService<BootstrapHostedService>();
 

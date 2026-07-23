@@ -25,5 +25,6 @@ rather than an edit.
 | [0017](0017-ef-core-persistence-and-dual-provider-migrations.md) | EF Core persistence & dual-provider migration layout |
 | [0018](0018-phase1-authentication-services.md) | Phase 1 authentication services |
 | [0019](0019-rest-plumbing-and-versioning-deferral.md) | REST plumbing as built; media-type versioning deferred |
+| [0020](0020-phase1-calendar-contact-object-store.md) | Phase 1 calendar/contact object store |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).
