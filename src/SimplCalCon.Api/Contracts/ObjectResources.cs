@@ -21,6 +21,9 @@ public sealed class EventResource : HypermediaResource, IETaggedResource
 
     public bool IsRecurring { get; init; }
 
+    /// <summary>Set only when the event is in the trash (ADR 0028); null otherwise.</summary>
+    public DateTime? DeletedAt { get; init; }
+
     [JsonIgnore]
     public Guid ConcurrencyToken { get; init; }
 }
@@ -52,6 +55,22 @@ public sealed class ContactResource : HypermediaResource, IETaggedResource
 
     public IReadOnlyList<string> Phones { get; init; } = [];
 
+    /// <summary>Set only when the contact is in the trash (ADR 0028); null otherwise.</summary>
+    public DateTime? DeletedAt { get; init; }
+
     [JsonIgnore]
     public Guid ConcurrencyToken { get; init; }
+}
+
+/// <summary>One prior state of an object in its version history (ADR 0011/0028).</summary>
+public sealed class RevisionResource : HypermediaResource
+{
+    public required long RevisionNumber { get; init; }
+
+    /// <summary>Created, Updated, Deleted, or Restored.</summary>
+    public required string Operation { get; init; }
+
+    public required DateTime CreatedAt { get; init; }
+
+    public Guid? AuthorPrincipalId { get; init; }
 }

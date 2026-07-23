@@ -71,11 +71,97 @@ public sealed class ContactsController(
         return NoContent();
     }
 
+    // --- Trash & version history (ADR 0028). Trash/restore act on already-deleted items, so they are If-Match-exempt. ---
+
+    [HttpGet("trash")]
+    public async Task<ActionResult<CollectionResource<ContactResource>>> ListTrash(
+        Guid addressBookId, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(addressBookId, AclRight.Read, cancellationToken);
+        var trashed = await repository.ListTrashedContactObjectsAsync(addressBookId, cancellationToken);
+        return new CollectionResource<ContactResource>
+        {
+            Items = trashed.Select(ResourceMapper.MapContact).ToList(),
+            Links = { new Link("self", $"/api/address-books/{addressBookId}/contacts/trash") },
+        };
+    }
+
+    [HttpDelete("trash")]
+    public async Task<IActionResult> EmptyTrash(Guid addressBookId, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(addressBookId, AclRight.WriteContent, cancellationToken);
+        await objectStore.PurgeTrashAsync(addressBookId, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpDelete("trash/{id:guid}")]
+    public async Task<IActionResult> Purge(Guid addressBookId, Guid id, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(addressBookId, AclRight.WriteContent, cancellationToken);
+        var trashed = await ResolveTrashedAsync(addressBookId, id, cancellationToken);
+        await objectStore.PurgeAsync(addressBookId, trashed.ResourceName, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("trash/{id:guid}/restore")]
+    public async Task<ActionResult<ContactResource>> Restore(Guid addressBookId, Guid id, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(addressBookId, AclRight.WriteContent, cancellationToken);
+        var trashed = await ResolveTrashedAsync(addressBookId, id, cancellationToken);
+        var result = await objectStore.RestoreAsync(addressBookId, trashed.ResourceName, null, CurrentUserId, cancellationToken);
+        var restored = await repository.GetContactObjectByIdAsync(result!.Id, cancellationToken);
+        return ResourceMapper.MapContact(restored!);
+    }
+
+    [HttpGet("{id:guid}/revisions")]
+    public async Task<ActionResult<CollectionResource<RevisionResource>>> Revisions(
+        Guid addressBookId, Guid id, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(addressBookId, AclRight.Read, cancellationToken);
+        var contact = await ResolveAnyAsync(addressBookId, id, cancellationToken);
+        var revisions = await repository.ListObjectRevisionsAsync(contact.Id, cancellationToken);
+        var selfBase = $"/api/address-books/{addressBookId}/contacts/{id}";
+        return new CollectionResource<RevisionResource>
+        {
+            Items = revisions.Select(r => ResourceMapper.MapRevision(r, selfBase)).ToList(),
+            Links = { new Link("self", $"{selfBase}/revisions") },
+        };
+    }
+
+    [HttpPost("{id:guid}/revisions/{number:long}/restore")]
+    public async Task<ActionResult<ContactResource>> RestoreRevision(
+        Guid addressBookId, Guid id, long number, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(addressBookId, AclRight.WriteContent, cancellationToken);
+        var contact = await ResolveAnyAsync(addressBookId, id, cancellationToken);
+        var result = await objectStore.RestoreAsync(addressBookId, contact.ResourceName, number, CurrentUserId, cancellationToken);
+        var restored = await repository.GetContactObjectByIdAsync(result!.Id, cancellationToken);
+        return ResourceMapper.MapContact(restored!);
+    }
+
     private async Task<Domain.Objects.ContactObject> FindAsync(Guid addressBookId, Guid id, CancellationToken cancellationToken)
     {
         var contact = await repository.GetContactObjectByIdAsync(id, cancellationToken);
         return contact is not null && contact.CollectionId == addressBookId
             ? contact
+            : throw new ResourceNotFoundException("Contact", id);
+    }
+
+    private async Task<Domain.Objects.ContactObject> ResolveTrashedAsync(
+        Guid addressBookId, Guid id, CancellationToken cancellationToken)
+    {
+        var found = await repository.FindContactObjectByIdAsync(id, cancellationToken);
+        return found is { IsDeleted: true } && found.CollectionId == addressBookId
+            ? found
+            : throw new ResourceNotFoundException("Trashed contact", id);
+    }
+
+    private async Task<Domain.Objects.ContactObject> ResolveAnyAsync(
+        Guid addressBookId, Guid id, CancellationToken cancellationToken)
+    {
+        var found = await repository.FindContactObjectByIdAsync(id, cancellationToken);
+        return found is not null && found.CollectionId == addressBookId
+            ? found
             : throw new ResourceNotFoundException("Contact", id);
     }
 

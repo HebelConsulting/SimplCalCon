@@ -5,7 +5,7 @@
 <PageTitle>Calendar</PageTitle>
 
 <h1>Agenda</h1>
-<p><a href="">← Collections</a> · <a href="share/calendars/@CalendarId">Share</a></p>
+<p><a href="">← Collections</a> · <a href="share/calendars/@CalendarId">Share</a> · <a href="trash/calendars/@CalendarId">Trash</a></p>
 
 @if (events is null)
 {
@@ -21,6 +21,7 @@ else
             {
                 <li>
                     @(item.IsAllDay ? "All day" : item.StartUtc!.Value.ToString("HH:mm")) — @item.Summary@(item.IsRecurring ? " ↻" : "")
+                    <a href="history/calendars/@CalendarId/@item.Id">History</a>
                     @if (CanSplit(item))
                     {
                         @if (splittingId == item.Id)

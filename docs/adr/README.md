@@ -33,5 +33,6 @@ rather than an edit.
 | [0025](0025-phase1-web-ui.md) | Phase 1 web UI (REST resources + Blazor WASM) |
 | [0026](0026-phase1-sharing-management.md) | Phase 1 sharing management (REST grants + DAV privileges + UI) |
 | [0027](0027-event-splitting.md) | Event splitting (split one event into two same-kind events) |
+| [0028](0028-phase1-trash-and-version-history.md) | Phase 1 trash & version history (restore/purge + revisions) |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

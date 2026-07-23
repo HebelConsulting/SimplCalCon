@@ -20,16 +20,108 @@ internal sealed class ObjectStore(SimplCalConDbContext dbContext, IClock clock) 
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        var collection = await dbContext.Collections
-            .FirstOrDefaultAsync(c => c.Id == request.CollectionId && !c.IsDeleted, cancellationToken)
-            ?? throw new CollectionNotFoundException(request.CollectionId);
+        var collection = await LoadCollectionAsync(request.CollectionId, cancellationToken);
+        var now = clock.UtcNow.UtcDateTime;
+
+        var (stored, created) = await MaterializeAsync(
+            collection, request.ResourceName, request.Blob, now, cancellationToken);
+        var result = await CommitObjectAsync(
+            collection, stored, created ? RevisionOperation.Created : RevisionOperation.Updated,
+            created, request.AuthorPrincipalId, now, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
+    }
+
+    /// <summary>
+    /// Brings a trashed object back, or reinstates a prior revision (ADR 0028): re-extracts
+    /// from the chosen blob (current tombstone blob, or <paramref name="revisionNumber"/>'s
+    /// blob), clears the tombstone, and appends a <see cref="RevisionOperation.Restored"/>
+    /// revision with a fresh change number so sync reports the re-appearance. Returns null if
+    /// the object (or requested revision) is absent.
+    /// </summary>
+    public async Task<StoredObjectResult?> RestoreAsync(
+        Guid collectionId, string resourceName, long? revisionNumber, Guid? authorPrincipalId, CancellationToken cancellationToken)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var collection = await LoadCollectionAsync(collectionId, cancellationToken);
+        var target = await dbContext.Objects
+            .FirstOrDefaultAsync(o => o.CollectionId == collectionId && o.ResourceName == resourceName, cancellationToken);
+        if (target is null)
+        {
+            return null;
+        }
+
+        var blob = target.Blob;
+        if (revisionNumber is { } number)
+        {
+            blob = await dbContext.ObjectRevisions
+                .Where(r => r.ObjectId == target.Id && r.RevisionNumber == number)
+                .Select(r => r.Blob)
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? throw new RevisionNotFoundException(target.Id, number);
+        }
 
         var now = clock.UtcNow.UtcDateTime;
-        var blob = request.Blob;
+        var (stored, created) = await MaterializeAsync(collection, resourceName, blob, now, cancellationToken);
+        var result = await CommitObjectAsync(
+            collection, stored, RevisionOperation.Restored, created, authorPrincipalId, now, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
+    }
 
+    /// <summary>Permanently removes one trashed object and its revision history (ADR 0028). Returns false if it isn't in the trash.</summary>
+    public async Task<bool> PurgeAsync(Guid collectionId, string resourceName, CancellationToken cancellationToken)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var stored = await dbContext.Objects.FirstOrDefaultAsync(
+            o => o.CollectionId == collectionId && o.ResourceName == resourceName && o.IsDeleted, cancellationToken);
+        if (stored is null)
+        {
+            return false;
+        }
+
+        await dbContext.ObjectRevisions.Where(r => r.ObjectId == stored.Id).ExecuteDeleteAsync(cancellationToken);
+        dbContext.Objects.Remove(stored);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    /// <summary>Permanently removes every trashed object (and its revisions) in a collection (ADR 0028). Returns the count purged.</summary>
+    public async Task<int> PurgeTrashAsync(Guid collectionId, CancellationToken cancellationToken)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var ids = await dbContext.Objects
+            .Where(o => o.CollectionId == collectionId && o.IsDeleted)
+            .Select(o => o.Id)
+            .ToListAsync(cancellationToken);
+        if (ids.Count == 0)
+        {
+            return 0;
+        }
+
+        await dbContext.ObjectRevisions.Where(r => ids.Contains(r.ObjectId)).ExecuteDeleteAsync(cancellationToken);
+        var purged = await dbContext.Objects
+            .Where(o => o.CollectionId == collectionId && o.IsDeleted)
+            .ExecuteDeleteAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return purged;
+    }
+
+    private async Task<Collection> LoadCollectionAsync(Guid collectionId, CancellationToken cancellationToken) =>
+        await dbContext.Collections.FirstOrDefaultAsync(c => c.Id == collectionId && !c.IsDeleted, cancellationToken)
+            ?? throw new CollectionNotFoundException(collectionId);
+
+    // Parse + extract the blob onto a new-or-existing object row (shared by Put and Restore);
+    // revision/change bookkeeping is applied by CommitObjectAsync.
+    private async Task<(CollectionObject Stored, bool Created)> MaterializeAsync(
+        Collection collection, string resourceName, string blob, DateTime now, CancellationToken cancellationToken)
+    {
         var existing = await dbContext.Objects
-            .FirstOrDefaultAsync(o => o.CollectionId == collection.Id && o.ResourceName == request.ResourceName, cancellationToken);
-
+            .FirstOrDefaultAsync(o => o.CollectionId == collection.Id && o.ResourceName == resourceName, cancellationToken);
         var created = existing is null;
         CollectionObject stored;
 
@@ -44,7 +136,7 @@ internal sealed class ObjectStore(SimplCalConDbContext dbContext, IClock clock) 
                 throw new ComponentNotAllowedException(extracted.Component.ToString());
             }
 
-            await EnsureUidFreeAsync(collection.Id, extracted.Uid, request.ResourceName, cancellationToken);
+            await EnsureUidFreeAsync(collection.Id, extracted.Uid, resourceName, cancellationToken);
 
             var calendarObject = (CalendarObject?)existing ?? new CalendarObject
             {
@@ -52,7 +144,7 @@ internal sealed class ObjectStore(SimplCalConDbContext dbContext, IClock clock) 
                 CollectionId = collection.Id,
                 CreatedAt = now,
                 Uid = extracted.Uid,
-                ResourceName = request.ResourceName,
+                ResourceName = resourceName,
                 Blob = blob,
             };
             calendarObject.Uid = extracted.Uid;
@@ -62,15 +154,15 @@ internal sealed class ObjectStore(SimplCalConDbContext dbContext, IClock clock) 
             calendarObject.DtEndUtc = extracted.DtEndUtc;
             calendarObject.IsAllDay = extracted.IsAllDay;
             calendarObject.IsRecurring = extracted.IsRecurring;
+            calendarObject.Blob = blob;
             stored = calendarObject;
         }
         else
         {
-            string uid;
-            (blob, uid) = BlobText.EnsureVCardUid(blob);
-            var extracted = ContactObjectParser.Parse(blob, uid);
+            var (normalizedBlob, uid) = BlobText.EnsureVCardUid(blob);
+            var extracted = ContactObjectParser.Parse(normalizedBlob, uid);
 
-            await EnsureUidFreeAsync(collection.Id, extracted.Uid, request.ResourceName, cancellationToken);
+            await EnsureUidFreeAsync(collection.Id, extracted.Uid, resourceName, cancellationToken);
 
             var contact = (ContactObject?)existing ?? new ContactObject
             {
@@ -78,8 +170,8 @@ internal sealed class ObjectStore(SimplCalConDbContext dbContext, IClock clock) 
                 CollectionId = collection.Id,
                 CreatedAt = now,
                 Uid = extracted.Uid,
-                ResourceName = request.ResourceName,
-                Blob = blob,
+                ResourceName = resourceName,
+                Blob = normalizedBlob,
             };
             contact.Uid = extracted.Uid;
             contact.FormattedName = extracted.FormattedName;
@@ -88,11 +180,19 @@ internal sealed class ObjectStore(SimplCalConDbContext dbContext, IClock clock) 
             contact.Organization = extracted.Organization;
             contact.Emails = extracted.Emails;
             contact.Phones = extracted.Phones;
+            contact.Blob = normalizedBlob;
             stored = contact;
         }
 
-        stored.ResourceName = request.ResourceName;
-        stored.Blob = blob;
+        stored.ResourceName = resourceName;
+        return (stored, created);
+    }
+
+    // Apply the revision/tombstone/change-sequence bookkeeping and persist (inside the caller's transaction).
+    private async Task<StoredObjectResult> CommitObjectAsync(
+        Collection collection, CollectionObject stored, RevisionOperation operation, bool created,
+        Guid? authorPrincipalId, DateTime now, CancellationToken cancellationToken)
+    {
         stored.UpdatedAt = now;
         stored.IsDeleted = false;
         stored.DeletedAt = null;
@@ -105,9 +205,7 @@ internal sealed class ObjectStore(SimplCalConDbContext dbContext, IClock clock) 
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await AppendRevisionAsync(
-            stored, created ? RevisionOperation.Created : RevisionOperation.Updated, request.AuthorPrincipalId, now, cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        await AppendRevisionAsync(stored, operation, authorPrincipalId, now, cancellationToken);
 
         return new StoredObjectResult(
             stored.Id, stored.Uid, stored.ResourceName, stored.ConcurrencyToken, stored.RevisionNumber, created);

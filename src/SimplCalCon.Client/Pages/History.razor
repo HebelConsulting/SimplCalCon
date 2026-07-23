@@ -1,0 +1,49 @@
+@page "/history/{Kind}/{CollectionId:guid}/{ItemId:guid}"
+@attribute [Authorize]
+@inject ApiClient Api
+
+<PageTitle>History</PageTitle>
+
+<h1>Version history</h1>
+<p><a href="@BackUrl">← Back</a></p>
+
+@if (revisions is null)
+{
+    <p>Loading…</p>
+}
+else if (revisions.Count == 0)
+{
+    <p>No history.</p>
+}
+else
+{
+    <ul>
+        @foreach (var revision in revisions)
+        {
+            <li>
+                #@revision.RevisionNumber — @revision.Operation @revision.CreatedAt.ToLocalTime().ToString("g")
+                <button @onclick="() => RestoreAsync(revision.RevisionNumber)">Restore this version</button>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    [Parameter] public string Kind { get; set; } = "calendars";
+    [Parameter] public Guid CollectionId { get; set; }
+    [Parameter] public Guid ItemId { get; set; }
+
+    private IReadOnlyList<RevisionDto>? revisions;
+
+    private string BackUrl => Kind == "calendars" ? $"calendars/{CollectionId}" : $"address-books/{CollectionId}";
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync() => revisions = await Api.GetRevisionsAsync(Kind, CollectionId, ItemId);
+
+    private async Task RestoreAsync(long number)
+    {
+        await Api.RestoreRevisionAsync(Kind, CollectionId, ItemId, number);
+        await LoadAsync();
+    }
+}

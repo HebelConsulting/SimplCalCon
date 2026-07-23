@@ -47,8 +47,18 @@ internal static class ResourceMapper
         EndUtc = calendarObject.DtEndUtc,
         IsAllDay = calendarObject.IsAllDay,
         IsRecurring = calendarObject.IsRecurring,
+        DeletedAt = calendarObject.IsDeleted ? calendarObject.DeletedAt : null,
         ConcurrencyToken = calendarObject.ConcurrencyToken,
         Links = { new Link("self", $"/api/calendars/{calendarObject.CollectionId}/events/{calendarObject.Id}") },
+    };
+
+    public static RevisionResource MapRevision(ObjectRevision revision, string selfBase) => new()
+    {
+        RevisionNumber = revision.RevisionNumber,
+        Operation = revision.Operation.ToString(),
+        CreatedAt = revision.CreatedAt,
+        AuthorPrincipalId = revision.AuthorPrincipalId,
+        Links = { new Link("restore", $"{selfBase}/revisions/{revision.RevisionNumber}/restore") },
     };
 
     public static ContactResource MapContact(ContactObject contact) => new()
@@ -61,6 +71,7 @@ internal static class ResourceMapper
         Organization = contact.Organization,
         Emails = Split(contact.Emails),
         Phones = Split(contact.Phones),
+        DeletedAt = contact.IsDeleted ? contact.DeletedAt : null,
         ConcurrencyToken = contact.ConcurrencyToken,
         Links = { new Link("self", $"/api/address-books/{contact.CollectionId}/contacts/{contact.Id}") },
     };

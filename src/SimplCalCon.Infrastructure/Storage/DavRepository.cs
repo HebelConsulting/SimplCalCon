@@ -286,4 +286,33 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
 
         return new DavCalendarSyncResult(changed, removed, token);
     }
+
+    // --- Trash & version history (ADR 0028) ---
+
+    public async Task<IReadOnlyList<CalendarObject>> ListTrashedCalendarObjectsAsync(
+        Guid collectionId, CancellationToken cancellationToken) =>
+        await dbContext.CalendarObjects
+            .Where(o => o.CollectionId == collectionId && o.IsDeleted)
+            .OrderByDescending(o => o.DeletedAt)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ContactObject>> ListTrashedContactObjectsAsync(
+        Guid collectionId, CancellationToken cancellationToken) =>
+        await dbContext.ContactObjects
+            .Where(o => o.CollectionId == collectionId && o.IsDeleted)
+            .OrderByDescending(o => o.DeletedAt)
+            .ToListAsync(cancellationToken);
+
+    public async Task<CalendarObject?> FindCalendarObjectByIdAsync(Guid id, CancellationToken cancellationToken) =>
+        await dbContext.CalendarObjects.FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+
+    public async Task<ContactObject?> FindContactObjectByIdAsync(Guid id, CancellationToken cancellationToken) =>
+        await dbContext.ContactObjects.FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<ObjectRevision>> ListObjectRevisionsAsync(
+        Guid objectId, CancellationToken cancellationToken) =>
+        await dbContext.ObjectRevisions
+            .Where(r => r.ObjectId == objectId)
+            .OrderByDescending(r => r.RevisionNumber)
+            .ToListAsync(cancellationToken);
 }

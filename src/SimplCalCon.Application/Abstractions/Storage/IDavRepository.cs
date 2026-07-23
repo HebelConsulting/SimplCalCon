@@ -84,6 +84,21 @@ public interface IDavRepository
         Guid collectionId, DateTime? startUtc, DateTime? endUtc, CancellationToken cancellationToken);
 
     Task<DavCalendarSyncResult> SyncCalendarAsync(Guid collectionId, long? sinceToken, CancellationToken cancellationToken);
+
+    // --- Trash & version history (ADR 0028) ---
+
+    Task<IReadOnlyList<CalendarObject>> ListTrashedCalendarObjectsAsync(Guid collectionId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ContactObject>> ListTrashedContactObjectsAsync(Guid collectionId, CancellationToken cancellationToken);
+
+    /// <summary>Finds a calendar object by id including trashed ones (unlike <see cref="GetCalendarObjectByIdAsync"/>).</summary>
+    Task<CalendarObject?> FindCalendarObjectByIdAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>Finds a contact object by id including trashed ones (unlike <see cref="GetContactObjectByIdAsync"/>).</summary>
+    Task<ContactObject?> FindContactObjectByIdAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>An object's revision history, newest first (ADR 0011).</summary>
+    Task<IReadOnlyList<ObjectRevision>> ListObjectRevisionsAsync(Guid objectId, CancellationToken cancellationToken);
 }
 
 public sealed record DavSyncResult(

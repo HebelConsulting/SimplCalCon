@@ -111,6 +111,89 @@ public sealed class EventsController(
         };
     }
 
+    // --- Trash & version history (ADR 0028). Trash/restore act on already-deleted items, so they are If-Match-exempt. ---
+
+    [HttpGet("trash")]
+    public async Task<ActionResult<CollectionResource<EventResource>>> ListTrash(Guid calendarId, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(calendarId, AclRight.Read, cancellationToken);
+        var trashed = await repository.ListTrashedCalendarObjectsAsync(calendarId, cancellationToken);
+        return new CollectionResource<EventResource>
+        {
+            Items = trashed.Select(ResourceMapper.MapEvent).ToList(),
+            Links = { new Link("self", $"/api/calendars/{calendarId}/events/trash") },
+        };
+    }
+
+    [HttpDelete("trash")]
+    public async Task<IActionResult> EmptyTrash(Guid calendarId, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(calendarId, AclRight.WriteContent, cancellationToken);
+        await objectStore.PurgeTrashAsync(calendarId, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpDelete("trash/{id:guid}")]
+    public async Task<IActionResult> Purge(Guid calendarId, Guid id, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(calendarId, AclRight.WriteContent, cancellationToken);
+        var trashed = await ResolveTrashedAsync(calendarId, id, cancellationToken);
+        await objectStore.PurgeAsync(calendarId, trashed.ResourceName, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("trash/{id:guid}/restore")]
+    public async Task<ActionResult<EventResource>> Restore(Guid calendarId, Guid id, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(calendarId, AclRight.WriteContent, cancellationToken);
+        var trashed = await ResolveTrashedAsync(calendarId, id, cancellationToken);
+        var result = await objectStore.RestoreAsync(calendarId, trashed.ResourceName, null, CurrentUserId, cancellationToken);
+        var restored = await repository.GetCalendarObjectByIdAsync(result!.Id, cancellationToken);
+        return ResourceMapper.MapEvent(restored!);
+    }
+
+    [HttpGet("{id:guid}/revisions")]
+    public async Task<ActionResult<CollectionResource<RevisionResource>>> Revisions(
+        Guid calendarId, Guid id, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(calendarId, AclRight.Read, cancellationToken);
+        var calendarObject = await ResolveAnyAsync(calendarId, id, cancellationToken);
+        var revisions = await repository.ListObjectRevisionsAsync(calendarObject.Id, cancellationToken);
+        var selfBase = $"/api/calendars/{calendarId}/events/{id}";
+        return new CollectionResource<RevisionResource>
+        {
+            Items = revisions.Select(r => ResourceMapper.MapRevision(r, selfBase)).ToList(),
+            Links = { new Link("self", $"{selfBase}/revisions") },
+        };
+    }
+
+    [HttpPost("{id:guid}/revisions/{number:long}/restore")]
+    public async Task<ActionResult<EventResource>> RestoreRevision(
+        Guid calendarId, Guid id, long number, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(calendarId, AclRight.WriteContent, cancellationToken);
+        var calendarObject = await ResolveAnyAsync(calendarId, id, cancellationToken);
+        var result = await objectStore.RestoreAsync(calendarId, calendarObject.ResourceName, number, CurrentUserId, cancellationToken);
+        var restored = await repository.GetCalendarObjectByIdAsync(result!.Id, cancellationToken);
+        return ResourceMapper.MapEvent(restored!);
+    }
+
+    private async Task<CalendarObject> ResolveTrashedAsync(Guid calendarId, Guid id, CancellationToken cancellationToken)
+    {
+        var found = await repository.FindCalendarObjectByIdAsync(id, cancellationToken);
+        return found is { IsDeleted: true } && found.CollectionId == calendarId
+            ? found
+            : throw new ResourceNotFoundException("Trashed event", id);
+    }
+
+    private async Task<CalendarObject> ResolveAnyAsync(Guid calendarId, Guid id, CancellationToken cancellationToken)
+    {
+        var found = await repository.FindCalendarObjectByIdAsync(id, cancellationToken);
+        return found is not null && found.CollectionId == calendarId
+            ? found
+            : throw new ResourceNotFoundException("Event", id);
+    }
+
     // Splittable = a non-recurring, non-all-day event whose start/end straddle the split point.
     private static void EnsureSplittable(CalendarObject calendarObject, DateTime atUtc)
     {
