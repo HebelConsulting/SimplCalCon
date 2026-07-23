@@ -118,6 +118,11 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 
+// Serve the Blazor WASM client's framework + static files; unmatched paths fall through
+// to the SPA index at the end of the pipeline (ADR 0009/0010).
+app.UseBlazorFrameworkFiles();
+app.UseStaticFiles();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -130,6 +135,8 @@ app.MapControllers();
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") });
+
+app.MapFallbackToFile("index.html");
 
 app.Run();
 

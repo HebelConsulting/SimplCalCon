@@ -21,6 +21,8 @@ public sealed class RootController : ControllerBase
         {
             new Link("self", "/api"),
             new Link("me", "/api/me"),
+            new Link("calendars", "/api/calendars"),
+            new Link("address-books", "/api/address-books"),
             new Link("app-passwords", "/api/app-passwords"),
             new Link("openapi", "/openapi/v1.json"),
         },

@@ -10,11 +10,14 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Scalar.AspNetCore" />
     <PackageReference Include="OpenIddict.AspNetCore" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\SimplCalCon.Application\SimplCalCon.Application.csproj" />
     <ProjectReference Include="..\SimplCalCon.Infrastructure\SimplCalCon.Infrastructure.csproj" />
+    <!-- The host serves the Blazor WASM client (ADR 0009: GET / falls through to the SPA). -->
+    <ProjectReference Include="..\SimplCalCon.Client\SimplCalCon.Client.csproj" />
     <!-- Both providers are referenced so the host can select one at runtime and the
          migrations assemblies are available (ADR 0017). -->
     <ProjectReference Include="..\SimplCalCon.Infrastructure.Postgres\SimplCalCon.Infrastructure.Postgres.csproj" />

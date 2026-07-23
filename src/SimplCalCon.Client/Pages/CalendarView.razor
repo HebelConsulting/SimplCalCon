@@ -1,0 +1,60 @@
+@page "/calendars/{CalendarId:guid}"
+@attribute [Authorize]
+@inject ApiClient Api
+
+<PageTitle>Calendar</PageTitle>
+
+<h1>Agenda</h1>
+<p><a href="">← Collections</a></p>
+
+@if (events is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    @foreach (var day in events.Where(e => e.StartUtc is not null).GroupBy(e => e.StartUtc!.Value.Date).OrderBy(g => g.Key))
+    {
+        <h3>@day.Key.ToString("ddd, d MMM yyyy")</h3>
+        <ul>
+            @foreach (var item in day.OrderBy(e => e.StartUtc))
+            {
+                <li>@(item.IsAllDay ? "All day" : item.StartUtc!.Value.ToString("HH:mm")) — @item.Summary@(item.IsRecurring ? " ↻" : "")</li>
+            }
+        </ul>
+    }
+    @if (events.Count == 0)
+    {
+        <p>No events.</p>
+    }
+
+    <h2>New event</h2>
+    <div>
+        <input placeholder="Summary" @bind="summary" />
+        <input type="datetime-local" @bind="start" />
+        <button @onclick="AddAsync">Add</button>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid CalendarId { get; set; }
+
+    private IReadOnlyList<EventDto>? events;
+    private string summary = string.Empty;
+    private DateTime start = DateTime.UtcNow;
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync() => events = await Api.GetEventsAsync(CalendarId);
+
+    private async Task AddAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(summary))
+        {
+            await Api.CreateEventAsync(CalendarId, summary, DateTime.SpecifyKind(start, DateTimeKind.Utc), null, false);
+            summary = string.Empty;
+            await LoadAsync();
+        }
+    }
+}

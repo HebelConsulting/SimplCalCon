@@ -53,6 +53,9 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
         await dbContext.AddressBooks
             .FirstOrDefaultAsync(a => a.OwnerId == ownerId && a.ResourceName == resourceName && !a.IsDeleted, cancellationToken);
 
+    public async Task<AddressBook?> GetAddressBookByIdAsync(Guid id, CancellationToken cancellationToken) =>
+        await dbContext.AddressBooks.FirstOrDefaultAsync(a => a.Id == id && !a.IsDeleted, cancellationToken);
+
     public async Task<AddressBook> CreateAddressBookAsync(
         Guid ownerId, Guid tenantId, string resourceName, string? displayName, CancellationToken cancellationToken)
     {
@@ -97,6 +100,9 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
         Guid collectionId, string resourceName, CancellationToken cancellationToken) =>
         await dbContext.ContactObjects
             .FirstOrDefaultAsync(o => o.CollectionId == collectionId && o.ResourceName == resourceName && !o.IsDeleted, cancellationToken);
+
+    public async Task<ContactObject?> GetContactObjectByIdAsync(Guid id, CancellationToken cancellationToken) =>
+        await dbContext.ContactObjects.FirstOrDefaultAsync(o => o.Id == id && !o.IsDeleted, cancellationToken);
 
     public async Task<IReadOnlyList<ContactObject>> GetObjectsAsync(
         Guid collectionId, IReadOnlyCollection<string> resourceNames, CancellationToken cancellationToken) =>
@@ -169,6 +175,9 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
         await dbContext.Calendars
             .FirstOrDefaultAsync(c => c.OwnerId == ownerId && c.ResourceName == resourceName && !c.IsDeleted, cancellationToken);
 
+    public async Task<Calendar?> GetCalendarByIdAsync(Guid id, CancellationToken cancellationToken) =>
+        await dbContext.Calendars.FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted, cancellationToken);
+
     public async Task<Calendar> CreateCalendarAsync(
         Guid ownerId,
         Guid tenantId,
@@ -222,6 +231,9 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
         Guid collectionId, string resourceName, CancellationToken cancellationToken) =>
         await dbContext.CalendarObjects
             .FirstOrDefaultAsync(o => o.CollectionId == collectionId && o.ResourceName == resourceName && !o.IsDeleted, cancellationToken);
+
+    public async Task<CalendarObject?> GetCalendarObjectByIdAsync(Guid id, CancellationToken cancellationToken) =>
+        await dbContext.CalendarObjects.FirstOrDefaultAsync(o => o.Id == id && !o.IsDeleted, cancellationToken);
 
     public async Task<IReadOnlyList<CalendarObject>> GetCalendarObjectsAsync(
         Guid collectionId, IReadOnlyCollection<string> resourceNames, CancellationToken cancellationToken) =>
