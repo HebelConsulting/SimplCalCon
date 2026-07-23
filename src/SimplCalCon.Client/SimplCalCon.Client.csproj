@@ -5,6 +5,15 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <!--
+      The Api hosts this WASM app with UseBlazorFrameworkFiles + MapFallbackToFile (ADR 0025),
+      which serves the physical index.html and does NOT resolve the runtime `#[.{fingerprint}]`
+      placeholder. Disable fingerprinting of the framework assets (WasmFingerprintAssets → the
+      dotnet.* files) and of blazor.webassembly.js itself (BlazorFingerprintBlazorJs) so they
+      keep plain names and index.html can reference `_framework/blazor.webassembly.js` directly.
+    -->
+    <WasmFingerprintAssets>false</WasmFingerprintAssets>
+    <BlazorFingerprintBlazorJs>false</BlazorFingerprintBlazorJs>
   </PropertyGroup>
 
   <ItemGroup>
