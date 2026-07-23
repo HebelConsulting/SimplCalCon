@@ -1,0 +1,23 @@
+<Project>
+
+  <!--
+    Repo-wide build settings. Applies to every project (src and tests).
+    See docs/adr/0015-inherited-engineering-conventions.md.
+  -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Warnings are errors repo-wide: a build with warnings is not done. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!--
+      NuGet package-audit warnings (deprecated / vulnerable) are owned by the
+      dedicated CI vulnerable-dependency scan, not the compiler gate, so a
+      freshly-published advisory can't break every local/CI compile mid-task.
+    -->
+    <WarningsNotAsErrors>NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
+  </PropertyGroup>
+
+</Project>
