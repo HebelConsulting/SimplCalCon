@@ -49,3 +49,19 @@ public sealed class HttpMkcolAttribute : HttpMethodAttribute
     {
     }
 }
+
+/// <summary>Routes the CalDAV <c>MKCALENDAR</c> method (RFC 4791).</summary>
+public sealed class HttpMkcalendarAttribute : HttpMethodAttribute
+{
+    private static readonly string[] Supported = ["MKCALENDAR"];
+
+    public HttpMkcalendarAttribute()
+        : base(Supported)
+    {
+    }
+
+    public HttpMkcalendarAttribute(string template)
+        : base(Supported, template)
+    {
+    }
+}

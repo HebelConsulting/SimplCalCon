@@ -10,14 +10,16 @@ namespace SimplCalCon.Api.Dav;
 /// <summary>Builds the DAV property sets for each CardDAV resource type (ADR 0003).</summary>
 internal static class CardDavResources
 {
-    public static DavResource Principal(string principalHref, string homeHref, string displayName)
+    public static DavResource Principal(
+        string principalHref, string addressBookHomeHref, string calendarHomeHref, string displayName)
     {
         var resource = new DavResource(principalHref);
         resource.Set(DavNames.ResourceType, new XElement(DavNames.Principal));
         resource.Set(DavNames.DisplayName, displayName);
         resource.Set(DavNames.CurrentUserPrincipal, new XElement(DavNames.Href, principalHref));
         resource.Set(DavNames.PrincipalUrl, new XElement(DavNames.Href, principalHref));
-        resource.Set(DavNames.AddressBookHomeSet, new XElement(DavNames.Href, homeHref));
+        resource.Set(DavNames.AddressBookHomeSet, new XElement(DavNames.Href, addressBookHomeHref));
+        resource.Set(DavNames.CalendarHomeSet, new XElement(DavNames.Href, calendarHomeHref));
         return resource;
     }
 

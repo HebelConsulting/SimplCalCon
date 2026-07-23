@@ -7,6 +7,7 @@ public static class DavNames
 {
     public static readonly XNamespace Dav = "DAV:";
     public static readonly XNamespace CardDav = "urn:ietf:params:xml:ns:carddav";
+    public static readonly XNamespace CalDav = "urn:ietf:params:xml:ns:caldav";
     public static readonly XNamespace CalendarServer = "http://calendarserver.org/ns/";
 
     // DAV: core
@@ -53,6 +54,19 @@ public static class DavNames
     public static readonly XName SupportedAddressData = CardDav + "supported-address-data";
     public static readonly XName AddressDataType = CardDav + "address-data-type";
     public static readonly XName AddressData = CardDav + "address-data";
+
+    // CalDAV
+    public static readonly XName Calendar = CalDav + "calendar";
+    public static readonly XName CalendarHomeSet = CalDav + "calendar-home-set";
+    public static readonly XName CalendarQuery = CalDav + "calendar-query";
+    public static readonly XName CalendarMultiget = CalDav + "calendar-multiget";
+    public static readonly XName CalendarData = CalDav + "calendar-data";
+    public static readonly XName SupportedCalendarData = CalDav + "supported-calendar-data";
+    public static readonly XName SupportedCalendarComponentSet = CalDav + "supported-calendar-component-set";
+    public static readonly XName Comp = CalDav + "comp";
+    public static readonly XName CompFilter = CalDav + "comp-filter";
+    public static readonly XName TimeRange = CalDav + "time-range";
+    public static readonly XName CalendarTimeZone = CalDav + "calendar-timezone";
 
     // calendarserver.org (CTag)
     public static readonly XName GetCTag = CalendarServer + "getctag";

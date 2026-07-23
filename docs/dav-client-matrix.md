@@ -21,12 +21,28 @@ Legend: ✅ verified · ⬜ not yet checked · ⚠️ works with caveat (note it
 | Delete on server → removed on device (tombstone) | ⬜ | ⬜ | ⬜ |
 | Create a second address book (MKCOL) | ⬜ | ⬜ | ⬜ |
 
-## CalDAV
+## CalDAV (ADR 0022)
 
-_Pending the CalDAV unit._
+| Flow | iOS/macOS Calendar | Android (DAVx⁵) | Thunderbird |
+|---|---|---|---|
+| Account setup via `/.well-known/caldav` | ⬜ | ⬜ | ⬜ |
+| Discovers calendar-home-set | ⬜ | ⬜ | ⬜ |
+| Default `calendar` appears | ⬜ | ⬜ | ⬜ |
+| Create event on device → appears on server | ⬜ | ⬜ | ⬜ |
+| Recurring event syncs and expands in views | ⬜ | ⬜ | ⬜ |
+| Task (VTODO) create/sync (Reminders / Tasks.org) | ⬜ | ⬜ | ⬜ |
+| Time-range refresh (calendar-query) returns the window | ⬜ | ⬜ | ⬜ |
+| Edit → ETag/If-Match update | ⬜ | ⬜ | ⬜ |
+| Delete on server → removed on device (sync-collection) | ⬜ | ⬜ | ⬜ |
+| Create a second calendar (MKCALENDAR) | ⬜ | ⬜ | ⬜ |
 
 ## Notes / caveats
 
-- `addressbook-query` filters are not yet evaluated server-side (returns all live
-  objects with the requested props) — verify clients tolerate the superset.
-- `address-data` returns the full card only (no partial retrieval).
+- `addressbook-query` / `calendar-query` filters are only partially evaluated
+  server-side: address-book returns all live objects; calendar applies the
+  `time-range` filter but not comp/prop/text filters — verify clients tolerate the
+  superset.
+- `address-data` / `calendar-data` return the full object (no partial retrieval or
+  response-side recurrence expansion).
+- Time-range expansion keys on occurrence start, so an event spanning into the window
+  from before it can be missed (rare).

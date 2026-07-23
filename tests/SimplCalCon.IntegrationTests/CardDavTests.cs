@@ -2,10 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Xml.Linq;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using SimplCalCon.Application.Abstractions.Identity;
-using SimplCalCon.Infrastructure.Persistence;
+using SimplCalCon.IntegrationTests.TestSupport;
 
 namespace SimplCalCon.IntegrationTests;
 
@@ -167,19 +164,6 @@ public sealed class CardDavTests(AuthWebApplicationFactory factory) : IClassFixt
         return await client.SendAsync(request);
     }
 
-    private async Task<(HttpClient Client, Guid UserId)> DavClientAsync()
-    {
-        factory.CreateClient();
-        using var scope = factory.Services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<SimplCalConDbContext>();
-        var normalized = AuthWebApplicationFactory.DemoAdminEmail.ToUpperInvariant();
-        var admin = await dbContext.Users.FirstAsync(u => u.NormalizedEmail == normalized);
-        var issued = await scope.ServiceProvider.GetRequiredService<IAppPasswordService>()
-            .IssueAsync(admin.Id, "carddav-test", default);
-
-        var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-            "Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"{AuthWebApplicationFactory.DemoAdminEmail}:{issued.Secret}")));
-        return (client, admin.Id);
-    }
+    private async Task<(HttpClient Client, Guid UserId)> DavClientAsync() =>
+        await DavTestUser.CreateAsync(factory, "carddav");
 }
