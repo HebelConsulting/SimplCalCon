@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-sqlite:
+    name: Build & test (SQLite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet build SimplCalCon.slnx -c Release
+      - run: dotnet test SimplCalCon.slnx -c Release --no-build
+
+  test-postgres:
+    name: Test (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: simplcalcon
+          POSTGRES_PASSWORD: simplcalcon
+          POSTGRES_DB: simplcalcon
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U simplcalcon -d simplcalcon"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      SIMPLCALCON_TEST_DB_PROVIDER: Postgres
+      SIMPLCALCON_TEST_DB_CONNECTION: "Host=localhost;Port=5432;Database=simplcalcon;Username=simplcalcon;Password=simplcalcon"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet build SimplCalCon.slnx -c Release
+      - run: dotnet test SimplCalCon.slnx -c Release --no-build
+
+  license-scan:
+    name: License gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet tool install --global nuget-license
+      - run: dotnet restore src/SimplCalCon.Api/SimplCalCon.Api.csproj
+      # Scan the deployable project's transitive tree; fail on any license outside the allowlist.
+      - run: >-
+          nuget-license
+          --input src/SimplCalCon.Api/SimplCalCon.Api.csproj
+          --include-transitive
+          --allowed-license-types build/licenses/allowed-licenses.json

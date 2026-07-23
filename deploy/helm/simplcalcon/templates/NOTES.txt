@@ -1,0 +1,13 @@
+SimplCalCon is deployed as {{ include "simplcalcon.fullname" . }} on port {{ .Values.service.port }}.
+
+Health: /health/live (liveness), /health/ready (readiness — checks the database).
+
+Before this is production-ready, ensure you have set:
+  - database.connectionString (or database.existingSecretName)
+  - bootstrap.platformAdminEmail / platformAdminPassword (first admin)
+  - openIddict.certificateSecretName (Production requires signing + encryption
+    certificates; the app fails fast at startup without them)
+
+Port-forward to try it:
+  kubectl port-forward svc/{{ include "simplcalcon.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+  curl http://localhost:{{ .Values.service.port }}/api

@@ -1,0 +1,40 @@
+# Local development / demo stack (ADR 0015, 0024). Runs unmodified under both
+# `docker compose up --build` and `podman compose up --build` — one shared file.
+# Runs in the Development environment (ephemeral OIDC keys, Scalar, demo seeding).
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: simplcalcon
+      POSTGRES_PASSWORD: simplcalcon
+      POSTGRES_DB: simplcalcon
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U simplcalcon -d simplcalcon"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      SimplCalCon__Database__Provider: Postgres
+      SimplCalCon__Database__ConnectionString: "Host=db;Database=simplcalcon;Username=simplcalcon;Password=simplcalcon"
+      SimplCalCon__Bootstrap__PlatformAdmin__Email: admin@simplcalcon.local
+      SimplCalCon__Bootstrap__PlatformAdmin__Password: ChangeMe-Platform-2026
+      SimplCalCon__Bootstrap__DemoTenant__TenantName: Demo
+      SimplCalCon__Bootstrap__DemoTenant__TenantSlug: demo
+      SimplCalCon__Bootstrap__DemoTenant__AdminEmail: admin@demo.local
+      SimplCalCon__Bootstrap__DemoTenant__AdminPassword: ChangeMe-Demo-2026
+    ports:
+      - "9080:9080"
+
+volumes:
+  db-data:
