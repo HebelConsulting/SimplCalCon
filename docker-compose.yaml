@@ -27,6 +27,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       SimplCalCon__Database__Provider: Postgres
       SimplCalCon__Database__ConnectionString: "Host=db;Database=simplcalcon;Username=simplcalcon;Password=simplcalcon"
+      # The SPA's OIDC redirect origin must match where it's served (the seeded client).
+      SimplCalCon__SpaClient__BaseUrl: "http://localhost:9080"
       SimplCalCon__Bootstrap__PlatformAdmin__Email: admin@simplcalcon.local
       SimplCalCon__Bootstrap__PlatformAdmin__Password: ChangeMe-Platform-2026
       SimplCalCon__Bootstrap__DemoTenant__TenantName: Demo

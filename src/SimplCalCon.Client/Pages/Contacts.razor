@@ -1,0 +1,58 @@
+@page "/address-books/{AddressBookId:guid}"
+@attribute [Authorize]
+@inject ApiClient Api
+
+<PageTitle>Contacts</PageTitle>
+
+<h1>Contacts</h1>
+<p><a href="">← Collections</a></p>
+
+@if (contacts is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <ul>
+        @foreach (var contact in contacts)
+        {
+            <li>@contact.FormattedName @(contact.Emails.Count > 0 ? "— " + string.Join(", ", contact.Emails) : "")</li>
+        }
+    </ul>
+    @if (contacts.Count == 0)
+    {
+        <p>No contacts.</p>
+    }
+
+    <h2>New contact</h2>
+    <div>
+        <input placeholder="Name" @bind="name" />
+        <input placeholder="Email" @bind="email" />
+        <button @onclick="AddAsync">Add</button>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid AddressBookId { get; set; }
+
+    private IReadOnlyList<ContactDto>? contacts;
+    private string name = string.Empty;
+    private string email = string.Empty;
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync() => contacts = await Api.GetContactsAsync(AddressBookId);
+
+    private async Task AddAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            var emails = string.IsNullOrWhiteSpace(email) ? Array.Empty<string>() : [email];
+            await Api.CreateContactAsync(AddressBookId, name, emails);
+            name = string.Empty;
+            email = string.Empty;
+            await LoadAsync();
+        }
+    }
+}

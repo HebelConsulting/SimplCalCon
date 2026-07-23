@@ -1,7 +1,73 @@
 @page "/"
+@attribute [Authorize]
+@inject ApiClient Api
 
 <PageTitle>SimplCalCon</PageTitle>
 
-<h1>SimplCalCon</h1>
+<h1>Your collections</h1>
 
-<p>Calendar and contact synchronization. This is the web UI skeleton.</p>
+@if (calendars is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <h2>Calendars</h2>
+    <ul>
+        @foreach (var calendar in calendars)
+        {
+            <li><a href="calendars/@calendar.Id">@calendar.Name</a>@(calendar.Shared ? " (shared)" : "")</li>
+        }
+    </ul>
+    <div class="mb-4">
+        <input placeholder="New calendar" @bind="newCalendar" />
+        <button @onclick="AddCalendarAsync">Add calendar</button>
+    </div>
+
+    <h2>Address books</h2>
+    <ul>
+        @foreach (var book in addressBooks!)
+        {
+            <li><a href="address-books/@book.Id">@book.Name</a>@(book.Shared ? " (shared)" : "")</li>
+        }
+    </ul>
+    <div>
+        <input placeholder="New address book" @bind="newBook" />
+        <button @onclick="AddAddressBookAsync">Add address book</button>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<CalendarDto>? calendars;
+    private IReadOnlyList<AddressBookDto>? addressBooks;
+    private string newCalendar = string.Empty;
+    private string newBook = string.Empty;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        calendars = await Api.GetCalendarsAsync();
+        addressBooks = await Api.GetAddressBooksAsync();
+    }
+
+    private async Task AddCalendarAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(newCalendar))
+        {
+            await Api.CreateCalendarAsync(newCalendar);
+            newCalendar = string.Empty;
+            await LoadAsync();
+        }
+    }
+
+    private async Task AddAddressBookAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(newBook))
+        {
+            await Api.CreateAddressBookAsync(newBook);
+            newBook = string.Empty;
+            await LoadAsync();
+        }
+    }
+}

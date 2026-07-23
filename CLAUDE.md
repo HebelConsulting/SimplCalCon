@@ -81,7 +81,9 @@ Account/app-password hashing is `PasswordHasher<T>` (PBKDF2) with rehash-on-logi
 
 ## Client (Blazor WASM)
 
-Blazor WebAssembly app (ADR 0010), served by the Api host, consuming `/api` with OIDC (code + PKCE), live updates via SignalR (ADR 0012). No conventions yet — establish layout/test guards (bUnit-style) as the UI takes shape and record them here.
+**Built (ADR 0025).** Blazor WebAssembly app, **served by the Api host** (Api references the Client + `WebAssembly.Server`; `UseBlazorFrameworkFiles` + `MapFallbackToFile("index.html")` → `GET /` SPA, `/api` REST, `/dav` DAV — one deployable; the Dockerfile publishes the WASM). OIDC (code + PKCE) via `WebAssembly.Authentication` against the seeded `simplcalcon-spa` client, with a `BaseAddressAuthorizationMessageHandler` attaching tokens to `/api` via a typed `ApiClient`. Pages: Home (collections), agenda calendar view, contacts, app-password management; plain Razor + CSS (no component library). **The SPA's OIDC redirect origin must match the serving origin** — set `SimplCalCon:SpaClient:BaseUrl` to it (the seeded client's redirect URI; demo compose uses `http://localhost:9080`).
+
+The REST resources the UI consumes (ADR 0009, 0025): `/api/calendars` + `/api/address-books` (list accessible/get/create/delete) with nested `.../{id}/events` (agenda via `?fromUtc&toUtc`) + `.../{id}/contacts` (list/get/create/update/delete). ACL-enforced (`read`/`write-content`) via `ApiControllerBase`; structured JSON in/out with `IObjectComposer` building the iCal/vCard blob (UID preserved on update). Deferred: month/week grid, rich editors, sharing-management UI, SignalR live updates. No UI test guards yet — add bUnit-style guards as the UI grows.
 
 ## Licensing constraint
 
