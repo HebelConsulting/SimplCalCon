@@ -47,6 +47,12 @@ The `/api` REST surface follows: HATEOAS hypermedia envelopes (`GET /api` is the
 
 The **`/dav` surface is exempt from the REST conventions** — it follows the WebDAV/CalDAV/CardDAV RFCs (its own XML, ETag, and error semantics; see ADR 0003 for the supported-feature list).
 
+## DAV surface (ADR 0003, 0021)
+
+**CardDAV is built** (CalDAV is the next unit). Principal-scoped layout (no tenant in the path): `/dav/principals/{userId}/`, home `/dav/addressbooks/{userId}/`, collections `.../{book}/`, objects `.../{book}/{name}`; `/.well-known/carddav` → 301 `/dav/`. Operations: PROPFIND (Depth 0/1), GET/PUT/DELETE with ETag + If-Match/If-None-Match, REPORT (addressbook-multiget/query/sync-collection), extended MKCOL, OPTIONS. A default `contacts` address book is auto-provisioned on first home access. Sync-token is opaque = the collection `ChangeSequence` (ADR 0020); foreign/malformed → RFC 6578 `valid-sync-token` 403. Owner-only access (403 otherwise; ACL is a later unit). All `/dav` routes use the DAV Basic app-password scheme.
+
+**Code**: `Api/Dav/` — custom `HttpPropfind`/`HttpReport`/`HttpMkcol` method attributes (routing already tolerates trailing slashes, so **one template per action** — duplicate with/without-slash templates cause `AmbiguousMatchException`); the in-house XML framework in `Api/Dav/Xml` (`DavNames`, `DavResource`, `MultiStatus`, `PropRequest`); read/query + provisioning via `IDavRepository`; object writes reuse `IObjectStore` (so DAV PUT/DELETE get revisions, tombstones, and the change-sequence bump). Known gaps (ADR 0021): `addressbook-query` filters aren't evaluated (returns the superset), `address-data` is full-card only. Manual native-client acceptance is tracked in `docs/dav-client-matrix.md`.
+
 ## Persistence (EF Core)
 
 PostgreSQL **and** SQLite are both production providers, configurable per deployment (ADR 0001): every schema, index, migration, and query must work on both — migrations are maintained per provider, CI tests run against both. **Cross-provider gotcha:** SQLite cannot `ORDER BY` a `DateTimeOffset` (Postgres can) — order such results client-side, or store a sortable representation for large sets (ADR 0019). Blob + extracted-field hybrid storage per ADR 0004: one application-layer write path keeps them in sync; DAV listings/sync/queries must never parse blobs at request time and must structurally exclude trashed objects (ADR 0011) and enforce tenant scoping (ADR 0006).

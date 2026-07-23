@@ -15,4 +15,8 @@ public static class ClaimsPrincipalExtensions
             ? id
             : throw new InvalidOperationException("The authenticated principal has no usable subject claim.");
     }
+
+    /// <summary>The authenticated user's tenant, or null for a platform administrator.</summary>
+    public static Guid? GetTenantId(this ClaimsPrincipal principal) =>
+        Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId) ? tenantId : null;
 }
