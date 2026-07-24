@@ -51,6 +51,63 @@ public sealed class CardDavTests(AuthWebApplicationFactory factory) : IClassFixt
     }
 
     [Fact]
+    public async Task Home_provisions_the_contacts_default_even_when_other_books_exist()
+    {
+        var (client, userId) = await DavClientAsync();
+        await CreateBookAsync(client, userId); // a non-"contacts" book (like a web-UI-created one)
+
+        var home = await SendAsync(client, "PROPFIND", $"/dav/addressbooks/{userId}/", depth: 1, body: PropfindBody("resourcetype"));
+
+        Assert.Equal(207, (int)home.StatusCode);
+        var doc = XDocument.Parse(await home.Content.ReadAsStringAsync());
+        Assert.Contains(doc.Descendants(Dav + "href"), h => h.Value == $"/dav/addressbooks/{userId}/contacts/");
+    }
+
+    [Fact]
+    public async Task Root_options_advertises_carddav_capability()
+    {
+        // macOS Contacts (RFC 6764) probes OPTIONS on the bare root and requires a DAV
+        // header advertising `addressbook`, or it discards the account.
+        var (client, _) = await DavClientAsync();
+
+        var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Options, "/"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("addressbook", response.Headers.GetValues("DAV").First());
+    }
+
+    [Fact]
+    public async Task Root_propfind_returns_current_user_principal()
+    {
+        var (client, userId) = await DavClientAsync();
+
+        var response = await SendAsync(client, "PROPFIND", "/", depth: 0, body: """
+            <propfind xmlns="DAV:"><prop><current-user-principal/></prop></propfind>
+            """);
+
+        Assert.Equal(207, (int)response.StatusCode);
+        var doc = XDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(
+            $"/dav/principals/{userId}/",
+            doc.Descendants(Dav + "current-user-principal").Descendants(Dav + "href").First().Value);
+    }
+
+    [Fact]
+    public async Task Proppatch_is_accepted_as_a_noop()
+    {
+        // Apple clients (dataaccessd) PROPPATCH collections during account setup and abort on 405.
+        var (client, userId) = await DavClientAsync();
+        var book = await CreateBookAsync(client, userId);
+
+        var response = await SendAsync(client, "PROPPATCH", $"/dav/addressbooks/{userId}/{book}/",
+            body: """<propertyupdate xmlns="DAV:"><set><prop><displayname>Renamed</displayname></prop></set></propertyupdate>""");
+
+        Assert.Equal(207, (int)response.StatusCode);
+        var doc = XDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Contains(doc.Descendants(Dav + "status"), s => s.Value.Contains("200"));
+    }
+
+    [Fact]
     public async Task Put_get_and_conditional_headers()
     {
         var (client, userId) = await DavClientAsync();

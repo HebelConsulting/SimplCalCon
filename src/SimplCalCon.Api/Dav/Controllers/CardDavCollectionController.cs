@@ -45,6 +45,24 @@ public sealed class CardDavCollectionController(IDavRepository repository, IAclS
         return DavXml.MultiStatus(MultiStatus.Build(request, resources));
     }
 
+    [HttpProppatch("~/dav/addressbooks/{userId:guid}/{book}")]
+    public async Task<IActionResult> Proppatch(Guid userId, string book, CancellationToken cancellationToken)
+    {
+        var addressBook = await repository.GetAddressBookAsync(userId, book, cancellationToken);
+        if (addressBook is null)
+        {
+            return NotFound();
+        }
+
+        if (!await HasAccessAsync(addressBook, AclRight.WriteContent, acl, cancellationToken))
+        {
+            return ForbidDav();
+        }
+
+        var body = await DavXml.ReadBodyAsync(Request, cancellationToken);
+        return DavXml.MultiStatus(MultiStatus.PropPatchAccepted(CollectionHref(userId, book), body));
+    }
+
     [HttpReport("~/dav/addressbooks/{userId:guid}/{book}")]
     public async Task<IActionResult> Report(Guid userId, string book, CancellationToken cancellationToken)
     {
