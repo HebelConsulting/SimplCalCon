@@ -50,6 +50,7 @@ internal static partial class ResourceMapper
         Id = calendarObject.Id,
         ResourceName = calendarObject.ResourceName,
         Summary = calendarObject.Summary,
+        Location = calendarObject.Location,
         StartUtc = calendarObject.DtStartUtc,
         EndUtc = calendarObject.DtEndUtc,
         IsAllDay = calendarObject.IsAllDay,

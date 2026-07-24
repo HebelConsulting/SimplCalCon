@@ -161,6 +161,7 @@ internal sealed class ObjectStore(
             calendarObject.Uid = extracted.Uid;
             calendarObject.ComponentType = extracted.Component;
             calendarObject.Summary = extracted.Summary;
+            calendarObject.Location = extracted.Location;
             calendarObject.DtStartUtc = extracted.DtStartUtc;
             calendarObject.DtEndUtc = extracted.DtEndUtc;
             calendarObject.IsAllDay = extracted.IsAllDay;

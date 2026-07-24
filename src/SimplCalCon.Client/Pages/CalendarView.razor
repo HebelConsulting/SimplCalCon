@@ -1,35 +1,35 @@
 @page "/calendars/{CalendarId:guid?}"
 @attribute [Authorize]
+@implements IAsyncDisposable
 @inject ApiClient Api
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 
 <PageTitle>Calendar</PageTitle>
 
-@if (calendars is not null)
+@if (calendars is { Count: > 0 })
 {
     <SectionContent SectionName="RibbonSection">
-        @if (calendars.Count > 0)
-        {
-            <select value="@EffectiveId" @onchange="OnSwitch">
-                @foreach (var c in calendars)
-                {
-                    <option value="@c.Id">@c.Name@(c.Shared ? " (shared)" : "")</option>
-                }
-            </select>
-            <button @onclick="ExportAsync">Export .ics</button>
-            @if (EffectiveId is { } id)
+        <select value="@EffectiveId" @onchange="OnSwitch">
+            @foreach (var c in calendars)
             {
-                <a class="ribbon-btn" href="share/calendars/@id">Share</a>
-                <a class="ribbon-btn" href="trash/calendars/@id">Trash</a>
+                <option value="@c.Id">@c.Name@(c.Shared ? " (shared)" : "")</option>
             }
+        </select>
+        <button class="ribbon-btn @(viewMode == View.List ? "active" : "")" @onclick="() => viewMode = View.List">List</button>
+        <button class="ribbon-btn @(viewMode == View.Calendar ? "active" : "")" @onclick="() => viewMode = View.Calendar">Calendar</button>
+        <button @onclick="() => showNew = true">New event</button>
+        <button @onclick="() => showImport = true">Import</button>
+        <button @onclick="ExportAsync">Export .ics</button>
+        @if (EffectiveId is { } id)
+        {
+            <a class="ribbon-btn" href="share/calendars/@id">Share</a>
+            <a class="ribbon-btn" href="trash/calendars/@id">Trash</a>
         }
     </SectionContent>
 }
 
-<h1>Calendar</h1>
-
-@if (calendars is null)
+@if (calendars is null || (calendars.Count > 0 && events is null))
 {
     <p>Loading…</p>
 }
@@ -37,92 +37,204 @@ else if (calendars.Count == 0)
 {
     <p>No calendars yet — create one on the <a href="">Overview</a> tab.</p>
 }
-else if (events is null)
-{
-    <p>Loading…</p>
-}
 else
 {
-    @foreach (var day in events.Where(e => e.StartUtc is not null).GroupBy(e => e.StartUtc!.Value.Date).OrderBy(g => g.Key))
-    {
-        <h3>@day.Key.ToString("ddd, d MMM yyyy")</h3>
-        <ul>
-            @foreach (var item in day.OrderBy(e => e.StartUtc))
-            {
-                <li>
-                    @(item.IsAllDay ? "All day" : item.StartUtc!.Value.ToString("HH:mm")) — @item.Summary@(item.IsRecurring ? " ↻" : "")
-                    @if (item.Attendees is { Count: > 0 } people)
-                    {
-                        <span class="attendees"> — @string.Join(", ", people.Where(p => !p.IsOrganizer).Select(p => $"{p.CommonName ?? p.Address} ({p.ParticipationStatus})"))</span>
-                    }
-                    <a href="history/calendars/@EffectiveId/@item.Id">History</a>
-                    @if (CanSplit(item))
-                    {
-                        @if (splittingId == item.Id)
-                        {
-                            <input type="datetime-local" @bind="splitAt" />
-                            <button @onclick="() => ConfirmSplitAsync(item)">Split here</button>
-                            <button @onclick="CancelSplit">Cancel</button>
-                        }
-                        else
-                        {
-                            <button @onclick="() => BeginSplit(item)">Split</button>
-                        }
-                    }
-                </li>
-            }
-        </ul>
-    }
-    @if (events.Count == 0)
-    {
-        <p>No events.</p>
-    }
-
-    <h2>New event</h2>
-    <div>
-        <input placeholder="Summary" @bind="summary" />
-        <input type="datetime-local" @bind="start" />
-        <input placeholder="Attendees (comma-separated emails)" @bind="attendees" />
-        <button @onclick="AddAsync">Add</button>
+    <div class="cal-list @(viewMode == View.List ? "" : "hidden")">
+        <table @ref="eventTable" class="event-table">
+            <thead>
+                <tr>
+                    <th @onclick='() => Sort("start")'>Start <span class="sort">@Indicator("start")</span></th>
+                    <th @onclick='() => Sort("title")'>Title <span class="sort">@Indicator("title")</span></th>
+                    <th @onclick='() => Sort("location")'>Location <span class="sort">@Indicator("location")</span></th>
+                    <th class="repeats-col" @onclick='() => Sort("repeats")'>Repeats <span class="sort">@Indicator("repeats")</span></th>
+                </tr>
+                <tr class="filter-row">
+                    <th><input @bind="fStart" @bind:event="oninput" placeholder="filter" /></th>
+                    <th><input @bind="fTitle" @bind:event="oninput" placeholder="filter" /></th>
+                    <th><input @bind="fLocation" @bind:event="oninput" placeholder="filter" /></th>
+                    <th class="repeats-col">
+                        <label title="Show only recurring events"><input type="checkbox" @bind="fRepeatsOnly" /> only</label>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var e in FilteredSorted())
+                {
+                    <tr @key="e.Id" class="@(selected?.Id == e.Id ? "sel" : "")" @onclick="() => Select(e)">
+                        <td>@FormatStart(e)</td>
+                        <td>@e.Summary</td>
+                        <td>@e.Location</td>
+                        <td class="repeats-col">@(e.IsRecurring ? "↻" : "")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (events!.Count == 0)
+        {
+            <p>No events.</p>
+        }
     </div>
 
-    <h2>Import</h2>
-    <div>
-        <InputFile OnChange="OnImportFile" accept=".ics" />
+    @if (viewMode == View.Calendar)
+    {
+        <div class="cal-grid-wrap">
+            <div class="grid-controls">
+                <button @onclick="Prev" title="Previous">‹</button>
+                <button @onclick="Today">Today</button>
+                <button @onclick="Next" title="Next">›</button>
+                <span class="period-label">@PeriodLabel</span>
+                <span class="grid-spacer"></span>
+                <button class="@(gridMode == Grid.Month ? "active" : "")" @onclick="() => gridMode = Grid.Month">Month</button>
+                <button class="@(gridMode == Grid.Week ? "active" : "")" @onclick="() => gridMode = Grid.Week">Week</button>
+            </div>
+
+            <div class="grid-weekdays">
+                @foreach (var name in WeekdayNames)
+                {
+                    <div class="weekday">@name</div>
+                }
+            </div>
+
+            <div class="@(gridMode == Grid.Month ? "month-grid" : "week-grid")">
+                @foreach (var day in VisibleDays())
+                {
+                    <div class="day-cell @(day.Month != cursor.Month && gridMode == Grid.Month ? "other-month" : "") @(day == DateTime.Today ? "today" : "")">
+                        <div class="day-number">@day.Day</div>
+                        @foreach (var e in EventsOn(day))
+                        {
+                            <button class="event-chip" title="@e.Summary" @onclick="() => Select(e)">
+                                <span class="chip-time">@(e.IsAllDay ? "—" : LocalStart(e)?.ToString("HH:mm"))</span> @e.Summary
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+}
+
+<Modal Visible="showNew" Title="New event" OnClose="() => showNew = false">
+    <div class="form-row"><label>Summary</label><input @bind="summary" /></div>
+    <div class="form-row"><label>Start</label><input type="datetime-local" @bind="start" /></div>
+    <div class="form-row"><label>Attendees</label><input placeholder="comma-separated emails" @bind="attendees" /></div>
+    <div class="form-actions">
+        <button @onclick="AddAsync" disabled="@string.IsNullOrWhiteSpace(summary)">Add</button>
+        <button @onclick="() => showNew = false">Cancel</button>
+    </div>
+</Modal>
+
+<Modal Visible="showImport" Title="Import calendar (.ics)" OnClose="() => showImport = false">
+    <div class="form-row"><InputFile OnChange="OnImportFile" accept=".ics" /></div>
+    <div class="form-row">
+        <label>On conflict</label>
         <select @bind="conflict">
             <option value="skip">Skip duplicates</option>
             <option value="replace">Replace duplicates</option>
         </select>
+    </div>
+    <div class="form-actions">
         <button @onclick="ImportAsync" disabled="@(pendingImport is null)">Import</button>
+        <button @onclick="() => showImport = false">Close</button>
     </div>
     @if (importMessage is not null)
     {
-        <p>@importMessage</p>
+        <p class="import-message">@importMessage</p>
     }
-}
+</Modal>
+
+<Modal Visible="selected is not null" Title="@(selected?.Summary ?? "Event")" OnClose="CloseDetail">
+    @if (selected is { } ev)
+    {
+        <dl class="detail">
+            <dt>When</dt>
+            <dd>@FormatRange(ev)@(ev.IsRecurring ? " · recurring ↻" : "")</dd>
+            @if (!string.IsNullOrWhiteSpace(ev.Location))
+            {
+                <dt>Location</dt>
+                <dd>@ev.Location</dd>
+            }
+            @if (ev.Attendees is { Count: > 0 } people)
+            {
+                <dt>Attendees</dt>
+                <dd>@string.Join(", ", people.Where(p => !p.IsOrganizer).Select(p => $"{p.CommonName ?? p.Address} ({p.ParticipationStatus})"))</dd>
+            }
+        </dl>
+        <div class="form-actions">
+            <a class="ribbon-btn" href="history/calendars/@EffectiveId/@ev.Id">History</a>
+            @if (CanSplit(ev))
+            {
+                @if (splittingId == ev.Id)
+                {
+                    <input type="datetime-local" @bind="splitAt" />
+                    <button @onclick="() => ConfirmSplitAsync(ev)">Split here</button>
+                    <button @onclick="CancelSplit">Cancel</button>
+                }
+                else
+                {
+                    <button @onclick="() => BeginSplit(ev)">Split</button>
+                }
+            }
+        </div>
+    }
+</Modal>
 
 @code {
+    private enum View { List, Calendar }
+    private enum Grid { Month, Week }
+
     [Parameter]
     public Guid? CalendarId { get; set; }
 
     private IReadOnlyList<CalendarDto>? calendars;
     private IReadOnlyList<EventDto>? events;
+
+    private View viewMode = View.List;
+    private Grid gridMode = Grid.Month;
+    private DateTime cursor = DateTime.Today;
+
+    private string sortColumn = "start";
+    private bool sortAscending = true;
+    private string fStart = string.Empty, fTitle = string.Empty, fLocation = string.Empty;
+    private bool fRepeatsOnly;
+
+    private EventDto? selected;
+    private bool showNew;
+    private bool showImport;
+
     private string summary = string.Empty;
     private string attendees = string.Empty;
-    private DateTime start = DateTime.UtcNow;
+    private DateTime start = DateTime.Now;
     private Guid? splittingId;
     private DateTime splitAt;
     private IBrowserFile? pendingImport;
     private string conflict = "skip";
     private string? importMessage;
 
-    // The selected calendar: the route id, else the first available (tab-landing default).
+    private ElementReference eventTable;
+    private IJSObjectReference? columnModule;
+    private IJSObjectReference? columnResizer;
+    private bool resizerReady;
+
+    private static readonly string[] WeekdayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
     private Guid? EffectiveId => CalendarId ?? calendars?.FirstOrDefault()?.Id;
 
     protected override async Task OnParametersSetAsync()
     {
         calendars ??= await Api.GetCalendarsAsync();
         events = EffectiveId is { } id ? await Api.GetEventsAsync(id) : null;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // The list table is always in the DOM (hidden via CSS in calendar mode), so the resizer
+        // initialises once and keeps its column widths across view switches.
+        if (!resizerReady && events is not null)
+        {
+            resizerReady = true;
+            columnModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/columnResize.js");
+            columnResizer = await columnModule.InvokeAsync<IJSObjectReference>("init", eventTable);
+        }
     }
 
     private void OnSwitch(ChangeEventArgs e)
@@ -133,14 +245,110 @@ else
         }
     }
 
-    // Only timed, non-recurring events with a start/end window can be split (ADR 0027).
+    // --- List: sort + per-column filters ---
+    private void Sort(string column)
+    {
+        if (sortColumn == column)
+        {
+            sortAscending = !sortAscending;
+        }
+        else
+        {
+            sortColumn = column;
+            sortAscending = true;
+        }
+    }
+
+    private string Indicator(string column) => sortColumn == column ? (sortAscending ? "▲" : "▼") : "";
+
+    private IEnumerable<EventDto> FilteredSorted()
+    {
+        var filtered = events!.Where(e =>
+            FormatStart(e).Contains(fStart, StringComparison.OrdinalIgnoreCase)
+            && (e.Summary ?? "").Contains(fTitle, StringComparison.OrdinalIgnoreCase)
+            && (e.Location ?? "").Contains(fLocation, StringComparison.OrdinalIgnoreCase)
+            && (!fRepeatsOnly || e.IsRecurring));
+
+        IEnumerable<EventDto> ordered = sortColumn switch
+        {
+            "title" => filtered.OrderBy(e => e.Summary ?? "", StringComparer.OrdinalIgnoreCase),
+            "location" => filtered.OrderBy(e => e.Location ?? "", StringComparer.OrdinalIgnoreCase),
+            "repeats" => filtered.OrderBy(e => e.IsRecurring),
+            _ => filtered.OrderBy(e => e.StartUtc ?? DateTime.MaxValue),
+        };
+        return sortAscending ? ordered : ordered.Reverse();
+    }
+
+    private static DateTime? LocalStart(EventDto e) => e.StartUtc?.ToLocalTime();
+
+    private static string FormatStart(EventDto e) =>
+        LocalStart(e) is { } s ? (e.IsAllDay ? s.ToString("ddd, d MMM yyyy") : s.ToString("ddd, d MMM yyyy HH:mm")) : "";
+
+    private static string FormatRange(EventDto e)
+    {
+        if (LocalStart(e) is not { } s)
+        {
+            return "";
+        }
+
+        if (e.IsAllDay)
+        {
+            return s.ToString("ddd, d MMM yyyy") + " (all day)";
+        }
+
+        var end = e.EndUtc?.ToLocalTime();
+        return end is { } en
+            ? $"{s:ddd, d MMM yyyy HH:mm} – {(en.Date == s.Date ? en.ToString("HH:mm") : en.ToString("ddd, d MMM yyyy HH:mm"))}"
+            : s.ToString("ddd, d MMM yyyy HH:mm");
+    }
+
+    private void Select(EventDto e)
+    {
+        selected = e;
+        splittingId = null;
+    }
+
+    private void CloseDetail()
+    {
+        selected = null;
+        splittingId = null;
+    }
+
+    // --- Grid geometry ---
+    private static DateTime WeekStart(DateTime d) => d.Date.AddDays(-((int)d.DayOfWeek + 6) % 7); // Monday-based
+
+    private IEnumerable<DateTime> VisibleDays()
+    {
+        if (gridMode == Grid.Week)
+        {
+            var weekStart = WeekStart(cursor);
+            return Enumerable.Range(0, 7).Select(i => weekStart.AddDays(i));
+        }
+
+        var first = new DateTime(cursor.Year, cursor.Month, 1);
+        var gridStart = WeekStart(first);
+        return Enumerable.Range(0, 42).Select(i => gridStart.AddDays(i)); // 6 weeks
+    }
+
+    private IEnumerable<EventDto> EventsOn(DateTime day) =>
+        events!.Where(e => LocalStart(e)?.Date == day.Date).OrderBy(e => e.StartUtc);
+
+    private string PeriodLabel => gridMode == Grid.Week
+        ? $"{WeekStart(cursor):d MMM} – {WeekStart(cursor).AddDays(6):d MMM yyyy}"
+        : cursor.ToString("MMMM yyyy");
+
+    private void Prev() => cursor = gridMode == Grid.Week ? cursor.AddDays(-7) : cursor.AddMonths(-1);
+    private void Next() => cursor = gridMode == Grid.Week ? cursor.AddDays(7) : cursor.AddMonths(1);
+    private void Today() => cursor = DateTime.Today;
+
+    // --- Split (ADR 0027): only timed, non-recurring events with a real window ---
     private static bool CanSplit(EventDto e) =>
         !e.IsAllDay && !e.IsRecurring && e.StartUtc is { } s && e.EndUtc is { } end && end > s;
 
     private void BeginSplit(EventDto e)
     {
         splittingId = e.Id;
-        splitAt = e.StartUtc!.Value + (e.EndUtc!.Value - e.StartUtc!.Value) / 2;
+        splitAt = (e.StartUtc!.Value + (e.EndUtc!.Value - e.StartUtc!.Value) / 2).ToLocalTime();
     }
 
     private void CancelSplit() => splittingId = null;
@@ -152,9 +360,24 @@ else
             return;
         }
 
-        await Api.SplitEventAsync(id, e.Id, DateTime.SpecifyKind(splitAt, DateTimeKind.Utc));
+        await Api.SplitEventAsync(id, e.Id, DateTime.SpecifyKind(splitAt.ToUniversalTime(), DateTimeKind.Utc));
         splittingId = null;
+        CloseDetail();
         await ReloadEventsAsync();
+    }
+
+    // --- New / import / export ---
+    private async Task AddAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(summary) && EffectiveId is { } id)
+        {
+            var invitees = attendees.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            await Api.CreateEventAsync(id, summary, DateTime.SpecifyKind(start.ToUniversalTime(), DateTimeKind.Utc), null, false, invitees);
+            summary = string.Empty;
+            attendees = string.Empty;
+            showNew = false;
+            await ReloadEventsAsync();
+        }
     }
 
     private void OnImportFile(InputFileChangeEventArgs e) => pendingImport = e.File;
@@ -176,24 +399,10 @@ else
 
     private async Task ExportAsync()
     {
-        if (EffectiveId is not { } id)
+        if (EffectiveId is { } id)
         {
-            return;
-        }
-
-        var bytes = await Api.ExportCollectionAsync("calendars", id);
-        await JS.InvokeVoidAsync("simplDownload", "calendar.ics", "text/calendar", Convert.ToBase64String(bytes));
-    }
-
-    private async Task AddAsync()
-    {
-        if (!string.IsNullOrWhiteSpace(summary) && EffectiveId is { } id)
-        {
-            var invitees = attendees.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            await Api.CreateEventAsync(id, summary, DateTime.SpecifyKind(start, DateTimeKind.Utc), null, false, invitees);
-            summary = string.Empty;
-            attendees = string.Empty;
-            await ReloadEventsAsync();
+            var bytes = await Api.ExportCollectionAsync("calendars", id);
+            await JS.InvokeVoidAsync("simplDownload", "calendar.ics", "text/calendar", Convert.ToBase64String(bytes));
         }
     }
 
@@ -202,6 +411,27 @@ else
         if (EffectiveId is { } id)
         {
             events = await Api.GetEventsAsync(id);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (columnResizer is not null)
+            {
+                await columnResizer.InvokeVoidAsync("dispose");
+                await columnResizer.DisposeAsync();
+            }
+
+            if (columnModule is not null)
+            {
+                await columnModule.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit already gone — nothing to clean up.
         }
     }
 }

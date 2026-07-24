@@ -32,6 +32,22 @@ public sealed class DataPortabilityTests(AuthWebApplicationFactory factory) : IC
     }
 
     [Fact]
+    public async Task Imported_event_exposes_its_location()
+    {
+        var client = await AuthedClientAsync();
+        var calendar = await CreateCalendarAsync(client);
+
+        var ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//T//EN\r\nBEGIN:VEVENT\r\nUID:loc-1@test\r\n"
+            + "SUMMARY:Offsite\r\nLOCATION:Cafe Central\r\nDTSTART:20260801T090000Z\r\nDTEND:20260801T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        var result = await ImportAsync(client, $"/api/calendars/{calendar}/import", ics, "loc.ics", "skip");
+        Assert.Equal(1, result.GetProperty("imported").GetInt32());
+
+        var events = await client.GetFromJsonAsync<JsonElement>($"/api/calendars/{calendar}/events");
+        var only = Assert.Single(events.GetProperty("items").EnumerateArray());
+        Assert.Equal("Cafe Central", only.GetProperty("location").GetString());
+    }
+
+    [Fact]
     public async Task Import_conflict_mode_skips_existing_uids()
     {
         var client = await AuthedClientAsync();
