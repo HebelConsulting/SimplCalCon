@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **SimplCalCon** is a multi-tenant server (Clean Architecture, .NET) for storing and synchronizing **calendar entries (events and tasks)** and **contacts** across devices (smartphones, tablets, computers) via **CalDAV/CardDAV**, plus a **REST API** and a **Blazor WASM web UI** for editing, viewing, sharing, and backup.
 
-The specification lives in `docs/spec.md`; every architectural decision is an ADR under `docs/adr/` (index: `docs/adr/README.md`). **No code exists yet** — the repo currently holds the spec and seed ADRs 0001–0015. Update this file as real structure lands; do not let it go stale.
+The specification lives in `docs/spec.md`; the task-oriented user/operator manual is `docs/manual.md` (native-client CalDAV/CardDAV setup, pgAdmin access — keep it current as operator-facing features land); every architectural decision is an ADR under `docs/adr/` (index: `docs/adr/README.md`). **No code exists yet** — the repo currently holds the spec and seed ADRs 0001–0015. Update this file as real structure lands; do not let it go stale.
 
 ## Working with the user
 
