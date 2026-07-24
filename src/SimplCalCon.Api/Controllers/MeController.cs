@@ -20,7 +20,13 @@ public sealed class MeController(SimplCalConDbContext dbContext) : ControllerBas
     public async Task<ActionResult<MeResource>> Get(CancellationToken cancellationToken)
     {
         var user = await FindAsync(cancellationToken);
-        return user is null ? NotFound() : Map(user);
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        var hasPhoto = await dbContext.UserProfilePhotos.AnyAsync(p => p.UserId == user.Id, cancellationToken);
+        return Map(user, hasPhoto);
     }
 
     [HttpHead]
@@ -36,12 +42,13 @@ public sealed class MeController(SimplCalConDbContext dbContext) : ControllerBas
         return dbContext.Users.FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
     }
 
-    private static MeResource Map(User user) => new()
+    private static MeResource Map(User user, bool hasPhoto) => new()
     {
         Id = user.Id,
         Email = user.Email,
         DisplayName = user.DisplayName,
         TenantId = user.TenantId,
+        HasPhoto = hasPhoto,
         Role = user.IsPlatformAdministrator ? "platform_admin" : user.TenantRole?.ToString().ToLowerInvariant() ?? "member",
         Links =
         {

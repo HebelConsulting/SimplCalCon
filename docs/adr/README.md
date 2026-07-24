@@ -40,5 +40,6 @@ rather than an edit.
 | [0032](0032-local-tls-proxy.md) | Local HTTPS via a Caddy TLS reverse proxy |
 | [0033](0033-enterprise-logging.md) | Enterprise logging (Serilog, structured, six-level severity grading) |
 | [0034](0034-web-client-shell-redesign.md) | Web client shell redesign (bottom tabs + ribbon + account box) |
+| [0035](0035-user-profile-photo.md) | User profile photo (client-normalized 256×256 PNG, server byte-guard) |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

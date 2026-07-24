@@ -1,0 +1,214 @@
+@page "/profile"
+@attribute [Authorize]
+@implements IAsyncDisposable
+@inject ApiClient Api
+@inject IJSRuntime JS
+
+<PageTitle>Profile</PageTitle>
+
+<h1>Profile</h1>
+
+@if (me is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <div class="profile-card">
+        <div class="profile-avatar">
+            @if (photoUrl is not null)
+            {
+                <img src="@photoUrl" alt="Profile photo" />
+            }
+            else
+            {
+                <span>@me.Initials</span>
+            }
+        </div>
+        <div>
+            <div class="profile-name">@me.DisplayName</div>
+            <div class="profile-email">@me.Email</div>
+            <div class="profile-role">@RoleLabel</div>
+        </div>
+    </div>
+
+    <h2>Photo</h2>
+    @if (cropSource is null)
+    {
+        <p>Pick an image, then position and zoom it inside the frame.</p>
+        <div>
+            <InputFile OnChange="OnFileAsync" accept="image/*" disabled="@busy" />
+            @if (hasPhoto)
+            {
+                <button @onclick="RemoveAsync" disabled="@busy">Remove photo</button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="crop-stage">
+            <canvas @ref="cropCanvas" width="280" height="280" class="crop-canvas"></canvas>
+            <div class="crop-controls">
+                <label class="crop-zoom">
+                    Zoom
+                    <input type="range" min="1" max="8" step="0.05" @bind="zoom" @bind:event="oninput" @bind:after="ApplyZoomAsync" />
+                </label>
+                <div class="crop-buttons">
+                    <button @onclick="ConfirmCropAsync" disabled="@busy">Use photo</button>
+                    <button @onclick="CancelCropAsync" disabled="@busy">Cancel</button>
+                </div>
+                <p class="crop-hint">Drag the image to reposition · scroll or use the slider to zoom.</p>
+            </div>
+        </div>
+    }
+
+    @if (message is not null)
+    {
+        <p>@message</p>
+    }
+}
+
+@code {
+    private MeDto? me;
+    private string? photoUrl;
+    private bool hasPhoto;
+    private bool busy;
+    private string? message;
+
+    private IJSObjectReference? module;
+    private IJSObjectReference? cropper;
+    private ElementReference cropCanvas;
+    private string? cropSource;
+    private bool initCropper;
+    private double zoom = 1;
+
+    private string RoleLabel => me?.Role switch
+    {
+        "platform_admin" => "Platform administrator",
+        "admin" => "Tenant administrator",
+        _ => "Member",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        me = await Api.GetMeAsync();
+        hasPhoto = me?.HasPhoto == true;
+        if (hasPhoto)
+        {
+            photoUrl = await Api.GetPhotoDataUrlAsync("api/users/me/photo");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/photoCrop.js");
+
+        // Create the interactive cropper once the canvas for the just-picked image exists.
+        if (initCropper && cropSource is not null)
+        {
+            initCropper = false;
+            cropper = await module.InvokeAsync<IJSObjectReference>("create", cropCanvas, cropSource);
+        }
+    }
+
+    private async Task OnFileAsync(InputFileChangeEventArgs e)
+    {
+        message = null;
+
+        // Downscale in the browser first (keeps the cropper snappy + the upload small).
+        var resized = await e.File.RequestImageFileAsync("image/png", 1024, 1024);
+        using var buffer = new MemoryStream();
+        await resized.OpenReadStream(8 * 1024 * 1024).CopyToAsync(buffer);
+
+        cropSource = $"data:image/png;base64,{Convert.ToBase64String(buffer.ToArray())}";
+        zoom = 1;
+        initCropper = true; // OnAfterRenderAsync wires the cropper to the rendered canvas
+    }
+
+    private async Task ApplyZoomAsync()
+    {
+        if (cropper is not null)
+        {
+            await cropper.InvokeVoidAsync("setZoom", zoom);
+        }
+    }
+
+    private async Task ConfirmCropAsync()
+    {
+        if (cropper is null)
+        {
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            var cropped = await cropper.InvokeAsync<string>("toPng", 256);
+            var png = Convert.FromBase64String(cropped[(cropped.IndexOf(',') + 1)..]);
+            await Api.PutMyPhotoAsync(png);
+            photoUrl = cropped;
+            hasPhoto = true;
+            message = "Photo updated.";
+        }
+        catch (Exception ex)
+        {
+            message = $"Upload failed: {ex.Message}";
+        }
+        finally
+        {
+            await DisposeCropperAsync();
+            cropSource = null;
+            busy = false;
+        }
+    }
+
+    private async Task CancelCropAsync()
+    {
+        await DisposeCropperAsync();
+        cropSource = null;
+    }
+
+    private async Task RemoveAsync()
+    {
+        busy = true;
+        await Api.DeleteMyPhotoAsync();
+        photoUrl = null;
+        hasPhoto = false;
+        message = "Photo removed.";
+        busy = false;
+    }
+
+    private async Task DisposeCropperAsync()
+    {
+        if (cropper is not null)
+        {
+            try
+            {
+                await cropper.InvokeVoidAsync("dispose");
+                await cropper.DisposeAsync();
+            }
+            catch
+            {
+                // Best-effort teardown.
+            }
+
+            cropper = null;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await DisposeCropperAsync();
+        if (module is not null)
+        {
+            try
+            {
+                await module.DisposeAsync();
+            }
+            catch
+            {
+                // Best-effort teardown.
+            }
+        }
+    }
+}

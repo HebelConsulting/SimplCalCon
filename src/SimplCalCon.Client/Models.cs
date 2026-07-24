@@ -2,7 +2,7 @@ namespace SimplCalCon.Client.Models;
 
 public sealed record Collection<T>(IReadOnlyList<T> Items);
 
-public sealed record MeDto(Guid Id, string Email, string DisplayName, Guid? TenantId, string Role)
+public sealed record MeDto(Guid Id, string Email, string DisplayName, Guid? TenantId, string Role, bool HasPhoto = false)
 {
     public bool IsAdmin => Role is "platform_admin" or "admin";
     public bool IsPlatformAdmin => Role is "platform_admin";

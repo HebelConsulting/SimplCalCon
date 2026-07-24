@@ -9,6 +9,28 @@ public sealed class ApiClient(HttpClient http)
 {
     public Task<MeDto?> GetMeAsync() => http.GetFromJsonAsync<MeDto>("api/me");
 
+    /// <summary>Fetches a profile photo via the authenticated client and returns it as a data URL (null if none).</summary>
+    public async Task<string?> GetPhotoDataUrlAsync(string path)
+    {
+        using var response = await http.GetAsync(path);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+        return $"data:image/png;base64,{Convert.ToBase64String(bytes)}";
+    }
+
+    public async Task PutMyPhotoAsync(byte[] png)
+    {
+        using var content = new ByteArrayContent(png);
+        content.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        (await http.PutAsync("api/users/me/photo", content)).EnsureSuccessStatusCode();
+    }
+
+    public Task DeleteMyPhotoAsync() => http.DeleteAsync("api/users/me/photo");
+
     public async Task<IReadOnlyList<TenantDto>> GetTenantsAsync() =>
         (await http.GetFromJsonAsync<Collection<TenantDto>>("api/admin/tenants"))?.Items ?? [];
 

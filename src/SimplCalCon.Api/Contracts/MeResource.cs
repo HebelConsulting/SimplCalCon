@@ -14,4 +14,7 @@ public sealed class MeResource : HypermediaResource
     public Guid? TenantId { get; init; }
 
     public required string Role { get; init; }
+
+    /// <summary>Whether the user has a profile photo (so the client knows to fetch it).</summary>
+    public bool HasPhoto { get; init; }
 }
