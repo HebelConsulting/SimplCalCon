@@ -21,9 +21,17 @@ internal sealed class ObjectImportExport(SimplCalConDbContext dbContext, IObject
             ?? throw new CollectionNotFoundException(collectionId);
 
         var isCalendar = collection is Calendar;
-        var items = isCalendar
+
+        // (Uid, Blob) for both paths. NB: BlobText.EnsureVCardUid returns (Blob, Uid) — it must
+        // be reordered here, or the loop below (which reads uid-first) would treat the whole
+        // vCard as the UID and the UID as the payload, failing every contact import.
+        IEnumerable<(string Uid, string Blob)> items = isCalendar
             ? CalendarObjectParser.Split(content).Select(x => (x.Uid, x.Blob))
-            : ContactObjectParser.Split(content).Select(block => BlobText.EnsureVCardUid(block));
+            : ContactObjectParser.Split(content).Select(block =>
+            {
+                var (blob, uid) = BlobText.EnsureVCardUid(block);
+                return (uid, blob);
+            });
 
         var extension = isCalendar ? "ics" : "vcf";
         int imported = 0, skipped = 0, failed = 0;
