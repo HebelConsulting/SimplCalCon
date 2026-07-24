@@ -24,7 +24,7 @@ public sealed class CardDavServiceController : DavControllerBase
     public IActionResult Options()
     {
         Response.Headers["DAV"] = "1, 3, addressbook, calendar-access";
-        Response.Headers["Allow"] = "OPTIONS, GET, PUT, DELETE, PROPFIND, REPORT, MKCOL, MKCALENDAR";
+        Response.Headers["Allow"] = "OPTIONS, GET, PUT, DELETE, PROPFIND, PROPPATCH, REPORT, MKCOL, MKCALENDAR";
         return Ok();
     }
 

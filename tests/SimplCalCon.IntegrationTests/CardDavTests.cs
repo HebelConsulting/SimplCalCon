@@ -64,6 +64,21 @@ public sealed class CardDavTests(AuthWebApplicationFactory factory) : IClassFixt
     }
 
     [Fact]
+    public async Task Proppatch_is_accepted_as_a_noop()
+    {
+        // Apple clients (dataaccessd) PROPPATCH collections during account setup and abort on 405.
+        var (client, userId) = await DavClientAsync();
+        var book = await CreateBookAsync(client, userId);
+
+        var response = await SendAsync(client, "PROPPATCH", $"/dav/addressbooks/{userId}/{book}/",
+            body: """<propertyupdate xmlns="DAV:"><set><prop><displayname>Renamed</displayname></prop></set></propertyupdate>""");
+
+        Assert.Equal(207, (int)response.StatusCode);
+        var doc = XDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Contains(doc.Descendants(Dav + "status"), s => s.Value.Contains("200"));
+    }
+
+    [Fact]
     public async Task Put_get_and_conditional_headers()
     {
         var (client, userId) = await DavClientAsync();

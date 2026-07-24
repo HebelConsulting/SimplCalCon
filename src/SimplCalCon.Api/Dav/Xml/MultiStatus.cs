@@ -21,6 +21,35 @@ public static class MultiStatus
         return new XDocument(new XDeclaration("1.0", "utf-8", null), root);
     }
 
+    /// <summary>
+    /// A PROPPATCH 207 that reports every requested property as accepted (200). We don't persist
+    /// arbitrary dead properties, but Apple clients (dataaccessd) set collection metadata during
+    /// account setup and abort when PROPPATCH 405s — so we acknowledge and ignore (RFC 4918 §9.2).
+    /// </summary>
+    public static XDocument PropPatchAccepted(string href, XElement? propertyUpdate)
+    {
+        var props = propertyUpdate?
+            .Descendants(DavNames.Prop)
+            .Elements()
+            .Select(e => new XElement(e.Name))
+            .ToList() ?? [];
+
+        var response = new XElement(DavNames.Response, new XElement(DavNames.Href, href));
+        if (props.Count > 0)
+        {
+            response.Add(new XElement(
+                DavNames.Propstat,
+                new XElement(DavNames.Prop, props),
+                new XElement(DavNames.Status, DavNames.Ok)));
+        }
+
+        var root = new XElement(
+            DavNames.Multistatus,
+            new XAttribute(XNamespace.Xmlns + "d", DavNames.Dav.NamespaceName),
+            response);
+        return new XDocument(new XDeclaration("1.0", "utf-8", null), root);
+    }
+
     /// <summary>Adds a top-level sync-token (used by sync-collection responses).</summary>
     public static XDocument WithSyncToken(XDocument document, string syncToken)
     {

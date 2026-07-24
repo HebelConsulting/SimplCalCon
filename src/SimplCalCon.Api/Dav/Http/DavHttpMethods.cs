@@ -18,6 +18,22 @@ public sealed class HttpPropfindAttribute : HttpMethodAttribute
     }
 }
 
+/// <summary>Routes the WebDAV <c>PROPPATCH</c> method (RFC 4918).</summary>
+public sealed class HttpProppatchAttribute : HttpMethodAttribute
+{
+    private static readonly string[] Supported = ["PROPPATCH"];
+
+    public HttpProppatchAttribute()
+        : base(Supported)
+    {
+    }
+
+    public HttpProppatchAttribute(string template)
+        : base(Supported, template)
+    {
+    }
+}
+
 /// <summary>Routes the WebDAV <c>REPORT</c> method (RFC 3253/6578).</summary>
 public sealed class HttpReportAttribute : HttpMethodAttribute
 {

@@ -49,6 +49,24 @@ public sealed class CalDavCollectionController(
         return DavXml.MultiStatus(MultiStatus.Build(request, resources));
     }
 
+    [HttpProppatch("~/dav/calendars/{userId:guid}/{cal}")]
+    public async Task<IActionResult> Proppatch(Guid userId, string cal, CancellationToken cancellationToken)
+    {
+        var calendar = await repository.GetCalendarAsync(userId, cal, cancellationToken);
+        if (calendar is null)
+        {
+            return NotFound();
+        }
+
+        if (!await HasAccessAsync(calendar, AclRight.WriteContent, acl, cancellationToken))
+        {
+            return ForbidDav();
+        }
+
+        var body = await DavXml.ReadBodyAsync(Request, cancellationToken);
+        return DavXml.MultiStatus(MultiStatus.PropPatchAccepted(CalendarHref(userId, cal), body));
+    }
+
     [HttpReport("~/dav/calendars/{userId:guid}/{cal}")]
     public async Task<IActionResult> Report(Guid userId, string cal, CancellationToken cancellationToken)
     {
