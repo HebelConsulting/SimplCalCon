@@ -38,7 +38,11 @@ public sealed record FreeBusyDto(string Address, DateTime FromUtc, DateTime ToUt
 public sealed record BusyPeriodDto(DateTime StartUtc, DateTime EndUtc);
 
 public sealed record ContactDto(
-    Guid Id, string? FormattedName, string? Organization, IReadOnlyList<string> Emails, IReadOnlyList<string> Phones);
+    Guid Id, string? FormattedName, string? Organization, IReadOnlyList<string> Emails, IReadOnlyList<string> Phones,
+    bool HasPhoto = false);
+
+/// <summary>RFC 7807 problem details (the fields the UI surfaces).</summary>
+public sealed record ProblemDto(string? Title, string? Detail, int? Status, string? ErrorCode);
 
 public sealed record AppPasswordDto(Guid Id, string Label, DateTime CreatedAt, DateTime? LastUsedAt);
 

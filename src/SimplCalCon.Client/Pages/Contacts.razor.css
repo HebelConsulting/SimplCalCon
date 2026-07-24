@@ -38,6 +38,34 @@
     font-size: 0.75rem;
 }
 
+.contacts-list thead tr.filter-row th {
+    cursor: default;
+    padding: 0.3rem 0.4rem;
+    background: #fbfcfe;
+    border-bottom: 1px solid #e2e6ea;
+}
+
+.contacts-list thead tr.filter-row input[type="text"],
+.contacts-list thead tr.filter-row input:not([type]) {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.2rem 0.35rem;
+    font-size: 0.8rem;
+    margin: 0;
+}
+
+.contacts-list thead tr.filter-row label {
+    font-size: 0.78rem;
+    color: #555;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.contacts-list .photo-col {
+    text-align: center;
+    width: 4.5rem;
+}
+
 .contacts-list tbody td {
     padding: 0.45rem 0.6rem;
     border-bottom: 1px solid #eef1f4;

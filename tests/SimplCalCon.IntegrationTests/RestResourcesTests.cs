@@ -124,7 +124,43 @@ public sealed class RestResourcesTests(AuthWebApplicationFactory factory) : ICla
         };
         put.Headers.TryAddWithoutValidation("If-Match", etag);
 
-        Assert.Equal(HttpStatusCode.UnsupportedMediaType, (await client.SendAsync(put)).StatusCode);
+        var response = await client.SendAsync(put);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("INVALID_VCARD", problem.RootElement.GetProperty("errorCode").GetString());
+
+        // Nothing was persisted — the original card still reads back.
+        var still = await client.GetFromJsonAsync<JsonElement>($"/api/address-books/{bookId}/contacts/{contactId}");
+        Assert.Equal("X", still.GetProperty("formattedName").GetString());
+    }
+
+    [Fact]
+    public async Task Contact_resource_reports_has_photo()
+    {
+        var client = await AuthedClientAsync();
+        var book = await client.PostAsJsonAsync("/api/address-books", new { name = "Photos" });
+        var bookId = (await Body(book)).GetProperty("id").GetGuid();
+        var created = await client.PostAsJsonAsync($"/api/address-books/{bookId}/contacts",
+            new { formattedName = "Pic Contact", emails = new[] { "pic@example.com" } });
+        var contactId = (await Body(created)).GetProperty("id").GetGuid();
+
+        var before = await client.GetFromJsonAsync<JsonElement>($"/api/address-books/{bookId}/contacts/{contactId}");
+        Assert.False(before.GetProperty("hasPhoto").GetBoolean());
+
+        // Add a PHOTO line via the raw endpoint.
+        var raw = await client.GetAsync($"/api/address-books/{bookId}/contacts/{contactId}/raw");
+        var etag = raw.Headers.ETag!.ToString();
+        var withPhoto = (await raw.Content.ReadAsStringAsync())
+            .Replace("END:VCARD", "PHOTO;ENCODING=b;TYPE=JPEG:/9j/4AAQSkZJRg\r\nEND:VCARD");
+        using var put = new HttpRequestMessage(HttpMethod.Put, $"/api/address-books/{bookId}/contacts/{contactId}/raw")
+        {
+            Content = new StringContent(withPhoto, System.Text.Encoding.UTF8, "text/vcard"),
+        };
+        put.Headers.TryAddWithoutValidation("If-Match", etag);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(put)).StatusCode);
+
+        var after = await client.GetFromJsonAsync<JsonElement>($"/api/address-books/{bookId}/contacts/{contactId}");
+        Assert.True(after.GetProperty("hasPhoto").GetBoolean());
     }
 
     [Fact]

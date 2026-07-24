@@ -55,16 +55,29 @@ else
                         <th @onclick='() => Sort("org")'>Organization <span class="sort">@Indicator("org")</span></th>
                         <th @onclick='() => Sort("email")'>Email <span class="sort">@Indicator("email")</span></th>
                         <th @onclick='() => Sort("phone")'>Phone <span class="sort">@Indicator("phone")</span></th>
+                        <th class="photo-col" @onclick='() => Sort("photo")'>Photo <span class="sort">@Indicator("photo")</span></th>
+                    </tr>
+                    <tr class="filter-row">
+                        <th><input placeholder="Filter…" @bind="filterName" @bind:event="oninput" /></th>
+                        <th><input placeholder="Filter…" @bind="filterOrg" @bind:event="oninput" /></th>
+                        <th><input placeholder="Filter…" @bind="filterEmail" @bind:event="oninput" /></th>
+                        <th><input placeholder="Filter…" @bind="filterPhone" @bind:event="oninput" /></th>
+                        <th class="photo-col">
+                            <label title="Show only contacts that have a photo">
+                                <input type="checkbox" @bind="filterPhotoOnly" /> only
+                            </label>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var c in Sorted())
+                    @foreach (var c in View())
                     {
                         <tr class="@(selected?.Id == c.Id ? "selected" : null)" @onclick="() => SelectAsync(c)">
                             <td>@c.FormattedName</td>
                             <td>@c.Organization</td>
                             <td>@c.Emails.FirstOrDefault()</td>
                             <td>@c.Phones.FirstOrDefault()</td>
+                            <td class="photo-col">@(c.HasPhoto ? "📷" : "")</td>
                         </tr>
                     }
                 </tbody>
@@ -72,6 +85,10 @@ else
             @if (contacts.Count == 0)
             {
                 <p class="empty">No contacts yet.</p>
+            }
+            else if (!View().Any())
+            {
+                <p class="empty">No contacts match the filter.</p>
             }
         </div>
 
@@ -85,7 +102,9 @@ else
                 <div class="detail-photo">
                     @if (selectedPhoto is not null)
                     {
-                        <img src="@selectedPhoto" alt="Contact photo" />
+                        @* referrerpolicy=no-referrer: external photo hosts (e.g. Google) reject
+                           cross-origin referers, so the browser must not send one. *@
+                        <img src="@selectedPhoto" alt="Contact photo" referrerpolicy="no-referrer" />
                     }
                     else
                     {
@@ -160,6 +179,12 @@ else
     private string sortColumn = "name";
     private bool sortAscending = true;
 
+    private string filterName = string.Empty;
+    private string filterOrg = string.Empty;
+    private string filterEmail = string.Empty;
+    private string filterPhone = string.Empty;
+    private bool filterPhotoOnly;
+
     private bool showNewBook;
     private string newBookName = string.Empty;
     private bool showImport;
@@ -211,18 +236,30 @@ else
 
     private string Indicator(string column) => sortColumn == column ? (sortAscending ? "▲" : "▼") : "";
 
-    private IEnumerable<ContactDto> Sorted()
+    // Per-column filters + the photo checkbox, then the active sort.
+    private IEnumerable<ContactDto> View()
     {
         Func<ContactDto, string> key = sortColumn switch
         {
             "org" => c => c.Organization ?? "",
             "email" => c => c.Emails.FirstOrDefault() ?? "",
             "phone" => c => c.Phones.FirstOrDefault() ?? "",
+            "photo" => c => c.HasPhoto ? "1" : "0",
             _ => c => c.FormattedName ?? "",
         };
-        var ordered = contacts!.OrderBy(key, StringComparer.OrdinalIgnoreCase);
+        var ordered = contacts!.Where(Matches).OrderBy(key, StringComparer.OrdinalIgnoreCase);
         return sortAscending ? ordered : ordered.Reverse();
     }
+
+    private bool Matches(ContactDto c) =>
+        Contains(c.FormattedName, filterName)
+        && Contains(c.Organization, filterOrg)
+        && Contains(string.Join(" ", c.Emails), filterEmail)
+        && Contains(string.Join(" ", c.Phones), filterPhone)
+        && (!filterPhotoOnly || c.HasPhoto);
+
+    private static bool Contains(string? value, string filter) =>
+        string.IsNullOrWhiteSpace(filter) || (value ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase);
 
     // --- Selection + raw view/edit ---
     private async Task SelectAsync(ContactDto contact)
@@ -256,28 +293,37 @@ else
             return;
         }
 
+        // Quick client-side sanity so obvious breakage doesn't need a round-trip; the server
+        // is the authority (it parses and refuses to persist an invalid card).
+        if (!editBuffer.Contains("BEGIN:VCARD", StringComparison.OrdinalIgnoreCase)
+            || !editBuffer.Contains("END:VCARD", StringComparison.OrdinalIgnoreCase))
+        {
+            detailMessage = "This doesn't look like a vCard (missing BEGIN:VCARD / END:VCARD) — not saved.";
+            return;
+        }
+
         busy = true;
-        try
+        detailMessage = null;
+
+        var error = await Api.PutContactRawAsync(id, selected.Id, editBuffer, selectedEtag);
+        if (error is not null)
         {
-            await Api.PutContactRawAsync(id, selected.Id, editBuffer, selectedEtag);
-            editing = false;
-            detailMessage = "Saved.";
-            contacts = (await Api.GetContactsAsync(id)).ToList();
-            var again = contacts.FirstOrDefault(c => c.Id == selected.Id);
-            if (again is not null)
-            {
-                await SelectAsync(again);
-                detailMessage = "Saved.";
-            }
-        }
-        catch (Exception ex)
-        {
-            detailMessage = $"Save failed: {ex.Message}";
-        }
-        finally
-        {
+            // Invalid card / conflict: keep editing with the text intact, show why.
+            detailMessage = error;
             busy = false;
+            return;
         }
+
+        editing = false;
+        contacts = (await Api.GetContactsAsync(id)).ToList();
+        var again = contacts.FirstOrDefault(c => c.Id == selected.Id);
+        if (again is not null)
+        {
+            await SelectAsync(again);
+        }
+
+        detailMessage = "Saved.";
+        busy = false;
     }
 
     private void ClearSelection()

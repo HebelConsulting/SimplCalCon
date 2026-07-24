@@ -6,6 +6,7 @@ using SimplCalCon.Api.Http;
 using SimplCalCon.Api.Hypermedia;
 using SimplCalCon.Application.Abstractions.Acl;
 using SimplCalCon.Application.Abstractions.Storage;
+using SimplCalCon.Api.Errors.Exceptions.Contacts;
 using SimplCalCon.Domain.Acl;
 using SimplCalCon.Domain.Objects.Exceptions;
 
@@ -92,11 +93,13 @@ public sealed class ContactsController(
         }
         catch (UidConflictException)
         {
-            return StatusCode(StatusCodes.Status409Conflict);
+            // Nothing persisted (the store rolled back before commit).
+            throw new VCardUidConflictException();
         }
-        catch (ObjectStoreException)
+        catch (ObjectStoreException ex)
         {
-            return StatusCode(StatusCodes.Status415UnsupportedMediaType);
+            // The edited vCard didn't parse — refuse the save with a clear reason; nothing persisted.
+            throw new MalformedVCardException(ex.Message);
         }
     }
 

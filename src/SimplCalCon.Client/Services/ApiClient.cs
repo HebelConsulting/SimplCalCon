@@ -94,7 +94,8 @@ public sealed class ApiClient(HttpClient http)
         return (await response.Content.ReadAsStringAsync(), response.Headers.ETag?.ToString());
     }
 
-    public async Task PutContactRawAsync(Guid addressBookId, Guid id, string vcard, string? etag)
+    /// <summary>Saves the raw vCard. Returns null on success, or the server's rejection message (invalid card, conflict, …).</summary>
+    public async Task<string?> PutContactRawAsync(Guid addressBookId, Guid id, string vcard, string? etag)
     {
         using var request = new HttpRequestMessage(HttpMethod.Put, $"api/address-books/{addressBookId}/contacts/{id}/raw")
         {
@@ -105,7 +106,21 @@ public sealed class ApiClient(HttpClient http)
             request.Headers.TryAddWithoutValidation("If-Match", etag);
         }
 
-        (await http.SendAsync(request)).EnsureSuccessStatusCode();
+        var response = await http.SendAsync(request);
+        if (response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        try
+        {
+            var problem = await response.Content.ReadFromJsonAsync<ProblemDto>();
+            return problem?.Detail ?? $"Save failed ({(int)response.StatusCode}).";
+        }
+        catch
+        {
+            return $"Save failed ({(int)response.StatusCode}).";
+        }
     }
 
     public async Task<IReadOnlyList<AppPasswordDto>> GetAppPasswordsAsync() =>
