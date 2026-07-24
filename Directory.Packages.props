@@ -26,6 +26,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Structured logging (ADR 0033): Serilog (Apache-2.0) bundles the console sink,
+         compact-JSON formatter, and appsettings binding used by the Api host. -->
+    <PackageVersion Include="Serilog.AspNetCore" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Auth: OpenIddict (Apache-2.0) OIDC server + EF stores; Identity password hasher primitive -->
     <PackageVersion Include="OpenIddict.AspNetCore" Version="7.6.0" />
     <PackageVersion Include="OpenIddict.EntityFrameworkCore" Version="7.6.0" />

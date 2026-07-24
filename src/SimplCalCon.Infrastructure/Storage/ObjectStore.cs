@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SimplCalCon.Application.Abstractions;
 using SimplCalCon.Application.Abstractions.Storage;
 using SimplCalCon.Domain.Collections;
@@ -14,10 +15,16 @@ namespace SimplCalCon.Infrastructure.Storage;
 /// collection's concurrency token serializes concurrent writes to the same collection,
 /// keeping the change sequence strictly increasing.
 /// </summary>
-internal sealed class ObjectStore(SimplCalConDbContext dbContext, IClock clock) : IObjectStore
+internal sealed class ObjectStore(
+    SimplCalConDbContext dbContext, IClock clock, ILogger<ObjectStore> logger) : IObjectStore
 {
     public async Task<StoredObjectResult> PutAsync(PutObjectRequest request, CancellationToken cancellationToken)
     {
+        // Trace carries the full blob — deliberately verbose (may clutter), for deep debugging only.
+        logger.LogTrace(
+            "PUT {ResourceName} into collection {CollectionId}, blob:\n{Blob}",
+            request.ResourceName, request.CollectionId, request.Blob);
+
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         var collection = await LoadCollectionAsync(request.CollectionId, cancellationToken);
@@ -29,6 +36,10 @@ internal sealed class ObjectStore(SimplCalConDbContext dbContext, IClock clock) 
             collection, stored, created ? RevisionOperation.Created : RevisionOperation.Updated,
             created, request.AuthorPrincipalId, now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        logger.LogDebug(
+            "{Operation} object {ResourceName} in collection {CollectionId} (change {ChangeNumber}).",
+            created ? "Created" : "Updated", request.ResourceName, request.CollectionId, collection.ChangeSequence);
         return result;
     }
 

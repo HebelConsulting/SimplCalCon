@@ -55,8 +55,13 @@ public sealed class DavBasicAuthenticationHandler(
         var identity = await authenticator.AuthenticateAsync(email, secret, Context.RequestAborted);
         if (identity is null)
         {
+            // Expected during device setup / typos; security-relevant but not admin-actionable
+            // in isolation (ADR 0033). Never log the secret.
+            Logger.LogInformation("DAV authentication failed for {Email} on {Path}.", email, Request.Path);
             return AuthenticateResult.Fail("Invalid DAV credentials.");
         }
+
+        Logger.LogDebug("DAV authentication succeeded for {Email}.", email);
 
         var claims = new List<Claim>
         {
