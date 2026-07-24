@@ -173,7 +173,8 @@ public sealed class ObjectStoreTests
             END:VCALENDAR
             """;
 
-        var importExport = new ObjectImportExport(_database.CreateContext(), Store());
+        var importCtx = _database.CreateContext();
+        var importExport = new ObjectImportExport(importCtx, Store(), new DavRepository(importCtx, _clock));
         var outcome = await importExport.ImportAsync(calendarId, twoEvents, ImportConflictMode.Replace, null, default);
 
         Assert.Equal(2, outcome.Imported);
@@ -191,7 +192,8 @@ public sealed class ObjectStoreTests
         // properties. Regression for the (Uid, Blob) tuple swap that failed every contact import.
         var bookId = await SeedAddressBookAsync();
         await using var context = _database.CreateContext();
-        var import = new ObjectImportExport(context, new ObjectStore(context, _clock, NullLogger<ObjectStore>.Instance));
+        var import = new ObjectImportExport(
+            context, new ObjectStore(context, _clock, NullLogger<ObjectStore>.Instance), new DavRepository(context, _clock));
 
         var vcf =
             "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:John Smith\r\nN:Smith;John;;;\r\n" +

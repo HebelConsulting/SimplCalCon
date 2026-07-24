@@ -45,5 +45,6 @@ rather than an edit.
 | [0037](0037-contact-photo-cache.md) | Server-side contact-photo caching (lazy fetch, SSRF-guarded, embed-on-death) |
 | [0038](0038-calendar-list-and-grid-views.md) | Calendar list + month/week grid views (extracted LOCATION field) |
 | [0039](0039-zip-archive-import.md) | Zip-archive import (multi-file .ics/.vcf, e.g. a Google export) |
+| [0040](0040-zip-import-into-separate-collections.md) | Zip import into separate new collections (recreate a Google export's structure) |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

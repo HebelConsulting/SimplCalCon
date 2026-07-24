@@ -123,8 +123,16 @@ else
     </div>
 </Modal>
 
-<Modal Visible="showImport" Title="Import calendar (.ics)" OnClose="() => showImport = false">
+<Modal Visible="showImport" Title="Import calendar (.ics or .zip)" OnClose="() => showImport = false">
     <div class="form-row"><InputFile OnChange="OnImportFile" accept=".ics,.zip" /></div>
+    @if (IsZipSelected)
+    {
+        <div class="form-row">
+            <label title="Recreate the original calendars from the archive (e.g. a Google export)">
+                <input type="checkbox" @bind="importSeparate" /> Create a separate calendar for each file in the archive
+            </label>
+        </div>
+    }
     <div class="form-row">
         <label>On conflict</label>
         <select @bind="conflict">
@@ -208,7 +216,10 @@ else
     private DateTime splitAt;
     private IBrowserFile? pendingImport;
     private string conflict = "skip";
+    private bool importSeparate;
     private string? importMessage;
+
+    private bool IsZipSelected => pendingImport?.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ?? false;
 
     private ElementReference eventTable;
     private IJSObjectReference? columnModule;
@@ -390,10 +401,18 @@ else
         }
 
         using var buffer = new MemoryStream();
-        await pendingImport.OpenReadStream(32 * 1024 * 1024).CopyToAsync(buffer);
-        var result = await Api.ImportCollectionAsync("calendars", id, buffer.ToArray(), pendingImport.Name, conflict);
-        importMessage = $"Imported {result?.Imported}, skipped {result?.Skipped}, failed {result?.Failed}.";
+        await pendingImport.OpenReadStream(64 * 1024 * 1024).CopyToAsync(buffer);
+        var result = await Api.ImportCollectionAsync("calendars", id, buffer.ToArray(), pendingImport.Name, conflict, importSeparate);
+        importMessage = result is { CreatedCollections: > 0 }
+            ? $"Created {result.CreatedCollections} calendar(s); imported {result.Imported}, skipped {result.Skipped}, failed {result.Failed}."
+            : $"Imported {result?.Imported}, skipped {result?.Skipped}, failed {result?.Failed}.";
         pendingImport = null;
+        importSeparate = false;
+        if (result is { CreatedCollections: > 0 })
+        {
+            calendars = await Api.GetCalendarsAsync(); // new calendars appear in the switcher
+        }
+
         await ReloadEventsAsync();
     }
 

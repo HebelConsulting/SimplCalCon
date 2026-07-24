@@ -53,6 +53,15 @@ internal static class Portability
         Errors = outcome.Errors,
     };
 
+    public static ImportResultResource Map(ArchiveImportOutcome result) => new()
+    {
+        Imported = result.Import.Imported,
+        Skipped = result.Import.Skipped,
+        Failed = result.Import.Failed,
+        CreatedCollections = result.CreatedCollections,
+        Errors = result.Import.Errors,
+    };
+
     public static FileContentResult Download(string document, string contentType, string fileName) =>
         Download(Encoding.UTF8.GetBytes(document), contentType, fileName);
 

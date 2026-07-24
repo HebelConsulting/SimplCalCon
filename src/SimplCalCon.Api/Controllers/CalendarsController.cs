@@ -76,7 +76,8 @@ public sealed class CalendarsController(
 
     [HttpPost("{id:guid}/import")]
     public async Task<ActionResult<ImportResultResource>> Import(
-        Guid id, IFormFile? file, [FromForm] string? onConflict, CancellationToken cancellationToken)
+        Guid id, IFormFile? file, [FromForm] string? onConflict, [FromForm] bool? separateCollections,
+        CancellationToken cancellationToken)
     {
         await RequireRightsAsync(id, AclRight.WriteContent, cancellationToken);
         if (file is null or { Length: 0 })
@@ -87,6 +88,19 @@ public sealed class CalendarsController(
         var bytes = await Portability.ReadBytesAsync(file, cancellationToken);
         try
         {
+            // A zip + "separate" recreates each file as its own new calendar (ADR 0040).
+            if (separateCollections == true && Portability.IsZip(file, bytes))
+            {
+                if (CurrentTenantId is not { } tenantId)
+                {
+                    throw new InsufficientRightsException();
+                }
+
+                var result = await importExport.ImportArchiveToNewCollectionsAsync(
+                    CurrentUserId, tenantId, isCalendar: true, bytes, Portability.Conflict(onConflict), cancellationToken);
+                return Portability.Map(result);
+            }
+
             var outcome = await Portability.RunImportAsync(importExport, id, file, bytes, onConflict, CurrentUserId, cancellationToken);
             return Portability.Map(outcome);
         }

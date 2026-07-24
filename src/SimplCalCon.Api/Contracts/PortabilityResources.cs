@@ -11,6 +11,9 @@ public sealed class ImportResultResource : HypermediaResource
 
     public required int Failed { get; init; }
 
+    /// <summary>New collections created by a per-file archive import (ADR 0040); 0 for a normal import.</summary>
+    public int CreatedCollections { get; init; }
+
     public IReadOnlyList<string> Errors { get; init; } = [];
 }
 
