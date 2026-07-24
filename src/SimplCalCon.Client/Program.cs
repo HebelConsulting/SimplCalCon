@@ -16,7 +16,9 @@ builder.Services.AddScoped<ApiClient>();
 
 builder.Services.AddOidcAuthentication(options =>
 {
-    options.ProviderOptions.Authority = builder.HostEnvironment.BaseAddress.TrimEnd('/');
+    // Must match the OpenIddict issuer exactly, including its trailing slash (BaseAddress ends
+    // with '/'). Trimming it makes the SPA reject the callback's id_token / iss parameter.
+    options.ProviderOptions.Authority = builder.HostEnvironment.BaseAddress;
     options.ProviderOptions.ClientId = "simplcalcon-spa";
     options.ProviderOptions.ResponseType = "code";
     options.ProviderOptions.DefaultScopes.Add("openid");

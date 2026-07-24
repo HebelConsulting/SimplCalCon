@@ -79,6 +79,7 @@ public sealed class OidcFlowTests(AuthWebApplicationFactory factory)
         using var payload = JsonDocument.Parse(await token.Content.ReadAsStringAsync());
         var accessToken = payload.RootElement.GetProperty("access_token").GetString();
         Assert.False(string.IsNullOrEmpty(accessToken));
+        var idTokenSubject = JwtSubject(payload.RootElement.GetProperty("id_token").GetString()!);
 
         // 4. Use the access token at the userinfo endpoint.
         var userInfoRequest = new HttpRequestMessage(HttpMethod.Get, "/connect/userinfo");
@@ -86,7 +87,19 @@ public sealed class OidcFlowTests(AuthWebApplicationFactory factory)
         var userInfo = await client.SendAsync(userInfoRequest);
 
         Assert.Equal(HttpStatusCode.OK, userInfo.StatusCode);
-        Assert.Contains(AuthWebApplicationFactory.DemoAdminEmail, await userInfo.Content.ReadAsStringAsync());
+        using var userInfoBody = JsonDocument.Parse(await userInfo.Content.ReadAsStringAsync());
+        Assert.Equal(AuthWebApplicationFactory.DemoAdminEmail, userInfoBody.RootElement.GetProperty("email").GetString());
+        // userinfo MUST return `sub` equal to the id_token subject, or OIDC clients (the SPA)
+        // hang after a successful token exchange (ADR 0018).
+        Assert.Equal(idTokenSubject, userInfoBody.RootElement.GetProperty("sub").GetString());
+    }
+
+    private static string JwtSubject(string jwt)
+    {
+        var part = jwt.Split('.')[1].Replace('-', '+').Replace('_', '/');
+        part = part.PadRight(part.Length + (4 - part.Length % 4) % 4, '=');
+        using var doc = JsonDocument.Parse(Convert.FromBase64String(part));
+        return doc.RootElement.GetProperty("sub").GetString()!;
     }
 
     private static string Base64Url(byte[] bytes) =>

@@ -14,10 +14,19 @@ namespace SimplCalCon.Api.Controllers;
 /// </summary>
 public sealed class WhoAmIController : ControllerBase
 {
-    /// <summary>OIDC userinfo — proves the access token from the code+PKCE flow.</summary>
+    /// <summary>
+    /// OIDC userinfo. Must return <c>sub</c> (equal to the id_token subject) — OIDC clients
+    /// reject a sign-in whose userinfo <c>sub</c> is missing or mismatched, which otherwise
+    /// leaves the SPA hung after a successful token exchange.
+    /// </summary>
     [HttpGet("~/connect/userinfo")]
     [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    public IActionResult UserInfo() => Ok(Describe());
+    public IActionResult UserInfo() => Ok(new
+    {
+        sub = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub"),
+        email = User.FindFirstValue(ClaimTypes.Email) ?? User.FindFirstValue("email"),
+        tenant_id = User.FindFirstValue("tenant_id"),
+    });
 
     /// <summary>DAV Basic (app-password) probe.</summary>
     [HttpGet("~/dav/whoami")]
