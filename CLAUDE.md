@@ -55,7 +55,7 @@ mis-graded log is a defect (`ILogger` method in parentheses):
 
 Per-request summaries come from `UseSerilogRequestLogging` (`/health/*` at Debug, 5xx/exceptions at Error); startup failures are logged **Fatal** in `Program.cs`'s host-run try/catch. Never log secrets (app-password/OIDC), even at Trace. Instrument the **key seams**, not every method.
 
-**DAV wire trace:** `DavWireTraceMiddleware` logs the full `/dav` request/response bodies (CalDAV + CardDAV) at **Trace** for native-client diagnosis — off by default, gated on `IsEnabled(Trace)` for the `SimplCalCon.Dav.Wire` category (enable via `Serilog__MinimumLevel__Override__SimplCalCon.Dav.Wire=Verbose`), pass-through with no buffering when off. The first trace entry per process raises a one-time **Warning** (it captures contact/calendar payloads — leave it off in production).
+**DAV wire trace:** `DavWireTraceMiddleware` logs the full `/dav` request/response bodies (CalDAV + CardDAV) at **Trace** for native-client diagnosis — off by default, gated on `IsEnabled(Trace)` for the `SimplCalCon.Dav.Wire` category (enable via `Serilog__MinimumLevel__Override__SimplCalCon.Dav.Wire=Verbose`), pass-through with no buffering when off. The first trace entry per process raises a one-time **Warning** (it captures contact/calendar payloads — leave it off in production). The same middleware also **Warns on unhandled DAV requests** (405/501, deduped, naming the client User-Agent) *regardless of trace level* — so native-client compatibility gaps surface in normal operation and point to enabling verbose for details.
 
 ## API architecture (ADR 0009)
 

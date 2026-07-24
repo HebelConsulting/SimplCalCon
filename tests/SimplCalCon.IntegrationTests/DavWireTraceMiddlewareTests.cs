@@ -73,6 +73,73 @@ public sealed class DavWireTraceMiddlewareTests
         Assert.Empty(captured);
     }
 
+    [Fact]
+    public async Task Unhandled_dav_request_warns_with_client_name_even_when_trace_disabled()
+    {
+        var captured = new List<(LogLevel Level, string Message)>();
+        // Information level: Trace is OFF (no verbose trace), Warning is ON.
+        using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.SetMinimumLevel(LogLevel.Information);
+            builder.AddProvider(new ListLoggerProvider(captured));
+        });
+
+        var middleware = new DavWireTraceMiddleware(WriteStatus(405), loggerFactory);
+        var context = DavContext("PROPPATCH", "/dav/calendars/x/cal/", "<propertyupdate/>");
+        context.Request.Headers.UserAgent = "macOS/15.7 CalendarAgent/1.0";
+
+        await middleware.InvokeAsync(context);
+
+        Assert.DoesNotContain(captured, e => e.Level == LogLevel.Trace);
+        var warning = Assert.Single(captured, e => e.Level == LogLevel.Warning);
+        Assert.Contains("Unhandled DAV request", warning.Message);
+        Assert.Contains("macOS/15.7 CalendarAgent/1.0", warning.Message);
+    }
+
+    [Fact]
+    public async Task Unhandled_warning_is_deduped_across_retries()
+    {
+        var captured = new List<(LogLevel Level, string Message)>();
+        using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.SetMinimumLevel(LogLevel.Information);
+            builder.AddProvider(new ListLoggerProvider(captured));
+        });
+
+        var middleware = new DavWireTraceMiddleware(WriteStatus(405), loggerFactory);
+        for (var i = 0; i < 3; i++)
+        {
+            await middleware.InvokeAsync(DavContext("PROPPATCH", "/dav/calendars/x/cal/", "<x/>"));
+        }
+
+        Assert.Equal(1, captured.Count(e => e.Level == LogLevel.Warning));
+    }
+
+    [Fact]
+    public async Task Handled_and_mkcol_conflict_do_not_warn()
+    {
+        var captured = new List<(LogLevel Level, string Message)>();
+        using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.SetMinimumLevel(LogLevel.Information);
+            builder.AddProvider(new ListLoggerProvider(captured));
+        });
+
+        // A handled 207 and a legitimate MKCOL-on-existing 405 must not warn.
+        await new DavWireTraceMiddleware(WriteDavResponse, loggerFactory)
+            .InvokeAsync(DavContext("PROPFIND", "/dav/addressbooks/x/", "<propfind/>"));
+        await new DavWireTraceMiddleware(WriteStatus(405), loggerFactory)
+            .InvokeAsync(DavContext("MKCOL", "/dav/addressbooks/x/book", null));
+
+        Assert.Empty(captured);
+    }
+
+    private static RequestDelegate WriteStatus(int statusCode) => context =>
+    {
+        context.Response.StatusCode = statusCode;
+        return Task.CompletedTask;
+    };
+
     private static async Task WriteDavResponse(HttpContext context)
     {
         context.Response.StatusCode = 207;

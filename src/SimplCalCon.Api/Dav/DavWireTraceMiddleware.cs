@@ -1,14 +1,22 @@
+using System.Collections.Concurrent;
+
 namespace SimplCalCon.Api.Dav;
 
 /// <summary>
-/// Verbose wire-level trace of the DAV surface (ADR 0033 — Trace level): logs each DAV
-/// request's method, path, depth and status plus the raw request and response bodies.
-/// Deliberately the most verbose signal we emit ("may clutter"), so it is <b>off by
-/// default</b> and gated on <c>IsEnabled(LogLevel.Trace)</c> for the
-/// <c>SimplCalCon.Dav.Wire</c> category — when Trace is not enabled the middleware is a
-/// pass-through with no body buffering. Enable per deployment via configuration/env, e.g.
-/// <c>Serilog__MinimumLevel__Override__SimplCalCon.Dav.Wire=Verbose</c>, to diagnose a
-/// native client (CalDAV/CardDAV) without attaching a proxy.
+/// DAV observability for diagnosing native CalDAV/CardDAV clients (ADR 0033). Two signals
+/// over the <c>SimplCalCon.Dav.Wire</c> category:
+/// <list type="bullet">
+/// <item><b>Verbose wire trace (Trace)</b> — the full <c>/dav</c> request/response bodies
+/// (method, path, depth, status + raw XML/blob). The most verbose signal we emit ("may
+/// clutter"), so it is <b>off by default</b> and gated on <c>IsEnabled(LogLevel.Trace)</c>;
+/// when off the middleware is a pass-through with no body buffering. Enable per deployment,
+/// e.g. <c>Serilog__MinimumLevel__Override__SimplCalCon.Dav.Wire=Verbose</c>.</item>
+/// <item><b>Unhandled-request Warning</b> — emitted <i>regardless</i> of the trace level
+/// when a DAV request falls through unhandled (405/501), which usually means a native-client
+/// compatibility gap (e.g. a method/path we don't serve). It points the operator at the
+/// verbose trace for the details. Deduped per <c>method+status+segment</c> so client retries
+/// don't flood the log.</item>
+/// </list>
 /// </summary>
 public sealed class DavWireTraceMiddleware
 {
@@ -16,6 +24,7 @@ public sealed class DavWireTraceMiddleware
 
     private readonly RequestDelegate _next;
     private readonly ILogger _logger;
+    private readonly ConcurrentDictionary<string, byte> _warnedUnhandled = new();
     private int _warned;
 
     public DavWireTraceMiddleware(RequestDelegate next, ILoggerFactory loggerFactory)
@@ -26,9 +35,18 @@ public sealed class DavWireTraceMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (!_logger.IsEnabled(LogLevel.Trace) || !IsDav(context.Request))
+        if (!IsDav(context.Request))
         {
             await _next(context);
+            return;
+        }
+
+        // Cheap path when the verbose trace is off: run the request, then still watch for
+        // unhandled DAV requests (that Warning is independent of the trace level).
+        if (!_logger.IsEnabled(LogLevel.Trace))
+        {
+            await _next(context);
+            WarnIfUnhandled(context);
             return;
         }
 
@@ -59,12 +77,46 @@ public sealed class DavWireTraceMiddleware
                 context.Request.Path,
                 context.Request.QueryString,
                 context.Request.Headers.TryGetValue("Depth", out var depth) ? depth.ToString() : "0",
-                context.Request.Headers.UserAgent.ToString(),
+                UserAgent(context.Request),
                 context.Response.StatusCode,
                 requestBody,
                 responseBody);
+
+            WarnIfUnhandled(context);
         }
     }
+
+    // A DAV request that fell through unhandled (405 Method Not Allowed / 501 Not
+    // Implemented) usually means a native-client compatibility gap — the client used a
+    // method/path we don't serve. Surface it at Warning naming the client, deduped so
+    // retries don't flood. MKCOL/MKCALENDAR legitimately 405 on an existing collection.
+    private void WarnIfUnhandled(HttpContext context)
+    {
+        var status = context.Response.StatusCode;
+        var method = context.Request.Method;
+        var unhandled = (status is StatusCodes.Status405MethodNotAllowed or StatusCodes.Status501NotImplemented)
+            && method is not ("MKCOL" or "MKCALENDAR");
+        if (!unhandled)
+        {
+            return;
+        }
+
+        var key = $"{method} {status} {FirstSegment(context.Request.Path)}";
+        if (_warnedUnhandled.TryAdd(key, 0))
+        {
+            _logger.LogWarning(
+                "Unhandled DAV request from client {UserAgent}: {Method} {Path} -> {StatusCode}. "
+                + "Likely a native-client compatibility gap; set {Category}=Verbose to log the full "
+                + "request/response.",
+                UserAgent(context.Request), method, context.Request.Path, status, Category);
+        }
+    }
+
+    private static string UserAgent(HttpRequest request) =>
+        request.Headers.UserAgent.ToString() is { Length: > 0 } ua ? ua : "(unknown)";
+
+    private static string FirstSegment(PathString path) =>
+        path.Value?.Trim('/').Split('/', 2)[0] ?? "";
 
     // First time a verbose entry is actually written, raise one Warning: leaving this on
     // clutters the log and captures contact/calendar payloads — an admin should act (ADR 0033).
