@@ -52,21 +52,8 @@
     text-overflow: ellipsis;
 }
 
-/* Drag handle at a header cell's right edge to resize the column (added by columnResize.js). */
-.contacts-list thead th .col-grip {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 7px;
-    height: 100%;
-    cursor: col-resize;
-    user-select: none;
-}
-
-.contacts-list thead th .col-grip:hover {
-    background: #cfe0f5;
-}
-
+/* The drag handle itself (.col-grip) is styled globally in app.css — it is injected by
+   columnResize.js and so can't be reached by component-scoped CSS. */
 .contacts-list thead th .sort {
     color: #1b6ec2;
     font-size: 0.75rem;

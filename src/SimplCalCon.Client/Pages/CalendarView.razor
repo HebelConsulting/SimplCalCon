@@ -49,9 +49,9 @@ else
                     <th class="repeats-col" @onclick='() => Sort("repeats")'>Repeats <span class="sort">@Indicator("repeats")</span></th>
                 </tr>
                 <tr class="filter-row">
-                    <th><input @bind="fStart" @bind:event="oninput" placeholder="filter" /></th>
-                    <th><input @bind="fTitle" @bind:event="oninput" placeholder="filter" /></th>
-                    <th><input @bind="fLocation" @bind:event="oninput" placeholder="filter" /></th>
+                    <th><FilterInput @bind-Value="fStart" /></th>
+                    <th><FilterInput @bind-Value="fTitle" /></th>
+                    <th><FilterInput @bind-Value="fLocation" /></th>
                     <th class="repeats-col">
                         <label title="Show only recurring events"><input type="checkbox" @bind="fRepeatsOnly" /> only</label>
                     </th>

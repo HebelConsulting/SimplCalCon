@@ -213,3 +213,22 @@ code {
     .content li a {
         font-size: 0.85rem;
     }
+
+/* Column-resize grip (columnResize.js, ADR 0036/0038). Global, not component-scoped: the grip is
+   injected into the DOM at runtime by JS, so it never carries a Blazor CSS-isolation scope
+   attribute and can only be reached from global CSS. The header cell it sits in is
+   position: sticky in each table, which anchors this absolute grip to the cell's right edge. */
+.col-grip {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 7px;
+    height: 100%;
+    cursor: col-resize;
+    user-select: none;
+    touch-action: none;
+}
+
+.col-grip:hover {
+    background: #cfe0f5;
+}

@@ -31,21 +31,8 @@
     text-overflow: ellipsis;
 }
 
-/* Drag handle added at a header's right edge by columnResize.js. */
-.event-table thead th .col-grip {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 7px;
-    height: 100%;
-    cursor: col-resize;
-    user-select: none;
-}
-
-.event-table thead th .col-grip:hover {
-    background: #cfe0f5;
-}
-
+/* The drag handle itself (.col-grip) is styled globally in app.css — it is injected by
+   columnResize.js and so can't be reached by component-scoped CSS. */
 .event-table thead th .sort {
     color: #1b6ec2;
     font-size: 0.75rem;
