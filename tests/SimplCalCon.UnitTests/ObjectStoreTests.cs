@@ -158,6 +158,33 @@ public sealed class ObjectStoreTests
         Assert.Contains("b@test", exported);
     }
 
+    [Fact]
+    public async Task Imports_a_multi_card_vcf_including_uid_less_google_style_cards()
+    {
+        // A Google-style export: multiple cards, some without a UID (vCard 3.0), grouped
+        // properties. Regression for the (Uid, Blob) tuple swap that failed every contact import.
+        var bookId = await SeedAddressBookAsync();
+        await using var context = _database.CreateContext();
+        var import = new ObjectImportExport(context, new ObjectStore(context, _clock, NullLogger<ObjectStore>.Instance));
+
+        var vcf =
+            "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:John Smith\r\nN:Smith;John;;;\r\n" +
+            "EMAIL;TYPE=INTERNET;TYPE=HOME:john@gmail.com\r\nTEL;TYPE=CELL:+15551234567\r\nEND:VCARD\r\n" +
+            "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Jane Doe\r\nitem1.EMAIL;TYPE=INTERNET:jane@example.com\r\n" +
+            "item1.X-ABLabel:Work\r\nEND:VCARD\r\n";
+
+        var outcome = await import.ImportAsync(bookId, vcf, ImportConflictMode.Replace, null, default);
+
+        Assert.Equal(2, outcome.Imported);
+        Assert.Equal(0, outcome.Failed);
+
+        await using var check = _database.CreateContext();
+        var names = await check.ContactObjects.Where(c => c.CollectionId == bookId && !c.IsDeleted)
+            .Select(c => c.FormattedName).ToListAsync();
+        Assert.Contains("John Smith", names);
+        Assert.Contains("Jane Doe", names);
+    }
+
     private Task<Guid> SeedCalendarAsync(bool supportsTasks = true) =>
         SeedCollectionAsync(owner => new Calendar
         {
