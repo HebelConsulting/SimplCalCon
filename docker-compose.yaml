@@ -58,7 +58,7 @@ services:
 
   # Optional Postgres admin UI (ADR 0024). Opt-in and dev/demo only — it does NOT run in the
   # default stack; start it with:  docker compose --profile tools up -d pgadmin  (podman:
-  # podman compose --profile tools up -d pgadmin). Then open http://localhost:5050, sign in
+  # podman compose --profile tools up -d pgadmin). Then open http://localhost:6050, sign in
   # with the PGADMIN creds below; the "SimplCalCon (demo)" server is pre-registered — enter
   # the db password `simplcalcon` (deploy/db-init.sql) on first connect.
   pgadmin:
@@ -74,7 +74,7 @@ services:
       PGADMIN_DEFAULT_PASSWORD: admin
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
     ports:
-      - "5050:80"
+      - "6050:80"
     volumes:
       - ./deploy/pgadmin-servers.json:/pgadmin4/servers.json:ro
       - pgadmin-data:/var/lib/pgadmin
