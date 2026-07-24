@@ -9,7 +9,8 @@ using SimplCalCon.Infrastructure.Persistence;
 namespace SimplCalCon.Infrastructure.Storage;
 
 /// <summary>Bulk import/export over the single write path (ADR 0013). Per-object errors never abort the batch.</summary>
-internal sealed class ObjectImportExport(SimplCalConDbContext dbContext, IObjectStore objectStore) : IObjectImportExport
+internal sealed class ObjectImportExport(
+    SimplCalConDbContext dbContext, IObjectStore objectStore, IDavRepository repository) : IObjectImportExport
 {
     public async Task<ImportOutcome> ImportAsync(
         Guid collectionId,
@@ -108,6 +109,49 @@ internal sealed class ObjectImportExport(SimplCalConDbContext dbContext, IObject
         return new ImportOutcome(imported, skipped, failed, errors);
     }
 
+    public async Task<ArchiveImportOutcome> ImportArchiveToNewCollectionsAsync(
+        Guid ownerUserId,
+        Guid tenantId,
+        bool isCalendar,
+        byte[] archive,
+        ImportConflictMode conflictMode,
+        CancellationToken cancellationToken)
+    {
+        var extension = isCalendar ? ".ics" : ".vcf";
+        int created = 0, imported = 0, skipped = 0, failed = 0;
+        var errors = new List<string>();
+
+        using var stream = new MemoryStream(archive);
+        using var zip = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        foreach (var entry in zip.Entries.Where(e => e.Name.EndsWith(extension, StringComparison.OrdinalIgnoreCase)))
+        {
+            string content;
+            using (var reader = new StreamReader(entry.Open(), Encoding.UTF8))
+            {
+                content = await reader.ReadToEndAsync(cancellationToken);
+            }
+
+            // Prefer the calendar's own display name (Google/Apple set X-WR-CALNAME); else the file name.
+            var name = (isCalendar ? ExtractCalendarName(content) : null)
+                ?? System.IO.Path.GetFileNameWithoutExtension(entry.Name);
+            var resourceName = UniqueResourceName(name);
+
+            var collectionId = isCalendar
+                ? (await repository.CreateCalendarAsync(ownerUserId, tenantId, resourceName, name, true, true, cancellationToken)).Id
+                : (await repository.CreateAddressBookAsync(ownerUserId, tenantId, resourceName, name, cancellationToken)).Id;
+            created++;
+
+            var outcome = await ImportAsync(collectionId, content, conflictMode, ownerUserId, cancellationToken);
+            imported += outcome.Imported;
+            skipped += outcome.Skipped;
+            failed += outcome.Failed;
+            errors.AddRange(outcome.Errors.Select(e => $"{name}: {e}"));
+        }
+
+        return new ArchiveImportOutcome(created, new ImportOutcome(imported, skipped, failed, errors));
+    }
+
     public async Task<string> ExportAsync(Guid collectionId, CancellationToken cancellationToken)
     {
         var collection = await dbContext.Collections
@@ -128,4 +172,73 @@ internal sealed class ObjectImportExport(SimplCalConDbContext dbContext, IObject
 
     private Task<bool> ExistsAsync(Guid collectionId, string uid, CancellationToken cancellationToken) =>
         dbContext.Objects.AnyAsync(o => o.CollectionId == collectionId && o.Uid == uid && !o.IsDeleted, cancellationToken);
+
+    // The iCalendar X-WR-CALNAME property carries the calendar's display name (set by Google/Apple).
+    private static string? ExtractCalendarName(string content)
+    {
+        foreach (var line in Unfold(content))
+        {
+            var colon = line.IndexOf(':');
+            if (colon <= 0)
+            {
+                continue;
+            }
+
+            var propertyName = line[..colon];
+            var semicolon = propertyName.IndexOf(';');
+            if (semicolon >= 0)
+            {
+                propertyName = propertyName[..semicolon];
+            }
+
+            if (propertyName.Equals("X-WR-CALNAME", StringComparison.OrdinalIgnoreCase))
+            {
+                var value = line[(colon + 1)..].Trim();
+                return value.Length > 0 ? value : null;
+            }
+        }
+
+        return null;
+    }
+
+    // RFC 5545 line unfolding: a line starting with a space/tab continues the previous one. Lazy,
+    // so a caller scanning for one property near the top doesn't process the whole document.
+    private static IEnumerable<string> Unfold(string content)
+    {
+        var raw = content.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+        var current = new StringBuilder();
+        var has = false;
+        foreach (var line in raw)
+        {
+            if (line.Length > 0 && (line[0] == ' ' || line[0] == '\t') && has)
+            {
+                current.Append(line[1..]);
+            }
+            else
+            {
+                if (has)
+                {
+                    yield return current.ToString();
+                }
+
+                current.Clear();
+                current.Append(line);
+                has = true;
+            }
+        }
+
+        if (has)
+        {
+            yield return current.ToString();
+        }
+    }
+
+    // A URL-safe slug plus a GUID suffix so two files with the same name never collide.
+    private static string UniqueResourceName(string name)
+    {
+        var slug = new string((name ?? string.Empty).ToLowerInvariant()
+            .Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray());
+        slug = string.Join('-', slug.Split('-', StringSplitOptions.RemoveEmptyEntries));
+        return $"{(slug.Length == 0 ? "collection" : slug)}-{Guid.NewGuid():N}";
+    }
 }

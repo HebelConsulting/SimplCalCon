@@ -182,9 +182,18 @@ public sealed class ApiClient(HttpClient http)
 
     // Data portability (ADR 0013/0029). `kind` is "calendars" or "address-books".
     public async Task<ImportResultDto?> ImportCollectionAsync(
-        string kind, Guid collectionId, byte[] content, string fileName, string onConflict)
+        string kind, Guid collectionId, byte[] content, string fileName, string onConflict,
+        bool separateCollections = false)
     {
-        using var form = BuildForm(content, fileName, kind == "calendars" ? "text/calendar" : "text/vcard", onConflict);
+        var contentType = fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
+            ? "application/zip"
+            : (kind == "calendars" ? "text/calendar" : "text/vcard");
+        using var form = BuildForm(content, fileName, contentType, onConflict);
+        if (separateCollections)
+        {
+            form.Add(new StringContent("true"), "separateCollections");
+        }
+
         var response = await http.PostAsync($"api/{kind}/{collectionId}/import", form);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<ImportResultDto>();

@@ -74,6 +74,46 @@ public sealed class DataPortabilityTests(AuthWebApplicationFactory factory) : IC
         Assert.Equal(2, events.GetProperty("items").EnumerateArray().Count());
     }
 
+    [Fact]
+    public async Task Zip_import_with_separate_collections_creates_a_calendar_per_file()
+    {
+        var client = await AuthedClientAsync();
+        var landing = await CreateCalendarAsync(client); // the calendar the user is viewing
+
+        using var zipStream = new MemoryStream();
+        using (var zip = new ZipArchive(zipStream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            await WriteEntryAsync(zip, "Takeout/Calendar/work.ics", IcsCal("Work", "sep-w@test", "Standup"));
+            await WriteEntryAsync(zip, "Takeout/Calendar/family.ics", IcsCal("Family", "sep-f@test", "Dinner"));
+        }
+
+        using var form = new MultipartFormDataContent
+        {
+            { new StringContent("skip"), "onConflict" },
+            { new StringContent("true"), "separateCollections" },
+        };
+        var file = new ByteArrayContent(zipStream.ToArray());
+        file.Headers.ContentType = new MediaTypeHeaderValue("application/zip");
+        form.Add(file, "file", "calendar-export.zip");
+        var response = await client.PostAsync($"/api/calendars/{landing}/import", form);
+        response.EnsureSuccessStatusCode();
+
+        var result = await Body(response);
+        Assert.Equal(2, result.GetProperty("createdCollections").GetInt32());
+        Assert.Equal(2, result.GetProperty("imported").GetInt32());
+
+        // Two new calendars named from X-WR-CALNAME, plus the landing calendar.
+        var calendars = await client.GetFromJsonAsync<JsonElement>("/api/calendars");
+        var names = calendars.GetProperty("items").EnumerateArray()
+            .Select(c => c.GetProperty("name").GetString()).ToList();
+        Assert.Contains("Work", names);
+        Assert.Contains("Family", names);
+    }
+
+    private static string IcsCal(string calName, string uid, string summary) =>
+        $"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//T//EN\r\nX-WR-CALNAME:{calName}\r\nBEGIN:VEVENT\r\nUID:{uid}\r\n"
+        + $"SUMMARY:{summary}\r\nDTSTART:20261001T090000Z\r\nDTEND:20261001T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
     private static string Ics(string uid, string summary) =>
         $"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//T//EN\r\nBEGIN:VEVENT\r\nUID:{uid}\r\n"
         + $"SUMMARY:{summary}\r\nDTSTART:20260901T090000Z\r\nDTEND:20260901T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";

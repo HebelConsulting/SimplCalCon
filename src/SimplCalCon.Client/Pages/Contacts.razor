@@ -146,8 +146,14 @@ else
     </div>
 </Modal>
 
-<Modal Visible="showImport" Title="Import contacts (.vcf)" OnClose="CloseImport">
+<Modal Visible="showImport" Title="Import contacts (.vcf or .zip)" OnClose="CloseImport">
     <InputFile OnChange="OnImportFile" accept=".vcf,.zip" />
+    @if (IsZipSelected)
+    {
+        <label title="Recreate the original address books from the archive (e.g. a Google export)">
+            <input type="checkbox" @bind="importSeparate" /> Create a separate address book for each file in the archive
+        </label>
+    }
     <label>
         On duplicate:
         <select @bind="importConflict">
@@ -201,7 +207,10 @@ else
     private bool showImport;
     private IBrowserFile? pendingImport;
     private string importConflict = "skip";
+    private bool importSeparate = true; // default on: recreate the source address books (Google export)
     private string? importMessage;
+
+    private bool IsZipSelected => pendingImport?.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ?? false;
 
     private Guid? EffectiveId => AddressBookId ?? books?.FirstOrDefault()?.Id;
 
@@ -402,6 +411,7 @@ else
     {
         showImport = false;
         pendingImport = null;
+        importSeparate = true;
         importMessage = null;
     }
 
@@ -414,10 +424,18 @@ else
 
         busy = true;
         using var buffer = new MemoryStream();
-        await pendingImport.OpenReadStream(32 * 1024 * 1024).CopyToAsync(buffer);
-        var result = await Api.ImportCollectionAsync("address-books", id, buffer.ToArray(), pendingImport.Name, importConflict);
-        importMessage = $"Imported {result?.Imported}, skipped {result?.Skipped}, failed {result?.Failed}.";
+        await pendingImport.OpenReadStream(64 * 1024 * 1024).CopyToAsync(buffer);
+        var result = await Api.ImportCollectionAsync("address-books", id, buffer.ToArray(), pendingImport.Name, importConflict, importSeparate);
+        importMessage = result is { CreatedCollections: > 0 }
+            ? $"Created {result.CreatedCollections} address book(s); imported {result.Imported}, skipped {result.Skipped}, failed {result.Failed}."
+            : $"Imported {result?.Imported}, skipped {result?.Skipped}, failed {result?.Failed}.";
         pendingImport = null;
+        importSeparate = true;
+        if (result is { CreatedCollections: > 0 })
+        {
+            books = await Api.GetAddressBooksAsync(); // new books appear in the switcher
+        }
+
         contacts = (await Api.GetContactsAsync(id)).ToList();
         busy = false;
     }
