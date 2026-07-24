@@ -35,6 +35,26 @@ Prefer switch expressions (`x switch { ... }`) over traditional `switch`/`case` 
 
 **Prefer specific, intent-named exceptions over bare generic ones everywhere — not just `ApiException`.** For a real error *condition* in domain/application logic, throw a dedicated, intent-named subclass rather than a bare `Exception`/`InvalidOperationException`/`ArgumentException` with an ad-hoc string; give a family a small shared base where a caller might `catch` the group. **Reserve bare framework exceptions for genuinely generic, defensive, or unreachable cases**: argument guards (`ArgumentNullException.ThrowIfNull(x)` etc.) and "this should never happen" assertions.
 
+## Logging (ADR 0033)
+
+Application logging is **Serilog** via `ILogger<T>` (structured message templates with
+named properties — never string-concatenated messages; Serilog is wired only in
+`Program.cs`, app code stays on `ILogger`). Levels are configured in the `Serilog`
+section of `appsettings*.json` (framework/EF Core noise floored at Warning); the console
+sink is human-readable in Development and compact JSON elsewhere.
+
+**Grade every log by operator intent** — this six-level scale is a hard convention; a
+mis-graded log is a defect (`ILogger` method in parentheses):
+
+- **Trace** (`LogTrace`) — most verbose, *may clutter*: full payloads (blobs/bodies), per-item detail. Off in normal operation.
+- **Debug** (`LogDebug`) — verbose, *no clutter*: normal control-flow milestones (write stored, message delivered, auth ok, skip taken).
+- **Information** (`LogInformation`) — *clear, no clutter*: one line per meaningful outcome (request summary, a scheduling REQUEST/REPLY/CANCEL, bootstrap steps).
+- **Warning** (`LogWarning`) — *high probability an admin must act*: degraded-but-serving (e.g. invited admin awaiting activation).
+- **Error** (`LogError`) — *an exception for an admin to investigate*: unexpected faults (5xx), always with the exception object.
+- **Fatal** (`LogCritical`) — *service impaired*: the process cannot serve (startup/host failure).
+
+Per-request summaries come from `UseSerilogRequestLogging` (`/health/*` at Debug, 5xx/exceptions at Error); startup failures are logged **Fatal** in `Program.cs`'s host-run try/catch. Never log secrets (app-password/OIDC), even at Trace. Instrument the **key seams**, not every method.
+
 ## API architecture (ADR 0009)
 
 The `/api` REST surface follows: HATEOAS hypermedia envelopes (`GET /api` is the discovery document), RFC 7807 problem details written with `contentType: "application/problem+json"`, ETag/`If-Match` on every mutation (412 `ETAG_MISMATCH`, 428 `IF_MATCH_REQUIRED`) backed by explicit `Guid` concurrency-token columns (regenerated on every save, portable across PostgreSQL/SQLite — never a DB system column), and **JSON only** (no XML formatters — the DAV surface is the XML protocol here; DTOs may be records). **Media-type versioning is deferred** (ADR 0019): v1 ships implicitly as `application/json`; add negotiation when a v2 exists.

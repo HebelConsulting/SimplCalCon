@@ -39,10 +39,12 @@ internal sealed class BootstrapHostedService(
         var dbContext = services.GetRequiredService<SimplCalConDbContext>();
         var passwordHashing = services.GetRequiredService<PasswordHashing>();
 
+        logger.LogInformation("Applying database migrations ({Environment}).", environment.EnvironmentName);
         await dbContext.Database.MigrateAsync(cancellationToken);
         await SeedSpaClientAsync(services, cancellationToken);
         await SeedPlatformAdminAsync(services, dbContext, passwordHashing, cancellationToken);
         await SeedDemoTenantAsync(dbContext, passwordHashing, cancellationToken);
+        logger.LogInformation("First-run bootstrap complete.");
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -52,6 +54,7 @@ internal sealed class BootstrapHostedService(
         var manager = services.GetRequiredService<IOpenIddictApplicationManager>();
         if (await manager.FindByClientIdAsync(SpaClientOptions.ClientId, cancellationToken) is not null)
         {
+            logger.LogDebug("OIDC client '{ClientId}' already registered; skipping.", SpaClientOptions.ClientId);
             return;
         }
 

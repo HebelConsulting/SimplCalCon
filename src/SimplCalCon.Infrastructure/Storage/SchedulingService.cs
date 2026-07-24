@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SimplCalCon.Application.Abstractions.Scheduling;
 using SimplCalCon.Application.Abstractions.Storage;
 using SimplCalCon.Domain.Principals;
@@ -8,7 +9,10 @@ namespace SimplCalCon.Infrastructure.Storage;
 
 /// <summary>RFC 6638 server-side automatic scheduling (ADR 0031), tenant-internal, over the DAV write/delete path.</summary>
 internal sealed class SchedulingService(
-    SimplCalConDbContext dbContext, IScheduleInboxRepository inboxes, IObjectStore objectStore) : ISchedulingService
+    SimplCalConDbContext dbContext,
+    IScheduleInboxRepository inboxes,
+    IObjectStore objectStore,
+    ILogger<SchedulingService> logger) : ISchedulingService
 {
     public async Task ProcessWriteAsync(
         Guid collectionId, string? oldBlob, string newBlob, Guid actingUserId, CancellationToken cancellationToken)
@@ -49,7 +53,11 @@ internal sealed class SchedulingService(
         }
 
         var cancel = ItipCalendar.Cancel(deletedBlob);
-        foreach (var attendee in info.Attendees.Where(a => a.Email != actor.Email))
+        var recipients = info.Attendees.Where(a => a.Email != actor.Email).ToList();
+        logger.LogInformation(
+            "Scheduling CANCEL for {Uid} from {Organizer} to {AttendeeCount} attendee(s).",
+            info.Uid, actor.Email, recipients.Count);
+        foreach (var attendee in recipients)
         {
             await DeliverToLocalAsync(attendee.Email, actor.TenantId, cancel, "CANCEL", cancellationToken);
         }
@@ -60,7 +68,11 @@ internal sealed class SchedulingService(
     {
         // REQUEST to every current (local) attendee except the organizer.
         var request = ItipCalendar.Request(newBlob);
-        foreach (var attendee in info.Attendees.Where(a => a.Email != info.OrganizerEmail))
+        var recipients = info.Attendees.Where(a => a.Email != info.OrganizerEmail).ToList();
+        logger.LogInformation(
+            "Scheduling REQUEST for {Uid} from {Organizer} to {AttendeeCount} attendee(s).",
+            info.Uid, info.OrganizerEmail, recipients.Count);
+        foreach (var attendee in recipients)
         {
             await DeliverToLocalAsync(attendee.Email, tenantId, request, "REQUEST", cancellationToken);
         }
@@ -95,6 +107,10 @@ internal sealed class SchedulingService(
         {
             return;
         }
+
+        logger.LogInformation(
+            "Scheduling REPLY for {Uid} from {Attendee} ({PartStat}) to organizer {Organizer}.",
+            info.Uid, actor.Email, mine.ParticipationStatus, info.OrganizerEmail);
 
         var reply = ItipCalendar.Reply(info.Uid, info.Organizer, mine.Address, mine.ParticipationStatus, mine.CommonName);
         var inbox = await inboxes.EnsureInboxAsync(organizer, actor.TenantId, cancellationToken);
@@ -139,6 +155,12 @@ internal sealed class SchedulingService(
         {
             var inbox = await inboxes.EnsureInboxAsync(recipient, tenantId, cancellationToken);
             await inboxes.DeliverAsync(inbox.Id, blob, method, cancellationToken);
+            logger.LogDebug("Delivered {Method} to the schedule inbox of {Email}.", method, email);
+        }
+        else
+        {
+            // Internal-first slice (ADR 0031): external attendees have no local inbox yet.
+            logger.LogDebug("No local recipient for {Email}; {Method} not delivered.", email, method);
         }
     }
 

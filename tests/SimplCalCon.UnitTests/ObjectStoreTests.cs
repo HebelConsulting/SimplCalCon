@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using SimplCalCon.Application.Abstractions.Storage;
 using SimplCalCon.Domain.Collections;
 using SimplCalCon.Domain.Objects;
@@ -51,7 +52,7 @@ public sealed class ObjectStoreTests
     private readonly TestDatabase _database = new();
     private readonly MutableClock _clock = new(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
 
-    private ObjectStore Store() => new(_database.CreateContext(), _clock);
+    private ObjectStore Store() => new(_database.CreateContext(), _clock, NullLogger<ObjectStore>.Instance);
 
     [Fact]
     public async Task Put_event_extracts_fields_and_starts_history()

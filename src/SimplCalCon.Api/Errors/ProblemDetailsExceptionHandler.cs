@@ -41,7 +41,14 @@ public sealed class ProblemDetailsExceptionHandler(
 
         if (status >= StatusCodes.Status500InternalServerError)
         {
-            logger.LogError(exception, "Unhandled exception translated to {Status}.", status);
+            // Unexpected server faults: an admin must investigate (ADR 0033 — error level).
+            logger.LogError(exception, "Unhandled exception translated to {Status} ({ErrorCode}).", status, errorCode);
+        }
+        else
+        {
+            // Expected, handled client errors (4xx): visible for tracing, not alarming.
+            logger.LogDebug(
+                "Handled {ExceptionType} as {Status} ({ErrorCode}).", exception.GetType().Name, status, errorCode);
         }
 
         httpContext.Response.StatusCode = status;
