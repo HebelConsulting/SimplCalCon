@@ -1,0 +1,113 @@
+@page "/configuration"
+@attribute [Authorize]
+@inject ApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Configuration</PageTitle>
+
+<h1>Configuration</h1>
+<p>Connect your calendar &amp; contacts apps over CalDAV/CardDAV, and manage per-device passwords.</p>
+
+<h2>Connection details</h2>
+@if (me is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <ul>
+        <li><strong>Server (CalDAV/CardDAV):</strong> <code>https://@Host/dav/</code> &nbsp;<em>(HTTPS, port 443)</em></li>
+        <li><strong>Username:</strong> <code>@me.Email</code></li>
+        <li><strong>Password:</strong> a per-device <em>app-password</em> (create one below — never your account password)</li>
+    </ul>
+
+    <h3>Your account paths</h3>
+    <ul>
+        <li><strong>Principal:</strong> <code>/dav/principals/@me.Id/</code></li>
+        <li><strong>Calendars:</strong> <code>/dav/calendars/@me.Id/</code></li>
+        <li><strong>Address books:</strong> <code>/dav/addressbooks/@me.Id/</code></li>
+    </ul>
+
+    <h2>Per-client setup</h2>
+
+    <h3>macOS Calendar</h3>
+    <ul>
+        <li>System Settings → Internet Accounts → Add CalDAV account → <strong>Manual</strong>.</li>
+        <li>Server Address <code>@Host</code>, <strong>Port 443</strong> (mandatory), Server Path <code>/dav/</code>, <strong>Use SSL</strong> on.</li>
+        <li>Username <code>@me.Email</code>, Password = your app-password.</li>
+    </ul>
+
+    <h3>macOS Contacts</h3>
+    <ul>
+        <li>Same as above but a <strong>CardDAV</strong> account.</li>
+        <li><strong>Note (Apple limitation):</strong> macOS Contacts shows only your <em>default</em> address book. For multiple address books use Thunderbird, iOS, or DAVx⁵.</li>
+    </ul>
+
+    <h3>Thunderbird</h3>
+    <ul>
+        <li>New Calendar → On the Network, or New CardDAV Address Book. Location <code>https://@Host:443/dav/</code>.</li>
+        <li>Username <code>@me.Email</code>, Password = your app-password.</li>
+        <li><strong>Certificates:</strong> Thunderbird uses its <em>own</em> trust store — import your server's root CA under Settings → Privacy &amp; Security → Certificates → Authorities (the OS keychain is not consulted).</li>
+    </ul>
+
+    <h3>iOS / Android (DAVx⁵)</h3>
+    <ul>
+        <li>Add a CalDAV/CardDAV account with the server <code>https://@Host/dav/</code>, your email, and an app-password. These clients show all calendars and address books.</li>
+    </ul>
+}
+
+<h2>App passwords</h2>
+<p>One password per device. The secret is shown only once, at creation.</p>
+
+@if (created is not null)
+{
+    <p class="alert" role="alert">
+        New password for <strong>@created.Label</strong> (copy it now — shown once):
+        <code>@created.Secret</code>
+    </p>
+}
+
+@if (passwords is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <ul>
+        @foreach (var password in passwords)
+        {
+            <li>@password.Label — created @password.CreatedAt.ToString("d MMM yyyy")@(password.LastUsedAt is null ? "" : $", last used {password.LastUsedAt:d MMM yyyy}")</li>
+        }
+    </ul>
+    <div>
+        <input placeholder="Device label, e.g. iPhone" @bind="label" />
+        <button @onclick="CreateAsync">Create</button>
+    </div>
+}
+
+@code {
+    private MeDto? me;
+    private IReadOnlyList<AppPasswordDto>? passwords;
+    private CreatedAppPassword? created;
+    private string label = string.Empty;
+
+    private string Host => new Uri(Navigation.BaseUri).Host;
+
+    protected override async Task OnInitializedAsync()
+    {
+        me = await Api.GetMeAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() => passwords = await Api.GetAppPasswordsAsync();
+
+    private async Task CreateAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(label))
+        {
+            created = await Api.CreateAppPasswordAsync(label);
+            label = string.Empty;
+            await LoadAsync();
+        }
+    }
+}

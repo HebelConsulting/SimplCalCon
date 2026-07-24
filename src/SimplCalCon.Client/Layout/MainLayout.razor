@@ -1,16 +1,104 @@
-﻿@inherits LayoutComponentBase
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+@inherits LayoutComponentBase
+@inject ApiClient Api
+@inject NavigationManager Navigation
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+<div class="app-shell">
+    <header class="shell-ribbon">
+        <div class="ribbon-brand">SimplCalCon</div>
+        <div class="ribbon-actions">
+            <SectionOutlet SectionName="RibbonSection" />
         </div>
+        <div class="user-area">
+            @if (me is not null)
+            {
+                <span class="user-name">@me.DisplayName</span>
+                <button class="avatar" @onclick="ToggleMenu" title="@me.Email" aria-label="Account menu">@me.Initials</button>
+                @if (menuOpen)
+                {
+                    <div class="user-menu">
+                        <div class="user-menu-header">
+                            <div class="user-menu-name">@me.DisplayName</div>
+                            <div class="user-menu-email">@me.Email</div>
+                            <div class="user-menu-role">@RoleLabel</div>
+                        </div>
+                        <button class="user-menu-item" disabled>Profile (coming soon)</button>
+                        <button class="user-menu-item" @onclick="SignOut">Sign out</button>
+                    </div>
+                }
+            }
+        </div>
+    </header>
 
+    <main class="shell-main">
         <article class="content px-4">
             @Body
         </article>
     </main>
+
+    <nav class="shell-tabbar">
+        <NavLink class="tab" href="" Match="NavLinkMatch.All">
+            <span class="tab-icon">▦</span><span class="tab-label">Overview</span>
+        </NavLink>
+        <NavLink class="tab" href="calendars">
+            <span class="tab-icon">📅</span><span class="tab-label">Calendar</span>
+        </NavLink>
+        <NavLink class="tab" href="address-books">
+            <span class="tab-icon">📇</span><span class="tab-label">Contacts</span>
+        </NavLink>
+        <NavLink class="tab" href="configuration">
+            <span class="tab-icon">⚙️</span><span class="tab-label">Configuration</span>
+        </NavLink>
+        @if (me?.IsAdmin == true)
+        {
+            <NavLink class="tab" href="admin">
+                <span class="tab-icon">🛡️</span><span class="tab-label">Admin</span>
+            </NavLink>
+        }
+    </nav>
 </div>
+
+@code {
+    /// <summary>The named ribbon slot each page fills with its contextual buttons.</summary>
+    public const string RibbonSection = "RibbonSection";
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private MeDto? me;
+    private bool menuOpen;
+
+    private string RoleLabel => me?.Role switch
+    {
+        "platform_admin" => "Platform administrator",
+        "admin" => "Tenant administrator",
+        _ => "Member",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is null)
+        {
+            return;
+        }
+
+        var state = await AuthState;
+        if (state.User.Identity?.IsAuthenticated == true)
+        {
+            try
+            {
+                me = await Api.GetMeAsync();
+            }
+            catch
+            {
+                // Not signed in yet / transient — the shell chrome simply stays hidden.
+            }
+        }
+    }
+
+    private void ToggleMenu() => menuOpen = !menuOpen;
+
+    private void SignOut()
+    {
+        menuOpen = false;
+        Navigation.NavigateToLogout("authentication/logout");
+    }
+}

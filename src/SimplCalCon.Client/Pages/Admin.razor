@@ -1,0 +1,82 @@
+@page "/admin"
+@attribute [Authorize]
+@inject ApiClient Api
+
+<PageTitle>Admin</PageTitle>
+
+<h1>Administration</h1>
+
+@if (me is null)
+{
+    <p>Loading…</p>
+}
+else if (!me.IsAdmin)
+{
+    <p>You do not have administrator access.</p>
+}
+else if (me.IsPlatformAdmin)
+{
+    <h2>Tenants</h2>
+    @if (tenants is null)
+    {
+        <p>Loading…</p>
+    }
+    else
+    {
+        <ul>
+            @foreach (var t in tenants)
+            {
+                <li><strong>@t.Name</strong> — <code>@t.Slug</code> · @t.Status</li>
+            }
+        </ul>
+        @if (tenants.Count == 0)
+        {
+            <p>No tenants.</p>
+        }
+    }
+}
+else
+{
+    <h2>Users in your tenant</h2>
+    @if (users is null)
+    {
+        <p>Loading…</p>
+    }
+    else
+    {
+        <ul>
+            @foreach (var u in users)
+            {
+                <li><strong>@u.DisplayName</strong> — @u.Email · @u.Role · @u.Status</li>
+            }
+        </ul>
+        @if (users.Count == 0)
+        {
+            <p>No users.</p>
+        }
+    }
+}
+
+@code {
+    private MeDto? me;
+    private IReadOnlyList<TenantDto>? tenants;
+    private IReadOnlyList<AdminUserDto>? users;
+
+    protected override async Task OnInitializedAsync()
+    {
+        me = await Api.GetMeAsync();
+        if (me is null || !me.IsAdmin)
+        {
+            return;
+        }
+
+        if (me.IsPlatformAdmin)
+        {
+            tenants = await Api.GetTenantsAsync();
+        }
+        else
+        {
+            users = await Api.GetTenantUsersAsync();
+        }
+    }
+}

@@ -1,14 +1,43 @@
-@page "/calendars/{CalendarId:guid}"
+@page "/calendars/{CalendarId:guid?}"
 @attribute [Authorize]
 @inject ApiClient Api
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
 
 <PageTitle>Calendar</PageTitle>
 
-<h1>Agenda</h1>
-<p><a href="">← Collections</a> · <a href="share/calendars/@CalendarId">Share</a> · <a href="trash/calendars/@CalendarId">Trash</a></p>
+@if (calendars is not null)
+{
+    <SectionContent SectionName="RibbonSection">
+        @if (calendars.Count > 0)
+        {
+            <select value="@EffectiveId" @onchange="OnSwitch">
+                @foreach (var c in calendars)
+                {
+                    <option value="@c.Id">@c.Name@(c.Shared ? " (shared)" : "")</option>
+                }
+            </select>
+            <button @onclick="ExportAsync">Export .ics</button>
+            @if (EffectiveId is { } id)
+            {
+                <a class="ribbon-btn" href="share/calendars/@id">Share</a>
+                <a class="ribbon-btn" href="trash/calendars/@id">Trash</a>
+            }
+        }
+    </SectionContent>
+}
 
-@if (events is null)
+<h1>Calendar</h1>
+
+@if (calendars is null)
+{
+    <p>Loading…</p>
+}
+else if (calendars.Count == 0)
+{
+    <p>No calendars yet — create one on the <a href="">Overview</a> tab.</p>
+}
+else if (events is null)
 {
     <p>Loading…</p>
 }
@@ -26,7 +55,7 @@ else
                     {
                         <span class="attendees"> — @string.Join(", ", people.Where(p => !p.IsOrganizer).Select(p => $"{p.CommonName ?? p.Address} ({p.ParticipationStatus})"))</span>
                     }
-                    <a href="history/calendars/@CalendarId/@item.Id">History</a>
+                    <a href="history/calendars/@EffectiveId/@item.Id">History</a>
                     @if (CanSplit(item))
                     {
                         @if (splittingId == item.Id)
@@ -57,7 +86,7 @@ else
         <button @onclick="AddAsync">Add</button>
     </div>
 
-    <h2>Import / export</h2>
+    <h2>Import</h2>
     <div>
         <InputFile OnChange="OnImportFile" accept=".ics" />
         <select @bind="conflict">
@@ -65,7 +94,6 @@ else
             <option value="replace">Replace duplicates</option>
         </select>
         <button @onclick="ImportAsync" disabled="@(pendingImport is null)">Import</button>
-        <button @onclick="ExportAsync">Export .ics</button>
     </div>
     @if (importMessage is not null)
     {
@@ -75,8 +103,9 @@ else
 
 @code {
     [Parameter]
-    public Guid CalendarId { get; set; }
+    public Guid? CalendarId { get; set; }
 
+    private IReadOnlyList<CalendarDto>? calendars;
     private IReadOnlyList<EventDto>? events;
     private string summary = string.Empty;
     private string attendees = string.Empty;
@@ -87,9 +116,22 @@ else
     private string conflict = "skip";
     private string? importMessage;
 
-    protected override Task OnParametersSetAsync() => LoadAsync();
+    // The selected calendar: the route id, else the first available (tab-landing default).
+    private Guid? EffectiveId => CalendarId ?? calendars?.FirstOrDefault()?.Id;
 
-    private async Task LoadAsync() => events = await Api.GetEventsAsync(CalendarId);
+    protected override async Task OnParametersSetAsync()
+    {
+        calendars ??= await Api.GetCalendarsAsync();
+        events = EffectiveId is { } id ? await Api.GetEventsAsync(id) : null;
+    }
+
+    private void OnSwitch(ChangeEventArgs e)
+    {
+        if (Guid.TryParse(e.Value?.ToString(), out var id))
+        {
+            Navigation.NavigateTo($"calendars/{id}");
+        }
+    }
 
     // Only timed, non-recurring events with a start/end window can be split (ADR 0027).
     private static bool CanSplit(EventDto e) =>
@@ -105,43 +147,61 @@ else
 
     private async Task ConfirmSplitAsync(EventDto e)
     {
-        await Api.SplitEventAsync(CalendarId, e.Id, DateTime.SpecifyKind(splitAt, DateTimeKind.Utc));
+        if (EffectiveId is not { } id)
+        {
+            return;
+        }
+
+        await Api.SplitEventAsync(id, e.Id, DateTime.SpecifyKind(splitAt, DateTimeKind.Utc));
         splittingId = null;
-        await LoadAsync();
+        await ReloadEventsAsync();
     }
 
     private void OnImportFile(InputFileChangeEventArgs e) => pendingImport = e.File;
 
     private async Task ImportAsync()
     {
-        if (pendingImport is null)
+        if (pendingImport is null || EffectiveId is not { } id)
         {
             return;
         }
 
         using var buffer = new MemoryStream();
         await pendingImport.OpenReadStream(32 * 1024 * 1024).CopyToAsync(buffer);
-        var result = await Api.ImportCollectionAsync("calendars", CalendarId, buffer.ToArray(), pendingImport.Name, conflict);
+        var result = await Api.ImportCollectionAsync("calendars", id, buffer.ToArray(), pendingImport.Name, conflict);
         importMessage = $"Imported {result?.Imported}, skipped {result?.Skipped}, failed {result?.Failed}.";
         pendingImport = null;
-        await LoadAsync();
+        await ReloadEventsAsync();
     }
 
     private async Task ExportAsync()
     {
-        var bytes = await Api.ExportCollectionAsync("calendars", CalendarId);
+        if (EffectiveId is not { } id)
+        {
+            return;
+        }
+
+        var bytes = await Api.ExportCollectionAsync("calendars", id);
         await JS.InvokeVoidAsync("simplDownload", "calendar.ics", "text/calendar", Convert.ToBase64String(bytes));
     }
 
     private async Task AddAsync()
     {
-        if (!string.IsNullOrWhiteSpace(summary))
+        if (!string.IsNullOrWhiteSpace(summary) && EffectiveId is { } id)
         {
             var invitees = attendees.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            await Api.CreateEventAsync(CalendarId, summary, DateTime.SpecifyKind(start, DateTimeKind.Utc), null, false, invitees);
+            await Api.CreateEventAsync(id, summary, DateTime.SpecifyKind(start, DateTimeKind.Utc), null, false, invitees);
             summary = string.Empty;
             attendees = string.Empty;
-            await LoadAsync();
+            await ReloadEventsAsync();
+        }
+    }
+
+    private async Task ReloadEventsAsync()
+    {
+        if (EffectiveId is { } id)
+        {
+            events = await Api.GetEventsAsync(id);
         }
     }
 }

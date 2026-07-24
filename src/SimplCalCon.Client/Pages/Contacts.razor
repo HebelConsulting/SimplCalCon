@@ -1,14 +1,43 @@
-@page "/address-books/{AddressBookId:guid}"
+@page "/address-books/{AddressBookId:guid?}"
 @attribute [Authorize]
 @inject ApiClient Api
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
 
 <PageTitle>Contacts</PageTitle>
 
-<h1>Contacts</h1>
-<p><a href="">← Collections</a> · <a href="share/address-books/@AddressBookId">Share</a> · <a href="trash/address-books/@AddressBookId">Trash</a></p>
+@if (books is not null)
+{
+    <SectionContent SectionName="RibbonSection">
+        @if (books.Count > 0)
+        {
+            <select value="@EffectiveId" @onchange="OnSwitch">
+                @foreach (var b in books)
+                {
+                    <option value="@b.Id">@b.Name@(b.Shared ? " (shared)" : "")</option>
+                }
+            </select>
+            <button @onclick="ExportAsync">Export .vcf</button>
+            @if (EffectiveId is { } id)
+            {
+                <a class="ribbon-btn" href="share/address-books/@id">Share</a>
+                <a class="ribbon-btn" href="trash/address-books/@id">Trash</a>
+            }
+        }
+    </SectionContent>
+}
 
-@if (contacts is null)
+<h1>Contacts</h1>
+
+@if (books is null)
+{
+    <p>Loading…</p>
+}
+else if (books.Count == 0)
+{
+    <p>No address books yet — create one on the <a href="">Overview</a> tab.</p>
+}
+else if (contacts is null)
 {
     <p>Loading…</p>
 }
@@ -19,7 +48,7 @@ else
         {
             <li>
                 @contact.FormattedName @(contact.Emails.Count > 0 ? "— " + string.Join(", ", contact.Emails) : "")
-                <a href="history/address-books/@AddressBookId/@contact.Id">History</a>
+                <a href="history/address-books/@EffectiveId/@contact.Id">History</a>
             </li>
         }
     </ul>
@@ -35,7 +64,7 @@ else
         <button @onclick="AddAsync">Add</button>
     </div>
 
-    <h2>Import / export</h2>
+    <h2>Import</h2>
     <div>
         <InputFile OnChange="OnImportFile" accept=".vcf" />
         <select @bind="conflict">
@@ -43,7 +72,6 @@ else
             <option value="replace">Replace duplicates</option>
         </select>
         <button @onclick="ImportAsync" disabled="@(pendingImport is null)">Import</button>
-        <button @onclick="ExportAsync">Export .vcf</button>
     </div>
     @if (importMessage is not null)
     {
@@ -53,8 +81,9 @@ else
 
 @code {
     [Parameter]
-    public Guid AddressBookId { get; set; }
+    public Guid? AddressBookId { get; set; }
 
+    private IReadOnlyList<AddressBookDto>? books;
     private IReadOnlyList<ContactDto>? contacts;
     private string name = string.Empty;
     private string email = string.Empty;
@@ -62,19 +91,31 @@ else
     private string conflict = "skip";
     private string? importMessage;
 
-    protected override Task OnParametersSetAsync() => LoadAsync();
+    private Guid? EffectiveId => AddressBookId ?? books?.FirstOrDefault()?.Id;
 
-    private async Task LoadAsync() => contacts = await Api.GetContactsAsync(AddressBookId);
+    protected override async Task OnParametersSetAsync()
+    {
+        books ??= await Api.GetAddressBooksAsync();
+        contacts = EffectiveId is { } id ? await Api.GetContactsAsync(id) : null;
+    }
+
+    private void OnSwitch(ChangeEventArgs e)
+    {
+        if (Guid.TryParse(e.Value?.ToString(), out var id))
+        {
+            Navigation.NavigateTo($"address-books/{id}");
+        }
+    }
 
     private async Task AddAsync()
     {
-        if (!string.IsNullOrWhiteSpace(name))
+        if (!string.IsNullOrWhiteSpace(name) && EffectiveId is { } id)
         {
             var emails = string.IsNullOrWhiteSpace(email) ? Array.Empty<string>() : [email];
-            await Api.CreateContactAsync(AddressBookId, name, emails);
+            await Api.CreateContactAsync(id, name, emails);
             name = string.Empty;
             email = string.Empty;
-            await LoadAsync();
+            await ReloadContactsAsync();
         }
     }
 
@@ -82,22 +123,33 @@ else
 
     private async Task ImportAsync()
     {
-        if (pendingImport is null)
+        if (pendingImport is null || EffectiveId is not { } id)
         {
             return;
         }
 
         using var buffer = new MemoryStream();
         await pendingImport.OpenReadStream(32 * 1024 * 1024).CopyToAsync(buffer);
-        var result = await Api.ImportCollectionAsync("address-books", AddressBookId, buffer.ToArray(), pendingImport.Name, conflict);
+        var result = await Api.ImportCollectionAsync("address-books", id, buffer.ToArray(), pendingImport.Name, conflict);
         importMessage = $"Imported {result?.Imported}, skipped {result?.Skipped}, failed {result?.Failed}.";
         pendingImport = null;
-        await LoadAsync();
+        await ReloadContactsAsync();
     }
 
     private async Task ExportAsync()
     {
-        var bytes = await Api.ExportCollectionAsync("address-books", AddressBookId);
-        await JS.InvokeVoidAsync("simplDownload", "contacts.vcf", "text/vcard", Convert.ToBase64String(bytes));
+        if (EffectiveId is { } id)
+        {
+            var bytes = await Api.ExportCollectionAsync("address-books", id);
+            await JS.InvokeVoidAsync("simplDownload", "contacts.vcf", "text/vcard", Convert.ToBase64String(bytes));
+        }
+    }
+
+    private async Task ReloadContactsAsync()
+    {
+        if (EffectiveId is { } id)
+        {
+            contacts = await Api.GetContactsAsync(id);
+        }
     }
 }
