@@ -113,3 +113,90 @@ code {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+/* Content area — give the plain Razor pages a cleaner, cohesive look (ADR 0025). */
+.content {
+    padding-top: 1.5rem;
+    max-width: 64rem;
+}
+
+    .content h1 {
+        font-size: 1.6rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #1b6ec2;
+    }
+
+    .content h2 {
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: #333;
+        margin: 1.75rem 0 0.75rem;
+    }
+
+    .content h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #555;
+        margin: 1.25rem 0 0.5rem;
+    }
+
+    .content ul {
+        list-style: none;
+        padding-left: 0;
+        margin: 0.5rem 0;
+    }
+
+    .content li {
+        padding: 0.5rem 0.25rem;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .content li:hover {
+        background: #f7f9fc;
+    }
+
+    .content input:not([type=checkbox]),
+    .content select {
+        padding: 0.35rem 0.55rem;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        margin: 0.15rem 0.35rem 0.15rem 0;
+    }
+
+    .content input:focus,
+    .content select:focus {
+        outline: none;
+        border-color: #1b6ec2;
+        box-shadow: 0 0 0 0.15rem rgba(27, 110, 194, 0.2);
+    }
+
+    .content button {
+        padding: 0.35rem 0.85rem;
+        margin: 0.15rem 0.25rem 0.15rem 0;
+        border: 1px solid #1861ac;
+        border-radius: 5px;
+        background: #1b6ec2;
+        color: #fff;
+        cursor: pointer;
+        font-size: 0.9rem;
+    }
+
+    .content button:hover {
+        background: #155ba3;
+    }
+
+    .content button:disabled {
+        background: #9db8d6;
+        border-color: #9db8d6;
+        cursor: default;
+    }
+
+    /* Inline navigation/action links inside list rows stay light, not button-like. */
+    .content li a {
+        font-size: 0.85rem;
+    }
