@@ -124,7 +124,7 @@ else
 </Modal>
 
 <Modal Visible="showImport" Title="Import calendar (.ics)" OnClose="() => showImport = false">
-    <div class="form-row"><InputFile OnChange="OnImportFile" accept=".ics" /></div>
+    <div class="form-row"><InputFile OnChange="OnImportFile" accept=".ics,.zip" /></div>
     <div class="form-row">
         <label>On conflict</label>
         <select @bind="conflict">
