@@ -147,7 +147,7 @@ else
 </Modal>
 
 <Modal Visible="showImport" Title="Import contacts (.vcf)" OnClose="CloseImport">
-    <InputFile OnChange="OnImportFile" accept=".vcf" />
+    <InputFile OnChange="OnImportFile" accept=".vcf,.zip" />
     <label>
         On duplicate:
         <select @bind="importConflict">

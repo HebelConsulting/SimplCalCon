@@ -10,6 +10,17 @@ public interface IObjectImportExport
         Guid? authorPrincipalId,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Imports every matching entry (.ics for a calendar, .vcf for an address book) inside a zip
+    /// archive — e.g. a Google Calendar export — into the collection, aggregating the outcomes.
+    /// </summary>
+    Task<ImportOutcome> ImportArchiveAsync(
+        Guid collectionId,
+        byte[] archive,
+        ImportConflictMode conflictMode,
+        Guid? authorPrincipalId,
+        CancellationToken cancellationToken);
+
     /// <summary>Serializes the collection's live objects into one concatenated document.</summary>
     Task<string> ExportAsync(Guid collectionId, CancellationToken cancellationToken);
 }

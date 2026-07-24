@@ -48,6 +48,37 @@ public sealed class DataPortabilityTests(AuthWebApplicationFactory factory) : IC
     }
 
     [Fact]
+    public async Task Imports_a_google_style_zip_of_ics_files()
+    {
+        var client = await AuthedClientAsync();
+        var calendar = await CreateCalendarAsync(client);
+
+        using var zipStream = new MemoryStream();
+        using (var zip = new ZipArchive(zipStream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            // Google Takeout nests the .ics files under a folder and includes unrelated files.
+            await WriteEntryAsync(zip, "Takeout/Calendar/Personal.ics", Ics("zip-a@test", "Alpha"));
+            await WriteEntryAsync(zip, "Takeout/Calendar/Work.ics", Ics("zip-b@test", "Beta"));
+            await WriteEntryAsync(zip, "Takeout/archive_browser.html", "<html>ignore me</html>");
+        }
+
+        using var form = new MultipartFormDataContent { { new StringContent("skip"), "onConflict" } };
+        var file = new ByteArrayContent(zipStream.ToArray());
+        file.Headers.ContentType = new MediaTypeHeaderValue("application/zip");
+        form.Add(file, "file", "calendar-export.zip");
+        var response = await client.PostAsync($"/api/calendars/{calendar}/import", form);
+        response.EnsureSuccessStatusCode();
+
+        Assert.Equal(2, (await Body(response)).GetProperty("imported").GetInt32());
+        var events = await client.GetFromJsonAsync<JsonElement>($"/api/calendars/{calendar}/events");
+        Assert.Equal(2, events.GetProperty("items").EnumerateArray().Count());
+    }
+
+    private static string Ics(string uid, string summary) =>
+        $"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//T//EN\r\nBEGIN:VEVENT\r\nUID:{uid}\r\n"
+        + $"SUMMARY:{summary}\r\nDTSTART:20260901T090000Z\r\nDTEND:20260901T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
+    [Fact]
     public async Task Import_conflict_mode_skips_existing_uids()
     {
         var client = await AuthedClientAsync();

@@ -1,3 +1,5 @@
+using System.IO.Compression;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using SimplCalCon.Application.Abstractions.Storage;
 using SimplCalCon.Domain.Collections;
@@ -56,6 +58,51 @@ internal sealed class ObjectImportExport(SimplCalConDbContext dbContext, IObject
                 failed++;
                 errors.Add($"{uid}: {ex.Message}");
             }
+        }
+
+        return new ImportOutcome(imported, skipped, failed, errors);
+    }
+
+    public async Task<ImportOutcome> ImportArchiveAsync(
+        Guid collectionId,
+        byte[] archive,
+        ImportConflictMode conflictMode,
+        Guid? authorPrincipalId,
+        CancellationToken cancellationToken)
+    {
+        var collection = await dbContext.Collections
+            .FirstOrDefaultAsync(c => c.Id == collectionId && !c.IsDeleted, cancellationToken)
+            ?? throw new CollectionNotFoundException(collectionId);
+
+        var extension = collection is Calendar ? ".ics" : ".vcf";
+        int imported = 0, skipped = 0, failed = 0;
+        var errors = new List<string>();
+
+        using var stream = new MemoryStream(archive);
+        // An invalid archive throws InvalidDataException — the Api maps it to 400.
+        using var zip = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        // Recurse every entry (Google puts the .ics files under a folder); match by file name so
+        // directory entries and unrelated files (e.g. a README) are ignored.
+        var matching = zip.Entries
+            .Where(e => e.Name.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        foreach (var entry in matching)
+        {
+            using var reader = new StreamReader(entry.Open(), Encoding.UTF8);
+            var content = await reader.ReadToEndAsync(cancellationToken);
+
+            var outcome = await ImportAsync(collectionId, content, conflictMode, authorPrincipalId, cancellationToken);
+            imported += outcome.Imported;
+            skipped += outcome.Skipped;
+            failed += outcome.Failed;
+            errors.AddRange(outcome.Errors);
+        }
+
+        if (matching.Count == 0)
+        {
+            errors.Add($"No {extension} files were found in the archive.");
         }
 
         return new ImportOutcome(imported, skipped, failed, errors);

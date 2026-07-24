@@ -81,13 +81,19 @@ public sealed class CalendarsController(
         await RequireRightsAsync(id, AclRight.WriteContent, cancellationToken);
         if (file is null or { Length: 0 })
         {
-            return BadRequest("An .ics file is required.");
+            return BadRequest("An .ics or .zip file is required.");
         }
 
-        var content = await Portability.ReadAsync(file, cancellationToken);
-        var outcome = await importExport.ImportAsync(
-            id, content, Portability.Conflict(onConflict), CurrentUserId, cancellationToken);
-        return Portability.Map(outcome);
+        var bytes = await Portability.ReadBytesAsync(file, cancellationToken);
+        try
+        {
+            var outcome = await Portability.RunImportAsync(importExport, id, file, bytes, onConflict, CurrentUserId, cancellationToken);
+            return Portability.Map(outcome);
+        }
+        catch (System.IO.InvalidDataException)
+        {
+            return BadRequest("The uploaded file is not a valid zip archive.");
+        }
     }
 
     [HttpGet("{id:guid}/export")]
