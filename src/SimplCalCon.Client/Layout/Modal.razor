@@ -1,11 +1,12 @@
-@* Reusable modal dialog (ADR 0036). Click the backdrop or × to close. *@
+@* Reusable modal dialog (ADR 0036). Click the backdrop or × to close, unless CloseDisabled
+   (e.g. a long operation is running and must finish so its result can be shown). *@
 @if (Visible)
 {
     <div class="modal-backdrop" @onclick="CloseAsync">
         <div class="modal-window" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h3>@Title</h3>
-                <button class="modal-close" @onclick="CloseAsync" aria-label="Close">×</button>
+                <button class="modal-close" @onclick="CloseAsync" disabled="@CloseDisabled" aria-label="Close">×</button>
             </div>
             <div class="modal-body">
                 @ChildContent
@@ -20,5 +21,8 @@
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
-    private Task CloseAsync() => OnClose.InvokeAsync();
+    /// <summary>When true, the × and backdrop-click are inert (the dialog can't be dismissed).</summary>
+    [Parameter] public bool CloseDisabled { get; set; }
+
+    private Task CloseAsync() => CloseDisabled ? Task.CompletedTask : OnClose.InvokeAsync();
 }

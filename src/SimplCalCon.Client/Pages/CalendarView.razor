@@ -19,7 +19,7 @@
         <button class="ribbon-btn @(viewMode == View.List ? "active" : "")" @onclick="() => viewMode = View.List">List</button>
         <button class="ribbon-btn @(viewMode == View.Calendar ? "active" : "")" @onclick="() => viewMode = View.Calendar">Calendar</button>
         <button @onclick="() => showNew = true">New event</button>
-        <button @onclick="() => showImport = true">Import</button>
+        <button @onclick="OpenImport">Import</button>
         <button @onclick="ExportAsync">Export .ics</button>
         @if (EffectiveId is { } id)
         {
@@ -123,28 +123,32 @@ else
     </div>
 </Modal>
 
-<Modal Visible="showImport" Title="Import calendar (.ics or .zip)" OnClose="() => showImport = false">
-    <div class="form-row"><InputFile OnChange="OnImportFile" accept=".ics,.zip" /></div>
+<Modal Visible="showImport" Title="Import calendar (.ics or .zip)" CloseDisabled="@importing" OnClose="() => showImport = false">
+    <div class="form-row"><InputFile OnChange="OnImportFile" accept=".ics,.zip" disabled="@InputsLocked" /></div>
     @if (IsZipSelected)
     {
         <div class="form-row">
             <label title="Recreate the original calendars from the archive (e.g. a Google export)">
-                <input type="checkbox" @bind="importSeparate" /> Create a separate calendar for each file in the archive
+                <input type="checkbox" @bind="importSeparate" disabled="@InputsLocked" /> Create a separate calendar for each file in the archive
             </label>
         </div>
     }
     <div class="form-row">
         <label>On conflict</label>
-        <select @bind="conflict">
+        <select @bind="conflict" disabled="@InputsLocked">
             <option value="skip">Skip duplicates</option>
             <option value="replace">Replace duplicates</option>
         </select>
     </div>
     <div class="form-actions">
-        <button @onclick="ImportAsync" disabled="@(pendingImport is null)">Import</button>
-        <button @onclick="() => showImport = false">Close</button>
+        <button @onclick="ImportAsync" disabled="@(pendingImport is null || InputsLocked)">Import</button>
+        <button @onclick="() => showImport = false" disabled="@importing">Close</button>
     </div>
-    @if (importMessage is not null)
+    @if (importing)
+    {
+        <p class="import-message">Importing…</p>
+    }
+    else if (importMessage is not null)
     {
         <p class="import-message">@importMessage</p>
     }
@@ -218,8 +222,21 @@ else
     private string conflict = "skip";
     private bool importSeparate = true; // default on: recreate the source calendars (Google export)
     private string? importMessage;
+    private bool importing;   // an import is running — lock everything, including Close
+    private bool importDone;  // an import finished — keep inputs locked; only Close stays active
 
     private bool IsZipSelected => pendingImport?.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ?? false;
+    private bool InputsLocked => importing || importDone;
+
+    private void OpenImport()
+    {
+        pendingImport = null;
+        importSeparate = true;
+        importMessage = null;
+        importing = false;
+        importDone = false;
+        showImport = true;
+    }
 
     private ElementReference eventTable;
     private IJSObjectReference? columnModule;
@@ -400,20 +417,27 @@ else
             return;
         }
 
-        using var buffer = new MemoryStream();
-        await pendingImport.OpenReadStream(64 * 1024 * 1024).CopyToAsync(buffer);
-        var result = await Api.ImportCollectionAsync("calendars", id, buffer.ToArray(), pendingImport.Name, conflict, importSeparate);
-        importMessage = result is { CreatedCollections: > 0 }
-            ? $"Created {result.CreatedCollections} calendar(s); imported {result.Imported}, skipped {result.Skipped}, failed {result.Failed}."
-            : $"Imported {result?.Imported}, skipped {result?.Skipped}, failed {result?.Failed}.";
-        pendingImport = null;
-        importSeparate = true;
-        if (result is { CreatedCollections: > 0 })
+        importing = true;
+        try
         {
-            calendars = await Api.GetCalendarsAsync(); // new calendars appear in the switcher
-        }
+            using var buffer = new MemoryStream();
+            await pendingImport.OpenReadStream(64 * 1024 * 1024).CopyToAsync(buffer);
+            var result = await Api.ImportCollectionAsync("calendars", id, buffer.ToArray(), pendingImport.Name, conflict, importSeparate);
+            importMessage = result is { CreatedCollections: > 0 }
+                ? $"Created {result.CreatedCollections} calendar(s); imported {result.Imported}, skipped {result.Skipped}, failed {result.Failed}."
+                : $"Imported {result?.Imported}, skipped {result?.Skipped}, failed {result?.Failed}.";
+            importDone = true; // lock the inputs; the user can now only Close
+            if (result is { CreatedCollections: > 0 })
+            {
+                calendars = await Api.GetCalendarsAsync(); // new calendars appear in the switcher
+            }
 
-        await ReloadEventsAsync();
+            await ReloadEventsAsync();
+        }
+        finally
+        {
+            importing = false;
+        }
     }
 
     private async Task ExportAsync()
