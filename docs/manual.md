@@ -10,8 +10,75 @@ architecture and the rationale behind these features, see [`spec.md`](spec.md) a
 
 ## Contents
 
+- [Running the stack](#running-the-stack)
 - [Database administration with pgAdmin](#database-administration-with-pgadmin)
 - [Connecting native calendar & contacts clients (CalDAV/CardDAV)](#connecting-native-calendar--contacts-clients-caldavcarddav)
+
+---
+
+## Running the stack
+
+The whole demo runs from the single `docker-compose.yaml` at the repository root. It works
+unmodified under **Docker** (`docker compose`) and **Podman** (`podman compose`) — substitute the
+command you have; everything below uses `docker compose`.
+
+### Prerequisites
+
+- Docker (with Compose v2) *or* Podman with `podman compose`.
+- Ports **9080** and **443** free on the host. (Rootless Podman can't bind 443 by default — run
+  rootful, or lower `net.ipv4.ip_unprivileged_port_start`.)
+
+### Start
+
+```bash
+docker compose up --build -d
+```
+
+First start builds the API image, launches Postgres, applies migrations, and seeds the demo data.
+Watch it come up with `docker compose logs -f api`; it's ready when `/health/ready` returns 200.
+
+### Services & URLs
+
+| Service | Purpose | Address |
+| --- | --- | --- |
+| `api` | Web UI + REST API + CalDAV/CardDAV | **http://localhost:9080** |
+| `proxy` (Caddy) | HTTPS front for native clients (ADR 0032) | **https://localhost** (port 443) |
+| `db` (Postgres) | Database — **not** published to the host | internal only |
+| `pgadmin` | Optional DB admin UI (opt-in `tools` profile) | http://localhost:6050 — see [pgAdmin](#database-administration-with-pgadmin) |
+
+Useful endpoints on the API: `/scalar` (interactive API docs, Development only),
+`/openapi/v1.json`, and the `/health/live` + `/health/ready` probes (all anonymous).
+
+### Sign in (seeded demo accounts)
+
+Open **http://localhost:9080** and sign in with one of the seeded accounts:
+
+| Account | Email | Password |
+| --- | --- | --- |
+| Platform admin | `admin@simplcalcon.local` | `ChangeMe-Platform-2026` |
+| Demo-tenant admin | `admin@demo.local` | `ChangeMe-Demo-2026` |
+
+These are **demo defaults** — change them for anything beyond local use.
+
+### Everyday commands
+
+```bash
+docker compose ps               # what's running
+docker compose logs -f api      # follow the API logs
+docker compose restart api      # restart one service
+docker compose stop             # stop the stack (keeps data)
+docker compose up --build -d    # rebuild + apply code changes
+```
+
+### Stop & reset
+
+```bash
+docker compose down             # stop and remove containers (data volumes are kept)
+docker compose down -v          # also delete volumes — wipes the database and starts fresh
+```
+
+The named volumes (`db-data`, `caddy-data`, `caddy-config`) persist across `up`/`down`, so your
+data and the trusted TLS cert survive restarts until you `down -v`.
 
 ---
 
