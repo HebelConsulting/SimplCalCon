@@ -23,7 +23,7 @@
         @if (EffectiveId is { } rid)
         {
             <button @onclick="NewContactAsync">New contact</button>
-            <button @onclick="() => showImport = true">Import</button>
+            <button @onclick="OpenImport">Import</button>
             <button @onclick="ExportAsync">Export .vcf</button>
             <a class="ribbon-btn" href="share/address-books/@rid">Share</a>
             <a class="ribbon-btn" href="trash/address-books/@rid">Trash</a>
@@ -146,25 +146,30 @@ else
     </div>
 </Modal>
 
-<Modal Visible="showImport" Title="Import contacts (.vcf or .zip)" OnClose="CloseImport">
-    <InputFile OnChange="OnImportFile" accept=".vcf,.zip" />
+<Modal Visible="showImport" Title="Import contacts (.vcf or .zip)" CloseDisabled="@busy" OnClose="CloseImport">
+    <InputFile OnChange="OnImportFile" accept=".vcf,.zip" disabled="@InputsLocked" />
     @if (IsZipSelected)
     {
         <label title="Recreate the original address books from the archive (e.g. a Google export)">
-            <input type="checkbox" @bind="importSeparate" /> Create a separate address book for each file in the archive
+            <input type="checkbox" @bind="importSeparate" disabled="@InputsLocked" /> Create a separate address book for each file in the archive
         </label>
     }
     <label>
         On duplicate:
-        <select @bind="importConflict">
+        <select @bind="importConflict" disabled="@InputsLocked">
             <option value="skip">Skip</option>
             <option value="replace">Replace</option>
         </select>
     </label>
     <div>
-        <button @onclick="ImportAsync" disabled="@(pendingImport is null || busy)">Import</button>
+        <button @onclick="ImportAsync" disabled="@(pendingImport is null || InputsLocked)">Import</button>
+        <button @onclick="CloseImport" disabled="@busy">Close</button>
     </div>
-    @if (importMessage is not null)
+    @if (busy)
+    {
+        <p>Importing…</p>
+    }
+    else if (importMessage is not null)
     {
         <p>@importMessage</p>
     }
@@ -209,8 +214,19 @@ else
     private string importConflict = "skip";
     private bool importSeparate = true; // default on: recreate the source address books (Google export)
     private string? importMessage;
+    private bool importDone;  // an import finished — keep inputs locked; only Close stays active
 
     private bool IsZipSelected => pendingImport?.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ?? false;
+    private bool InputsLocked => busy || importDone;
+
+    private void OpenImport()
+    {
+        pendingImport = null;
+        importSeparate = true;
+        importMessage = null;
+        importDone = false;
+        showImport = true;
+    }
 
     private Guid? EffectiveId => AddressBookId ?? books?.FirstOrDefault()?.Id;
 
@@ -413,6 +429,7 @@ else
         pendingImport = null;
         importSeparate = true;
         importMessage = null;
+        importDone = false;
     }
 
     private async Task ImportAsync()
@@ -423,21 +440,26 @@ else
         }
 
         busy = true;
-        using var buffer = new MemoryStream();
-        await pendingImport.OpenReadStream(64 * 1024 * 1024).CopyToAsync(buffer);
-        var result = await Api.ImportCollectionAsync("address-books", id, buffer.ToArray(), pendingImport.Name, importConflict, importSeparate);
-        importMessage = result is { CreatedCollections: > 0 }
-            ? $"Created {result.CreatedCollections} address book(s); imported {result.Imported}, skipped {result.Skipped}, failed {result.Failed}."
-            : $"Imported {result?.Imported}, skipped {result?.Skipped}, failed {result?.Failed}.";
-        pendingImport = null;
-        importSeparate = true;
-        if (result is { CreatedCollections: > 0 })
+        try
         {
-            books = await Api.GetAddressBooksAsync(); // new books appear in the switcher
-        }
+            using var buffer = new MemoryStream();
+            await pendingImport.OpenReadStream(64 * 1024 * 1024).CopyToAsync(buffer);
+            var result = await Api.ImportCollectionAsync("address-books", id, buffer.ToArray(), pendingImport.Name, importConflict, importSeparate);
+            importMessage = result is { CreatedCollections: > 0 }
+                ? $"Created {result.CreatedCollections} address book(s); imported {result.Imported}, skipped {result.Skipped}, failed {result.Failed}."
+                : $"Imported {result?.Imported}, skipped {result?.Skipped}, failed {result?.Failed}.";
+            importDone = true; // lock the inputs; the user can now only Close
+            if (result is { CreatedCollections: > 0 })
+            {
+                books = await Api.GetAddressBooksAsync(); // new books appear in the switcher
+            }
 
-        contacts = (await Api.GetContactsAsync(id)).ToList();
-        busy = false;
+            contacts = (await Api.GetContactsAsync(id)).ToList();
+        }
+        finally
+        {
+            busy = false;
+        }
     }
 
     private async Task ExportAsync()
