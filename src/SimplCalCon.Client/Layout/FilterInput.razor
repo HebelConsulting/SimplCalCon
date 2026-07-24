@@ -1,0 +1,18 @@
+@* A column filter text box with an inline × to clear just this field (ADR 0036/0038). *@
+<div class="filter-field">
+    <input value="@Value" @oninput="OnInput" placeholder="@Placeholder" />
+    @if (!string.IsNullOrEmpty(Value))
+    {
+        <button type="button" class="filter-clear" @onclick="Clear" title="Clear this filter" aria-label="Clear filter">×</button>
+    }
+</div>
+
+@code {
+    [Parameter] public string Value { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "filter";
+
+    private Task OnInput(ChangeEventArgs e) => ValueChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty);
+
+    private Task Clear() => ValueChanged.InvokeAsync(string.Empty);
+}

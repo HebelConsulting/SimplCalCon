@@ -1,0 +1,30 @@
+.filter-field {
+    position: relative;
+    width: 100%;
+}
+
+.filter-field input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.2rem 1.2rem 0.2rem 0.35rem; /* right padding leaves room for the × */
+    font-size: 0.8rem;
+    margin: 0;
+}
+
+.filter-clear {
+    position: absolute;
+    right: 0.1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    background: none;
+    padding: 0 0.2rem;
+    font-size: 0.95rem;
+    line-height: 1;
+    color: #889;
+    cursor: pointer;
+}
+
+.filter-clear:hover {
+    color: #222;
+}
