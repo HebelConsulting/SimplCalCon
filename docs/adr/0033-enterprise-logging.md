@@ -58,6 +58,25 @@ at **Fatal** and returns a non-zero exit, then `Log.CloseAndFlush()`.
 - `SchedulingService`: each iTIP REQUEST/REPLY/CANCEL → Information; per-recipient
   delivery / no-local-recipient → Debug.
 
+**DAV wire trace (`DavWireTraceMiddleware`, Trace).** A first-class use of the Trace level:
+an operator can log the full `/dav` request/response bodies (method, path, depth, status +
+raw XML/blob, both CalDAV and CardDAV) to diagnose a native client without attaching a
+reverse proxy. It is **off by default** and gated on `IsEnabled(Trace)` for the
+`SimplCalCon.Dav.Wire` category, so it is a pass-through with no body buffering unless
+enabled (e.g. `Serilog__MinimumLevel__Override__SimplCalCon.Dav.Wire=Verbose`). Because it
+captures contact/calendar payloads and clutters the log, the **first** trace entry per
+process also raises a one-time **Warning** that tracing is active and should be turned off —
+an intentional Warning-means-act signal.
+
+The same middleware also emits an **unhandled-request Warning** *independent of the trace
+level*: when a DAV request falls through unhandled (405/501 — a native-client
+compatibility gap, the exact symptom of the macOS `OPTIONS /` and `PROPPATCH` gaps we
+fixed) it logs one Warning naming the **client** (User-Agent), the method/path/status, and
+pointing to `…Dav.Wire=Verbose` for the bodies. Deduped per `method+status+segment` so
+retries don't flood; `MKCOL`/`MKCALENDAR` are excluded (they legitimately 405 on an
+existing collection). This surfaces compat gaps in normal operation without needing the
+verbose trace on.
+
 ## Consequences
 - Application code logs through `ILogger<T>` (Serilog is only the provider), so nothing
   is coupled to Serilog except `Program.cs`; sinks (file, Seq, OTLP) can be added by
