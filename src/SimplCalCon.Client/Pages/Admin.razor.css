@@ -1,0 +1,55 @@
+.admin-layout {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.admin-user-list {
+    flex: 1 1 20rem;
+    min-width: 16rem;
+    max-width: 30rem;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border: 1px solid #e2e6ea;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.admin-user-list li {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid #eef1f4;
+    cursor: pointer;
+}
+
+.admin-user-list li:last-child {
+    border-bottom: none;
+}
+
+.admin-user-list li:hover {
+    background: #f4f7fb;
+}
+
+.admin-user-list li.selected {
+    background: #eaf3fd;
+    box-shadow: inset 3px 0 0 #1b6ec2;
+}
+
+.admin-user-name {
+    font-weight: 600;
+}
+
+.admin-user-meta {
+    font-size: 0.8rem;
+    color: #777;
+}
+
+.admin-detail {
+    flex: 0 1 22rem;
+    min-width: 18rem;
+    padding: 0.5rem 0;
+}
