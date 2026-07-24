@@ -94,6 +94,23 @@ public sealed class ApiClient(HttpClient http)
         return (await response.Content.ReadAsStringAsync(), response.Headers.ETag?.ToString());
     }
 
+    /// <summary>
+    /// Fetches the contact's photo through the server (ADR 0037) — the server resolves inline or
+    /// external PHOTOs and caches them — as a data URL, or null if the contact has no photo.
+    /// </summary>
+    public async Task<string?> GetContactPhotoDataUrlAsync(Guid addressBookId, Guid id)
+    {
+        using var response = await http.GetAsync($"api/address-books/{addressBookId}/contacts/{id}/photo");
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+        var contentType = response.Content.Headers.ContentType?.MediaType ?? "image/jpeg";
+        return $"data:{contentType};base64,{Convert.ToBase64String(bytes)}";
+    }
+
     /// <summary>Saves the raw vCard. Returns null on success, or the server's rejection message (invalid card, conflict, …).</summary>
     public async Task<string?> PutContactRawAsync(Guid addressBookId, Guid id, string vcard, string? etag)
     {

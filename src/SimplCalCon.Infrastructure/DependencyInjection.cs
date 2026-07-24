@@ -56,6 +56,23 @@ public static class DependencyInjection
         services.AddScoped<IDavCredentialAuthenticator, DavCredentialAuthenticator>();
         services.AddScoped<IObjectStore, ObjectStore>();
         services.AddScoped<IObjectImportExport, ObjectImportExport>();
+        services.AddScoped<IContactPhotoService, ContactPhotoService>();
+
+        // Fetches external contact-photo URLs (ADR 0037). Guards against SSRF at connect time,
+        // caps the response, and follows only a couple of redirects.
+        services.AddHttpClient(ContactPhotoService.HttpClientName, client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(5);
+                client.MaxResponseContentBufferSize = 5 * 1024 * 1024;
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("SimplCalCon/1.0 (+contact-photo-cache)");
+            })
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+            {
+                AllowAutoRedirect = true,
+                MaxAutomaticRedirections = 3,
+                AutomaticDecompression = System.Net.DecompressionMethods.All,
+                ConnectCallback = SsrfSafeConnect.ConnectAsync,
+            });
         services.AddScoped<IAccountTakeout, AccountTakeout>();
         services.AddScoped<IFreeBusyService, FreeBusyService>();
         services.AddScoped<IScheduleInboxRepository, ScheduleInboxRepository>();

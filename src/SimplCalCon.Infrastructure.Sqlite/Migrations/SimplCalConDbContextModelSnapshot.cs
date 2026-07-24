@@ -462,6 +462,37 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
                     b.UseTphMappingStrategy();
                 });
 
+            modelBuilder.Entity("SimplCalCon.Domain.Objects.ContactPhoto", b =>
+                {
+                    b.Property<Guid>("ObjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("FetchedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("Photo")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("SourceUrl")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ObjectId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("ContactPhotos", (string)null);
+                });
+
             modelBuilder.Entity("SimplCalCon.Domain.Objects.EventAttendee", b =>
                 {
                     b.Property<Guid>("Id")
@@ -952,6 +983,24 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
                         .IsRequired();
 
                     b.Navigation("Collection");
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Objects.ContactPhoto", b =>
+                {
+                    b.HasOne("SimplCalCon.Domain.Objects.CollectionObject", "Object")
+                        .WithOne()
+                        .HasForeignKey("SimplCalCon.Domain.Objects.ContactPhoto", "ObjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SimplCalCon.Domain.Tenants.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Object");
+
+                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("SimplCalCon.Domain.Objects.EventAttendee", b =>
