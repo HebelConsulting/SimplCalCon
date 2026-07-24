@@ -38,12 +38,16 @@ is bearer-protected, so a plain `<img src>` would 401 — instead the client **f
 bytes with the authenticated `ApiClient` and renders a `data:` URL** (shell avatar +
 profile). Fallback to initials when there's no photo.
 
+**Interactive crop.** `photoCrop.js`'s `create(canvas, dataUrl)` shows a fixed square/round
+frame (the canvas) with the image **pan + zoomable** behind it (pointer drag + wheel + a
+zoom slider); the visible frame *is* the crop, so `toPng(size)` re-draws the same framed
+region at 256×256. The whole interaction runs in JS (no per-drag Blazor round-trips); Blazor
+holds the returned handle (`setZoom`/`toPng`/`dispose`).
+
 ## Consequences
 - Zero image-decoding surface on the server; one small table; deletes cascade cleanly.
-- The crop is a **centered square** (not an interactive pan/zoom box) — simpler JS, same
-  256×256 result; a draggable/resizable crop can be added later without server changes.
+- The client sends only a clean square 256×256 PNG regardless of the source aspect ratio.
 
 ## Deferred
 Admin UI to change/remove **other** users' photos (the endpoints + tenant-admin authz
-already exist — only the admin-side dialog is missing); interactive crop; avatars in the
-Admin user list.
+already exist — only the admin-side dialog is missing); avatars in the Admin user list.
