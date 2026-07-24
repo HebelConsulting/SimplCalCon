@@ -49,7 +49,7 @@ else
 {
     <div class="contacts-split">
         <div class="contacts-list" @ref="listPane">
-            <table>
+            <table @ref="contactTable">
                 <thead>
                     <tr>
                         <th @onclick='() => Sort("name")'>Name <span class="sort">@Indicator("name")</span></th>
@@ -190,8 +190,11 @@ else
 
     private ElementReference listPane;
     private ElementReference splitterHandle;
+    private ElementReference contactTable;
     private IJSObjectReference? splitterModule;
     private IJSObjectReference? splitter;
+    private IJSObjectReference? columnModule;
+    private IJSObjectReference? columnResizer;
     private bool splitterReady;
 
     private bool showNewBook;
@@ -228,6 +231,8 @@ else
             splitterReady = true;
             splitterModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/splitter.js");
             splitter = await splitterModule.InvokeAsync<IJSObjectReference>("init", splitterHandle, listPane);
+            columnModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/columnResize.js");
+            columnResizer = await columnModule.InvokeAsync<IJSObjectReference>("init", contactTable);
         }
     }
 
@@ -436,9 +441,20 @@ else
                 await splitter.DisposeAsync();
             }
 
+            if (columnResizer is not null)
+            {
+                await columnResizer.InvokeVoidAsync("dispose");
+                await columnResizer.DisposeAsync();
+            }
+
             if (splitterModule is not null)
             {
                 await splitterModule.DisposeAsync();
+            }
+
+            if (columnModule is not null)
+            {
+                await columnModule.DisposeAsync();
             }
         }
         catch

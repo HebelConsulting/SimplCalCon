@@ -17,7 +17,7 @@
 /* table-layout: fixed keeps the table within the pane (columns truncate), so there's no
    horizontal scrollbar clipping the last row. */
 .contacts-list table {
-    width: 100%;
+    min-width: 100%;
     table-layout: fixed;
     border-collapse: collapse;
     font-size: 0.9rem;
@@ -48,6 +48,23 @@
     cursor: pointer;
     user-select: none;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Drag handle at a header cell's right edge to resize the column (added by columnResize.js). */
+.contacts-list thead th .col-grip {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 7px;
+    height: 100%;
+    cursor: col-resize;
+    user-select: none;
+}
+
+.contacts-list thead th .col-grip:hover {
+    background: #cfe0f5;
 }
 
 .contacts-list thead th .sort {
