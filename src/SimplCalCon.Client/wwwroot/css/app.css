@@ -232,3 +232,17 @@ code {
 .col-grip:hover {
     background: #cfe0f5;
 }
+
+/* Small "Clear" button in list-table filter rows (Calendar + Contacts). Global so both tables
+   share it; disabled (greyed) when no filter is active. */
+.clear-filters {
+    margin-top: 0.25rem;
+    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+    cursor: pointer;
+}
+
+.clear-filters:disabled {
+    opacity: 0.5;
+    cursor: default;
+}

@@ -54,6 +54,8 @@ else
                     <th><input @bind="fLocation" @bind:event="oninput" placeholder="filter" /></th>
                     <th class="repeats-col">
                         <label title="Show only recurring events"><input type="checkbox" @bind="fRepeatsOnly" /> only</label>
+                        <button type="button" class="clear-filters" @onclick="ClearFilters"
+                                disabled="@(!AnyFilterActive)" title="Clear all filters">Clear</button>
                     </th>
                 </tr>
             </thead>
@@ -196,6 +198,14 @@ else
     private bool sortAscending = true;
     private string fStart = string.Empty, fTitle = string.Empty, fLocation = string.Empty;
     private bool fRepeatsOnly;
+
+    private bool AnyFilterActive => fStart.Length > 0 || fTitle.Length > 0 || fLocation.Length > 0 || fRepeatsOnly;
+
+    private void ClearFilters()
+    {
+        fStart = fTitle = fLocation = string.Empty;
+        fRepeatsOnly = false;
+    }
 
     private EventDto? selected;
     private bool showNew;

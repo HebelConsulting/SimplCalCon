@@ -67,6 +67,8 @@ else
                             <label title="Show only contacts that have a photo">
                                 <input type="checkbox" @bind="filterPhotoOnly" /> only
                             </label>
+                            <button type="button" class="clear-filters" @onclick="ClearFilters"
+                                    disabled="@(!AnyFilterActive)" title="Clear all filters">Clear</button>
                         </th>
                     </tr>
                 </thead>
@@ -186,6 +188,15 @@ else
     private string filterEmail = string.Empty;
     private string filterPhone = string.Empty;
     private bool filterPhotoOnly;
+
+    private bool AnyFilterActive => filterName.Length > 0 || filterOrg.Length > 0
+        || filterEmail.Length > 0 || filterPhone.Length > 0 || filterPhotoOnly;
+
+    private void ClearFilters()
+    {
+        filterName = filterOrg = filterEmail = filterPhone = string.Empty;
+        filterPhotoOnly = false;
+    }
 
     private ElementReference listPane;
     private ElementReference splitterHandle;
