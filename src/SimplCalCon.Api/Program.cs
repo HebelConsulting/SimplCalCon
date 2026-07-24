@@ -10,6 +10,7 @@ using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
 using SimplCalCon.Api.Authentication;
+using SimplCalCon.Api.Dav;
 using SimplCalCon.Api.Errors;
 using SimplCalCon.Api.Health;
 using SimplCalCon.Api.Http;
@@ -150,6 +151,11 @@ try
         });
 
     var app = builder.Build();
+
+    // Verbose DAV wire trace (ADR 0033 — Trace level, off by default; pass-through unless
+    // the SimplCalCon.Dav.Wire category is set to Verbose). Covers the whole /dav surface —
+    // both CalDAV and CardDAV — for diagnosing native clients without a proxy.
+    app.UseMiddleware<DavWireTraceMiddleware>();
 
     // One structured summary line per request (method, path, status, elapsed, user).
     // Health probes drop to Debug so readiness polling doesn't bury the signal (ADR 0033).

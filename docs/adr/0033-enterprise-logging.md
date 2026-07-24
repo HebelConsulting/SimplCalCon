@@ -58,6 +58,16 @@ at **Fatal** and returns a non-zero exit, then `Log.CloseAndFlush()`.
 - `SchedulingService`: each iTIP REQUEST/REPLY/CANCEL → Information; per-recipient
   delivery / no-local-recipient → Debug.
 
+**DAV wire trace (`DavWireTraceMiddleware`, Trace).** A first-class use of the Trace level:
+an operator can log the full `/dav` request/response bodies (method, path, depth, status +
+raw XML/blob, both CalDAV and CardDAV) to diagnose a native client without attaching a
+reverse proxy. It is **off by default** and gated on `IsEnabled(Trace)` for the
+`SimplCalCon.Dav.Wire` category, so it is a pass-through with no body buffering unless
+enabled (e.g. `Serilog__MinimumLevel__Override__SimplCalCon.Dav.Wire=Verbose`). Because it
+captures contact/calendar payloads and clutters the log, the **first** trace entry per
+process also raises a one-time **Warning** that tracing is active and should be turned off —
+an intentional Warning-means-act signal.
+
 ## Consequences
 - Application code logs through `ILogger<T>` (Serilog is only the provider), so nothing
   is coupled to Serilog except `Program.cs`; sinks (file, Seq, OTLP) can be added by
