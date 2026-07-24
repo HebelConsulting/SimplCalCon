@@ -6,9 +6,10 @@
       "Host": "db",
       "Port": 5432,
       "MaintenanceDB": "simplcalcon",
-      "Username": "simplcalcon",
+      "Username": "postgres",
       "SSLMode": "prefer",
-      "Comment": "Pre-registered by docker-compose (ADR 0024). Password: simplcalcon (deploy/db-init.sql, demo only)."
+      "PassFile": "/tmp/pgpass",
+      "Comment": "Pre-registered by docker-compose (ADR 0024). Auto-connects as the postgres superuser via the mounted pgpass (postgres/postgres, demo only)."
     }
   }
 }
