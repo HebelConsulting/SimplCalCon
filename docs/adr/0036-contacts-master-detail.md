@@ -47,6 +47,13 @@ vCard *is* the source of truth (ADR 0004), and power users edit it directly.
 - `VCardPhoto` is best-effort display parsing (common encodings); an unrecognized PHOTO just
   shows "no photo".
 
+**Layout.** The list and detail panes are separated by a **draggable divider** (`splitter.js`
+sets the list's flex-basis; clamped), so the split is user-resizable. The list table uses
+`table-layout: fixed` (columns truncate with ellipsis) so it never overflows horizontally —
+which also fixes the last row being clipped by a horizontal scrollbar. External photo URLs
+(Google) use `referrerpolicy="no-referrer"` because those hosts reject a cross-origin
+`Referer`.
+
 ## Deferred
 Multi-select / bulk actions; structured field editor alongside the raw one; inline photo
 upload into the card; column resizing; server-side sort/paging for very large books.

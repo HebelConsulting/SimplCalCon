@@ -1,24 +1,41 @@
 .contacts-split {
     display: flex;
-    gap: 1rem;
+    gap: 0;
     align-items: stretch;
-    flex-wrap: wrap;
 }
 
 /* Left: selectable, sortable contact table. */
 .contacts-list {
     flex: 1 1 30rem;
-    min-width: 20rem;
+    min-width: 15rem;
     border: 1px solid #e2e6ea;
     border-radius: 8px;
     overflow: auto;
     max-height: 70vh;
 }
 
+/* table-layout: fixed keeps the table within the pane (columns truncate), so there's no
+   horizontal scrollbar clipping the last row. */
 .contacts-list table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: 0.9rem;
+}
+
+/* Draggable divider between the list and the detail pane. */
+.splitter {
+    flex: 0 0 8px;
+    align-self: stretch;
+    cursor: col-resize;
+    background: #eef1f4;
+    border-radius: 3px;
+    margin: 0 0.3rem;
+    touch-action: none;
+}
+
+.splitter:hover {
+    background: #cfe0f5;
 }
 
 .contacts-list thead th {
@@ -71,7 +88,6 @@
     border-bottom: 1px solid #eef1f4;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 14rem;
     white-space: nowrap;
 }
 
@@ -96,7 +112,7 @@
 /* Right: split pane — photo on top, raw vCard below. */
 .contacts-detail {
     flex: 1 1 24rem;
-    min-width: 20rem;
+    min-width: 15rem;
     display: flex;
     flex-direction: column;
     gap: 0.8rem;
