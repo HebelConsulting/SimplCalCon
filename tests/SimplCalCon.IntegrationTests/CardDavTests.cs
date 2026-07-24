@@ -51,6 +51,19 @@ public sealed class CardDavTests(AuthWebApplicationFactory factory) : IClassFixt
     }
 
     [Fact]
+    public async Task Home_provisions_the_contacts_default_even_when_other_books_exist()
+    {
+        var (client, userId) = await DavClientAsync();
+        await CreateBookAsync(client, userId); // a non-"contacts" book (like a web-UI-created one)
+
+        var home = await SendAsync(client, "PROPFIND", $"/dav/addressbooks/{userId}/", depth: 1, body: PropfindBody("resourcetype"));
+
+        Assert.Equal(207, (int)home.StatusCode);
+        var doc = XDocument.Parse(await home.Content.ReadAsStringAsync());
+        Assert.Contains(doc.Descendants(Dav + "href"), h => h.Value == $"/dav/addressbooks/{userId}/contacts/");
+    }
+
+    [Fact]
     public async Task Put_get_and_conditional_headers()
     {
         var (client, userId) = await DavClientAsync();
