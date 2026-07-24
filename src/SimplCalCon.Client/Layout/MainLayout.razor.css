@@ -1,77 +1,212 @@
-.page {
-    position: relative;
+/* App shell (ADR 0034): a flex column filling the viewport — ribbon on top, a scrollable
+   content region in the middle, and the tab bar pinned to the bottom on EVERY tab. The
+   min-height:0 on .shell-main is what lets it scroll instead of pushing the tab bar up. */
+.app-shell {
     display: flex;
     flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    background: #f4f6f9;
 }
 
-main {
-    flex: 1;
-}
-
-.sidebar {
-    background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
-}
-
-.top-row {
-    background-color: #f7f7f7;
-    border-bottom: 1px solid #d6d5d5;
-    justify-content: flex-end;
-    height: 3.5rem;
+/* Top ribbon: brand, contextual action buttons (per-page section), and the account box. */
+.shell-ribbon {
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
+    gap: 1rem;
+    height: 3.25rem;
+    padding: 0 1rem;
+    background: #fff;
+    border-bottom: 1px solid #e2e6ea;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-    .top-row ::deep a, .top-row ::deep .btn-link {
-        white-space: nowrap;
-        margin-left: 1.5rem;
-        text-decoration: none;
-    }
-
-    .top-row ::deep a:hover, .top-row ::deep .btn-link:hover {
-        text-decoration: underline;
-    }
-
-    .top-row ::deep a:first-child {
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-@media (max-width: 640.98px) {
-    .top-row {
-        justify-content: space-between;
-    }
-
-    .top-row ::deep a, .top-row ::deep .btn-link {
-        margin-left: 0;
-    }
+.ribbon-brand {
+    flex: 0 0 auto;
+    font-weight: 700;
+    color: #1b6ec2;
+    letter-spacing: 0.2px;
 }
 
-@media (min-width: 641px) {
-    .page {
-        flex-direction: row;
-    }
+.ribbon-actions {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    overflow-x: auto;
+    min-width: 0;
+}
 
-    .sidebar {
-        width: 250px;
-        height: 100vh;
-        position: sticky;
-        top: 0;
-    }
+/* Contextual ribbon buttons come from each page via <SectionContent>. */
+.ribbon-actions ::deep button,
+.ribbon-actions ::deep .ribbon-btn {
+    flex: 0 0 auto;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid #cfd8e3;
+    border-radius: 6px;
+    background: #fff;
+    color: #23527c;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+    text-decoration: none;
+}
 
-    .top-row {
-        position: sticky;
-        top: 0;
-        z-index: 1;
-    }
+.ribbon-actions ::deep button:hover,
+.ribbon-actions ::deep .ribbon-btn:hover {
+    background: #eef4fb;
+    border-color: #1b6ec2;
+}
 
-    .top-row.auth ::deep a:first-child {
-        flex: 1;
-        text-align: right;
-        width: 0;
-    }
+.ribbon-actions ::deep button:disabled {
+    color: #aab;
+    background: #f5f6f8;
+    cursor: default;
+}
 
-    .top-row, article {
-        padding-left: 2rem !important;
-        padding-right: 1.5rem !important;
-    }
+.ribbon-actions ::deep select {
+    flex: 0 0 auto;
+    padding: 0.32rem 0.5rem;
+    border: 1px solid #cfd8e3;
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+
+/* Account box — DisplayName + round initials avatar, rightmost. */
+.user-area {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    position: relative;
+}
+
+.user-name {
+    font-size: 0.9rem;
+    color: #333;
+    max-width: 14rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.avatar {
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 50%;
+    background: #1b6ec2;
+    color: #fff;
+    border: none;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.avatar:hover {
+    background: #155ba3;
+}
+
+.user-menu {
+    position: absolute;
+    top: 2.7rem;
+    right: 0;
+    background: #fff;
+    border: 1px solid #e2e6ea;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+    min-width: 13rem;
+    z-index: 50;
+    overflow: hidden;
+}
+
+.user-menu-header {
+    padding: 0.65rem 0.85rem;
+    border-bottom: 1px solid #eee;
+}
+
+.user-menu-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.user-menu-email {
+    font-size: 0.78rem;
+    color: #777;
+}
+
+.user-menu-role {
+    margin-top: 0.2rem;
+    font-size: 0.72rem;
+    color: #1b6ec2;
+}
+
+.user-menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.55rem 0.85rem;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 0.88rem;
+    color: #333;
+}
+
+.user-menu-item:hover:not(:disabled) {
+    background: #f2f6fb;
+}
+
+.user-menu-item:disabled {
+    color: #aaa;
+    cursor: default;
+}
+
+/* Scrollable content region — the middle of the column. */
+.shell-main {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* Bottom tab bar — pinned at the bottom because it's a 0-basis flex child after the
+   flex-growing content region. */
+.shell-tabbar {
+    flex: 0 0 auto;
+    display: flex;
+    background: #fff;
+    border-top: 1px solid #e2e6ea;
+    box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.shell-tabbar ::deep .tab {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.12rem;
+    padding: 0.4rem 0 0.5rem;
+    font-size: 0.72rem;
+    color: #66707d;
+    text-decoration: none;
+    border-top: 3px solid transparent;
+}
+
+.shell-tabbar ::deep .tab .tab-icon {
+    font-size: 1.15rem;
+    line-height: 1;
+}
+
+.shell-tabbar ::deep .tab:hover {
+    background: #f4f7fb;
+}
+
+.shell-tabbar ::deep .tab.active {
+    color: #1b6ec2;
+    border-top-color: #1b6ec2;
+    background: #f7fafe;
 }

@@ -4,8 +4,12 @@
 
 <PageTitle>SimplCalCon</PageTitle>
 
-<h1>Your collections</h1>
-<p><a href="takeout">Data takeout (export / migrate)</a></p>
+<SectionContent SectionName="RibbonSection">
+    <a class="ribbon-btn" href="takeout">Data takeout</a>
+</SectionContent>
+
+<h1>Overview</h1>
+<p>Your calendars and address books. Select one to open it in its tab.</p>
 
 @if (calendars is null)
 {

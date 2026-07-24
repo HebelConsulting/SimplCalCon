@@ -7,6 +7,14 @@ namespace SimplCalCon.Client.Services;
 /// <summary>Typed access to the /api REST surface (ADR 0009). Tokens are attached by the HttpClient handler.</summary>
 public sealed class ApiClient(HttpClient http)
 {
+    public Task<MeDto?> GetMeAsync() => http.GetFromJsonAsync<MeDto>("api/me");
+
+    public async Task<IReadOnlyList<TenantDto>> GetTenantsAsync() =>
+        (await http.GetFromJsonAsync<Collection<TenantDto>>("api/admin/tenants"))?.Items ?? [];
+
+    public async Task<IReadOnlyList<AdminUserDto>> GetTenantUsersAsync() =>
+        (await http.GetFromJsonAsync<Collection<AdminUserDto>>("api/admin/users"))?.Items ?? [];
+
     public async Task<IReadOnlyList<CalendarDto>> GetCalendarsAsync() =>
         (await http.GetFromJsonAsync<Collection<CalendarDto>>("api/calendars"))?.Items ?? [];
 

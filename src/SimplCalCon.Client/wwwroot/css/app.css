@@ -1,5 +1,13 @@
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    height: 100%;
+    margin: 0;
+}
+
+/* The shell fills the viewport so the bottom tab bar is pinned and content scrolls
+   within the middle region (ADR 0034). */
+#app {
+    height: 100%;
 }
 
 h1:focus {

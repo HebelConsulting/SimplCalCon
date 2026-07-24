@@ -2,6 +2,27 @@ namespace SimplCalCon.Client.Models;
 
 public sealed record Collection<T>(IReadOnlyList<T> Items);
 
+public sealed record MeDto(Guid Id, string Email, string DisplayName, Guid? TenantId, string Role)
+{
+    public bool IsAdmin => Role is "platform_admin" or "admin";
+    public bool IsPlatformAdmin => Role is "platform_admin";
+
+    public string Initials
+    {
+        get
+        {
+            var parts = (DisplayName ?? string.Empty)
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return parts.Length switch
+            {
+                0 => "?",
+                1 => parts[0][..Math.Min(2, parts[0].Length)].ToUpperInvariant(),
+                _ => $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant(),
+            };
+        }
+    }
+}
+
 public sealed record CalendarDto(Guid Id, string Name, string? Color, bool SupportsEvents, bool SupportsTasks, bool Shared);
 
 public sealed record AddressBookDto(Guid Id, string Name, bool Shared);
@@ -38,3 +59,7 @@ public sealed record ImportResultDto(int Imported, int Skipped, int Failed, IRea
 
 public sealed record TakeoutImportResultDto(
     int CollectionsCreated, int Imported, int Skipped, int Failed, IReadOnlyList<string> Errors);
+
+public sealed record TenantDto(Guid Id, string Name, string Slug, string Status);
+
+public sealed record AdminUserDto(Guid Id, string DisplayName, string Email, string Role, string Status);
