@@ -40,5 +40,23 @@ services:
     ports:
       - "9080:9080"
 
+  # HTTPS front for native CalDAV/CardDAV clients (ADR 0032): Caddy terminates TLS with its
+  # internal CA and proxies to the API. Web UI + OIDC keep using http://localhost:9080.
+  # (Rootless Podman can't bind 443 by default — run rootful, or lower
+  # net.ipv4.ip_unprivileged_port_start.)
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
 volumes:
   db-data:
+  caddy-data:
+  caddy-config:

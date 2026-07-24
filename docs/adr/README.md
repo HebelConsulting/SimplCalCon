@@ -37,5 +37,6 @@ rather than an edit.
 | [0029](0029-phase1-data-portability.md) | Phase 1 data portability (import/export + migration takeout) |
 | [0030](0030-phase2-attendees-and-free-busy.md) | Phase 2 attendees & free/busy (CalDAV free-busy path) |
 | [0031](0031-phase2-itip-scheduling.md) | Phase 2 iTIP scheduling (RFC 6638 REQUEST/REPLY/CANCEL) |
+| [0032](0032-local-tls-proxy.md) | Local HTTPS via a Caddy TLS reverse proxy |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).
