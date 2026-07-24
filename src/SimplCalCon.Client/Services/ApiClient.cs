@@ -22,14 +22,14 @@ public sealed class ApiClient(HttpClient http)
         return $"data:image/png;base64,{Convert.ToBase64String(bytes)}";
     }
 
-    public async Task PutMyPhotoAsync(byte[] png)
+    public async Task PutPhotoAsync(string path, byte[] png)
     {
         using var content = new ByteArrayContent(png);
         content.Headers.ContentType = new MediaTypeHeaderValue("image/png");
-        (await http.PutAsync("api/users/me/photo", content)).EnsureSuccessStatusCode();
+        (await http.PutAsync(path, content)).EnsureSuccessStatusCode();
     }
 
-    public Task DeleteMyPhotoAsync() => http.DeleteAsync("api/users/me/photo");
+    public Task DeletePhotoAsync(string path) => http.DeleteAsync(path);
 
     public async Task<IReadOnlyList<TenantDto>> GetTenantsAsync() =>
         (await http.GetFromJsonAsync<Collection<TenantDto>>("api/admin/tenants"))?.Items ?? [];

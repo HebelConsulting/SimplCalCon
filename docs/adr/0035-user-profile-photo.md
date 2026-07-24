@@ -30,13 +30,15 @@ in their own tenant**. `GET` returns `image/png` (200) or 404; the raw PNG is re
 `Request.Body` (no model binding). `GET /api/me` gains a computed **`HasPhoto`** flag so the
 client knows whether to fetch.
 
-**Client (Blazor).** `InputFile` → `RequestImageFileAsync("image/png",1024,1024)` downscale
-→ `photoCrop.js` (ES module) crops the largest centered square onto a 256×256 canvas →
-`toDataURL('image/png')` → PUT the raw bytes. The **Profile** page (`/profile`, reached from
-the account menu) shows the large avatar + Change / Remove. **Render gotcha:** the endpoint
-is bearer-protected, so a plain `<img src>` would 401 — instead the client **fetches the
-bytes with the authenticated `ApiClient` and renders a `data:` URL** (shell avatar +
-profile). Fallback to initials when there's no photo.
+**Client (Blazor).** A reusable **`AvatarEditor`** component (parameterized by the photo
+`Path`) renders the avatar and drives upload: `InputFile` →
+`RequestImageFileAsync("image/png",1024,1024)` downscale → interactive crop → PUT the raw
+bytes; plus a Remove. It is used for **self** on the **Profile** page (`/profile`, from the
+account menu) and, for a **tenant admin**, for a **selected user** in the **Admin** tab
+(`Path = api/users/{id}/photo`, `@key`-ed per user). **Render gotcha:** the endpoint is
+bearer-protected, so a plain `<img src>` would 401 — the client **fetches the bytes with the
+authenticated `ApiClient` and renders a `data:` URL** (shell avatar + editor). Fallback to
+initials when there's no photo.
 
 **Interactive crop.** `photoCrop.js`'s `create(canvas, dataUrl)` shows a fixed square/round
 frame (the canvas) with the image **pan + zoomable** behind it (pointer drag + wheel + a
@@ -49,5 +51,6 @@ holds the returned handle (`setZoom`/`toPng`/`dispose`).
 - The client sends only a clean square 256×256 PNG regardless of the source aspect ratio.
 
 ## Deferred
-Admin UI to change/remove **other** users' photos (the endpoints + tenant-admin authz
-already exist — only the admin-side dialog is missing); avatars in the Admin user list.
+Small photo thumbnails in the Admin user *list* (the detail pane shows the selected user's
+avatar); a shared-state push so changing your **own** photo updates the shell avatar without
+a reload; touch-gesture zoom on the crop frame.

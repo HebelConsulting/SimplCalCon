@@ -1,7 +1,11 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using SimplCalCon.Domain.Principals;
 using SimplCalCon.IntegrationTests.TestSupport;
+using SimplCalCon.Infrastructure.Persistence;
 
 namespace SimplCalCon.IntegrationTests;
 
@@ -50,6 +54,52 @@ public sealed class PhotoApiTests(AuthWebApplicationFactory factory) : IClassFix
     {
         var client = factory.CreateClient();
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/users/me/photo")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Tenant_admin_can_manage_another_tenant_users_photo()
+    {
+        var otherId = await SeedTenantUserAsync();
+        var client = await AuthorizedClientAsync(); // the demo admin is a tenant admin
+
+        var put = await client.PutAsync($"/api/users/{otherId}/photo", Png(256, 256));
+        Assert.Equal(HttpStatusCode.NoContent, put.StatusCode);
+
+        var get = await client.GetAsync($"/api/users/{otherId}/photo");
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/users/{otherId}/photo")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Managing_an_unknown_user_is_forbidden()
+    {
+        var client = await AuthorizedClientAsync();
+
+        var response = await client.PutAsync($"/api/users/{Guid.NewGuid()}/photo", Png(256, 256));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    private async Task<Guid> SeedTenantUserAsync()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SimplCalConDbContext>();
+        var tenantId = await db.Tenants.Select(t => t.Id).FirstAsync();
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            DisplayName = "Other User",
+            Email = $"other-{Guid.NewGuid():N}@demo.test",
+            NormalizedEmail = $"OTHER-{Guid.NewGuid():N}@DEMO.TEST",
+            SecurityStamp = Guid.NewGuid(),
+            Status = UserStatus.Active,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        return user.Id;
     }
 
     private async Task<HttpClient> AuthorizedClientAsync()
