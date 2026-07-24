@@ -64,6 +64,35 @@ public sealed class CardDavTests(AuthWebApplicationFactory factory) : IClassFixt
     }
 
     [Fact]
+    public async Task Root_options_advertises_carddav_capability()
+    {
+        // macOS Contacts (RFC 6764) probes OPTIONS on the bare root and requires a DAV
+        // header advertising `addressbook`, or it discards the account.
+        var (client, _) = await DavClientAsync();
+
+        var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Options, "/"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("addressbook", response.Headers.GetValues("DAV").First());
+    }
+
+    [Fact]
+    public async Task Root_propfind_returns_current_user_principal()
+    {
+        var (client, userId) = await DavClientAsync();
+
+        var response = await SendAsync(client, "PROPFIND", "/", depth: 0, body: """
+            <propfind xmlns="DAV:"><prop><current-user-principal/></prop></propfind>
+            """);
+
+        Assert.Equal(207, (int)response.StatusCode);
+        var doc = XDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(
+            $"/dav/principals/{userId}/",
+            doc.Descendants(Dav + "current-user-principal").Descendants(Dav + "href").First().Value);
+    }
+
+    [Fact]
     public async Task Proppatch_is_accepted_as_a_noop()
     {
         // Apple clients (dataaccessd) PROPPATCH collections during account setup and abort on 405.
