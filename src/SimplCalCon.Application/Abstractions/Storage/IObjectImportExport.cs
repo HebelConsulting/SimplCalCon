@@ -22,9 +22,12 @@ public interface IObjectImportExport
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Imports a zip by creating a <b>new</b> collection per entry (a calendar per .ics / an address
-    /// book per .vcf), named from the file's <c>X-WR-CALNAME</c> when present else the file name —
-    /// recreating the structure of e.g. a Google export. Existing collections are untouched.
+    /// Imports a zip by creating <b>new</b> collections (a calendar per .ics / an address book per
+    /// .vcf), named from each file's <c>X-WR-CALNAME</c> when present else the file name —
+    /// recreating the structure of e.g. a Google export. Existing collections are untouched. When
+    /// <paramref name="mergeSameName"/> is true, files that resolve to the same name go into one
+    /// collection (so a Google export that lists a calendar twice under one X-WR-CALNAME doesn't
+    /// produce duplicate collections); otherwise one collection is created per file.
     /// </summary>
     Task<ArchiveImportOutcome> ImportArchiveToNewCollectionsAsync(
         Guid ownerUserId,
@@ -32,6 +35,7 @@ public interface IObjectImportExport
         bool isCalendar,
         byte[] archive,
         ImportConflictMode conflictMode,
+        bool mergeSameName,
         CancellationToken cancellationToken);
 
     /// <summary>Serializes the collection's live objects into one concatenated document.</summary>
