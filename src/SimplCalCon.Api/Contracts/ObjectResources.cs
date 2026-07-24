@@ -72,6 +72,9 @@ public sealed class ContactResource : HypermediaResource, IETaggedResource
 
     public IReadOnlyList<string> Phones { get; init; } = [];
 
+    /// <summary>Whether the card carries a PHOTO property (for the "with photos" filter, ADR 0036).</summary>
+    public bool HasPhoto { get; init; }
+
     /// <summary>Set only when the contact is in the trash (ADR 0028); null otherwise.</summary>
     public DateTime? DeletedAt { get; init; }
 

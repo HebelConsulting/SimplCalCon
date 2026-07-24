@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using SimplCalCon.Api.Hypermedia;
 using SimplCalCon.Domain.Collections;
 using SimplCalCon.Domain.Objects;
@@ -5,8 +6,14 @@ using SimplCalCon.Domain.Objects;
 namespace SimplCalCon.Api.Contracts;
 
 /// <summary>Maps domain entities to REST resources with their hypermedia links (ADR 0009).</summary>
-internal static class ResourceMapper
+internal static partial class ResourceMapper
 {
+    // A PHOTO property line: optional group prefix (item1.), then PHOTO, then ';' params or ':' value.
+    [GeneratedRegex(@"^(?:[A-Za-z0-9-]+\.)?PHOTO[;:]", RegexOptions.Multiline | RegexOptions.IgnoreCase)]
+    private static partial Regex PhotoLine();
+
+    private static bool HasPhoto(string? blob) => !string.IsNullOrEmpty(blob) && PhotoLine().IsMatch(blob);
+
     public static CalendarResource MapCalendar(Calendar calendar, Guid currentUserId) => new()
     {
         Id = calendar.Id,
@@ -82,6 +89,7 @@ internal static class ResourceMapper
         Organization = contact.Organization,
         Emails = Split(contact.Emails),
         Phones = Split(contact.Phones),
+        HasPhoto = HasPhoto(contact.Blob),
         DeletedAt = contact.IsDeleted ? contact.DeletedAt : null,
         ConcurrencyToken = contact.ConcurrencyToken,
         Links = { new Link("self", $"/api/address-books/{contact.CollectionId}/contacts/{contact.Id}") },

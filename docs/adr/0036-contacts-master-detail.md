@@ -24,11 +24,22 @@ vCard *is* the source of truth (ADR 0004), and power users edit it directly.
   opening modals (removed from Overview / the page body). **New contact** creates a stub and
   drops straight into edit.
 - **Master-detail:** left = a `<table>` with **sortable** headers (Name · Organization ·
-  Email · Phone; click to sort/toggle) and **selectable** rows; right = a split pane — the
-  **photo** (top) parsed from the card by `VCardPhoto` (base64 `PHOTO;ENCODING=b` → `data:`
-  URL, or a `data:`/URL value as-is; RFC 6350 unfolding) and the **raw vCard** (bottom) in a
-  read-only `<textarea>` with **Edit** → editable + **Save**/**Cancel**. Save PUTs the raw
-  text with the fetched ETag (If-Match), then reloads so the list columns reflect the edit.
+  Email · Phone · **Photo**; click to sort/toggle) and **selectable** rows, plus a
+  **filter row** — a per-column text box for the first four and a **checkbox** on the Photo
+  column ("only with photos"). Filtering + sorting are client-side over the loaded list.
+  Right = a split pane — the **photo** (top) parsed from the card by `VCardPhoto` (base64
+  `PHOTO;ENCODING=b` → `data:` URL, or a `data:`/URL value as-is; RFC 6350 unfolding) and
+  the **raw vCard** (bottom) in a read-only `<textarea>` with **Edit** → editable +
+  **Save**/**Cancel**.
+- **Validate on save.** Save PUTs the raw text with the fetched ETag (If-Match). The server
+  parses it through `IObjectStore` and **only persists if it's a valid vCard** — otherwise it
+  rolls back (nothing stored) and returns a clear **`400 INVALID_VCARD`** (or `409
+  VCARD_UID_CONFLICT`). The client shows the reason and **keeps the editor open with the
+  edits intact** (a quick client-side `BEGIN/END:VCARD` check avoids an obvious round-trip);
+  on success it reloads so the columns reflect the edit.
+- **`HasPhoto`** is a computed flag on `ContactResource` (a PHOTO-property regex over the
+  already-loaded blob — no schema change, no extra query) that drives the Photo column + the
+  "only with photos" filter.
 
 ## Consequences
 - The card is editable losslessly (fields the structured DTO doesn't model — e.g. the
