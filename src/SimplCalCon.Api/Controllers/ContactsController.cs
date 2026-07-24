@@ -15,7 +15,8 @@ namespace SimplCalCon.Api.Controllers;
 /// <summary>Contacts in an address book. Reads need `read`; writes need `write-content` (ADR 0007, 0009).</summary>
 [Route("api/address-books/{addressBookId:guid}/contacts")]
 public sealed class ContactsController(
-    IDavRepository repository, IObjectStore objectStore, IObjectComposer composer, IAclService acl)
+    IDavRepository repository, IObjectStore objectStore, IObjectComposer composer,
+    IContactPhotoService photos, IAclService acl)
     : ApiControllerBase(acl)
 {
     [HttpGet]
@@ -101,6 +102,17 @@ public sealed class ContactsController(
             // The edited vCard didn't parse — refuse the save with a clear reason; nothing persisted.
             throw new MalformedVCardException(ex.Message);
         }
+    }
+
+    // Contact photo (ADR 0037): serves the card's inline photo, or fetches + caches an external
+    // PHOTO URL server-side (so it survives referrer-blocking and the URL later dying). 404 = no photo.
+    [HttpGet("{id:guid}/photo")]
+    [HttpHead("{id:guid}/photo")]
+    public async Task<IActionResult> GetPhoto(Guid addressBookId, Guid id, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(addressBookId, AclRight.Read, cancellationToken);
+        var photo = await photos.GetPhotoAsync(addressBookId, id, CurrentUserId, cancellationToken);
+        return photo is null ? NotFound() : File(photo.Bytes, photo.ContentType);
     }
 
     [HttpDelete("{id:guid}")]

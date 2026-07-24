@@ -164,6 +164,38 @@ public sealed class RestResourcesTests(AuthWebApplicationFactory factory) : ICla
     }
 
     [Fact]
+    public async Task Contact_photo_endpoint_serves_an_inline_card_photo()
+    {
+        var client = await AuthedClientAsync();
+        var book = await client.PostAsJsonAsync("/api/address-books", new { name = "PhotoServe" });
+        var bookId = (await Body(book)).GetProperty("id").GetGuid();
+        var created = await client.PostAsJsonAsync($"/api/address-books/{bookId}/contacts",
+            new { formattedName = "Inline Pic", emails = new[] { "inline@example.com" } });
+        var contactId = (await Body(created)).GetProperty("id").GetGuid();
+
+        // No photo yet -> 404.
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await client.GetAsync($"/api/address-books/{bookId}/contacts/{contactId}/photo")).StatusCode);
+
+        // Embed a known inline base64 photo (AQIDBAUGBwg= -> bytes 1..8).
+        var raw = await client.GetAsync($"/api/address-books/{bookId}/contacts/{contactId}/raw");
+        var etag = raw.Headers.ETag!.ToString();
+        var withPhoto = (await raw.Content.ReadAsStringAsync())
+            .Replace("END:VCARD", "PHOTO;ENCODING=b;TYPE=JPEG:AQIDBAUGBwg=\r\nEND:VCARD");
+        using var put = new HttpRequestMessage(HttpMethod.Put, $"/api/address-books/{bookId}/contacts/{contactId}/raw")
+        {
+            Content = new StringContent(withPhoto, System.Text.Encoding.UTF8, "text/vcard"),
+        };
+        put.Headers.TryAddWithoutValidation("If-Match", etag);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(put)).StatusCode);
+
+        var photo = await client.GetAsync($"/api/address-books/{bookId}/contacts/{contactId}/photo");
+        Assert.Equal(HttpStatusCode.OK, photo.StatusCode);
+        Assert.Equal("image/jpeg", photo.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }, await photo.Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact]
     public async Task Foreign_calendar_is_forbidden()
     {
         var client = await AuthedClientAsync();

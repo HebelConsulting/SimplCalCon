@@ -38,6 +38,7 @@ public class SimplCalConDbContext(DbContextOptions<SimplCalConDbContext> options
     public DbSet<CalendarObject> CalendarObjects => Set<CalendarObject>();
     public DbSet<ContactObject> ContactObjects => Set<ContactObject>();
     public DbSet<ObjectRevision> ObjectRevisions => Set<ObjectRevision>();
+    public DbSet<ContactPhoto> ContactPhotos => Set<ContactPhoto>();
     public DbSet<EventAttendee> EventAttendees => Set<EventAttendee>();
     public DbSet<AclEntry> AclEntries => Set<AclEntry>();
 
