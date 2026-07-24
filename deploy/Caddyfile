@@ -1,0 +1,11 @@
+# Local HTTPS front for native CalDAV/CardDAV clients (ADR 0032).
+#
+# Terminates TLS with Caddy's built-in internal CA and reverse-proxies to the API
+# container. Native Apple clients require HTTPS; trust Caddy's root CA once on the client
+# (see CLAUDE.md / the deploy notes) and connect to https://localhost.
+#
+# The DAV surface uses relative redirects/hrefs, so no X-Forwarded-Proto handling is needed.
+localhost {
+	tls internal
+	reverse_proxy api:9080
+}
