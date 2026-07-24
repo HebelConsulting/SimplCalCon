@@ -33,6 +33,32 @@ public sealed class AppPasswordAuthenticationTests
     }
 
     [Fact]
+    public async Task Authentication_records_last_used_without_bumping_the_concurrency_token()
+    {
+        // The token must NOT change on auth: LastUsedAt is last-writer-wins bookkeeping, and
+        // a tracked SaveChanges here made parallel native-client requests (Thunderbird) lose
+        // the concurrency race and surface as a bogus 412. The fix writes it out-of-band.
+        var user = await SeedActiveUserAsync();
+        var issued = await AppPasswords().IssueAsync(user.Id, "iPhone", default);
+
+        Guid tokenBefore;
+        await using (var before = _database.CreateContext())
+        {
+            var appPassword = await before.AppPasswords.AsNoTracking().FirstAsync(a => a.Id == issued.AppPassword.Id);
+            tokenBefore = appPassword.ConcurrencyToken;
+            Assert.Null(appPassword.LastUsedAt);
+        }
+
+        var identity = await Authenticator().AuthenticateAsync(user.Email, issued.Secret, default);
+        Assert.NotNull(identity);
+
+        await using var after = _database.CreateContext();
+        var updated = await after.AppPasswords.AsNoTracking().FirstAsync(a => a.Id == issued.AppPassword.Id);
+        Assert.NotNull(updated.LastUsedAt);
+        Assert.Equal(tokenBefore, updated.ConcurrencyToken);
+    }
+
+    [Fact]
     public async Task Wrong_secret_is_rejected()
     {
         var user = await SeedActiveUserAsync();
