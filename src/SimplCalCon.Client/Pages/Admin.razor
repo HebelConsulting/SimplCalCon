@@ -42,18 +42,32 @@ else
     {
         <p>Loading…</p>
     }
+    else if (users.Count == 0)
+    {
+        <p>No users.</p>
+    }
     else
     {
-        <ul>
-            @foreach (var u in users)
+        <div class="admin-layout">
+            <ul class="admin-user-list">
+                @foreach (var u in users)
+                {
+                    <li class="@(selected?.Id == u.Id ? "selected" : null)" @onclick="() => selected = u">
+                        <span class="admin-user-name">@u.DisplayName</span>
+                        <span class="admin-user-meta">@u.Email · @u.Role · @u.Status</span>
+                    </li>
+                }
+            </ul>
+
+            @if (selected is not null)
             {
-                <li><strong>@u.DisplayName</strong> — @u.Email · @u.Role · @u.Status</li>
+                <div class="admin-detail">
+                    <h3>@selected.DisplayName</h3>
+                    <p>@selected.Email · @selected.Role · @selected.Status</p>
+                    <AvatarEditor Path="@($"api/users/{selected.Id}/photo")" Initials="@Initials(selected)" @key="selected.Id" />
+                </div>
             }
-        </ul>
-        @if (users.Count == 0)
-        {
-            <p>No users.</p>
-        }
+        </div>
     }
 }
 
@@ -61,6 +75,7 @@ else
     private MeDto? me;
     private IReadOnlyList<TenantDto>? tenants;
     private IReadOnlyList<AdminUserDto>? users;
+    private AdminUserDto? selected;
 
     protected override async Task OnInitializedAsync()
     {
@@ -78,5 +93,17 @@ else
         {
             users = await Api.GetTenantUsersAsync();
         }
+    }
+
+    private static string Initials(AdminUserDto user)
+    {
+        var parts = (user.DisplayName ?? string.Empty)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length switch
+        {
+            0 => "?",
+            1 => parts[0][..Math.Min(2, parts[0].Length)].ToUpperInvariant(),
+            _ => $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant(),
+        };
     }
 }

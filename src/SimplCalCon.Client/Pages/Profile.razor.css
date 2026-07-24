@@ -1,29 +1,5 @@
-.profile-card {
-    display: flex;
-    align-items: center;
-    gap: 1.2rem;
+.profile-head {
     margin: 0.5rem 0 1rem;
-}
-
-.profile-avatar {
-    width: 6rem;
-    height: 6rem;
-    border-radius: 50%;
-    background: #1b6ec2;
-    color: #fff;
-    font-size: 1.8rem;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    flex: 0 0 auto;
-}
-
-.profile-avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
 }
 
 .profile-name {
@@ -39,54 +15,4 @@
     margin-top: 0.2rem;
     font-size: 0.8rem;
     color: #1b6ec2;
-}
-
-.crop-stage {
-    display: flex;
-    gap: 1.2rem;
-    align-items: flex-start;
-    flex-wrap: wrap;
-    margin: 0.5rem 0;
-}
-
-/* The canvas IS the crop frame; its CSS size must match its pixel size (280) so pointer
-   deltas map 1:1. A ring shows the round avatar the square will become. */
-.crop-canvas {
-    width: 280px;
-    height: 280px;
-    border-radius: 50%;
-    background: #eef2f7;
-    box-shadow: 0 0 0 3px #1b6ec2, 0 0 0 12px #eef2f7;
-    cursor: grab;
-    touch-action: none;
-}
-
-.crop-canvas:active {
-    cursor: grabbing;
-}
-
-.crop-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 0.7rem;
-    min-width: 12rem;
-    padding-top: 0.5rem;
-}
-
-.crop-zoom {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    font-size: 0.85rem;
-    color: #444;
-}
-
-.crop-buttons {
-    display: flex;
-    gap: 0.4rem;
-}
-
-.crop-hint {
-    font-size: 0.78rem;
-    color: #888;
 }
