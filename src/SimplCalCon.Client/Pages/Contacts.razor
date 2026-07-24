@@ -207,7 +207,7 @@ else
     private bool showImport;
     private IBrowserFile? pendingImport;
     private string importConflict = "skip";
-    private bool importSeparate;
+    private bool importSeparate = true; // default on: recreate the source address books (Google export)
     private string? importMessage;
 
     private bool IsZipSelected => pendingImport?.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ?? false;
@@ -411,7 +411,7 @@ else
     {
         showImport = false;
         pendingImport = null;
-        importSeparate = false;
+        importSeparate = true;
         importMessage = null;
     }
 
@@ -430,7 +430,7 @@ else
             ? $"Created {result.CreatedCollections} address book(s); imported {result.Imported}, skipped {result.Skipped}, failed {result.Failed}."
             : $"Imported {result?.Imported}, skipped {result?.Skipped}, failed {result?.Failed}.";
         pendingImport = null;
-        importSeparate = false;
+        importSeparate = true;
         if (result is { CreatedCollections: > 0 })
         {
             books = await Api.GetAddressBooksAsync(); // new books appear in the switcher

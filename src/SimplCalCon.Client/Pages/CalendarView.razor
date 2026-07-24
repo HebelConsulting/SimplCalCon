@@ -216,7 +216,7 @@ else
     private DateTime splitAt;
     private IBrowserFile? pendingImport;
     private string conflict = "skip";
-    private bool importSeparate;
+    private bool importSeparate = true; // default on: recreate the source calendars (Google export)
     private string? importMessage;
 
     private bool IsZipSelected => pendingImport?.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ?? false;
@@ -407,7 +407,7 @@ else
             ? $"Created {result.CreatedCollections} calendar(s); imported {result.Imported}, skipped {result.Skipped}, failed {result.Failed}."
             : $"Imported {result?.Imported}, skipped {result?.Skipped}, failed {result?.Failed}.";
         pendingImport = null;
-        importSeparate = false;
+        importSeparate = true;
         if (result is { CreatedCollections: > 0 })
         {
             calendars = await Api.GetCalendarsAsync(); // new calendars appear in the switcher
