@@ -1,5 +1,6 @@
 @page "/address-books/{AddressBookId:guid?}"
 @attribute [Authorize]
+@implements IAsyncDisposable
 @inject ApiClient Api
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
@@ -47,7 +48,7 @@ else if (contacts is null)
 else
 {
     <div class="contacts-split">
-        <div class="contacts-list">
+        <div class="contacts-list" @ref="listPane">
             <table>
                 <thead>
                     <tr>
@@ -91,6 +92,8 @@ else
                 <p class="empty">No contacts match the filter.</p>
             }
         </div>
+
+        <div class="splitter" @ref="splitterHandle" title="Drag to resize"></div>
 
         <div class="contacts-detail">
             @if (selected is null)
@@ -185,6 +188,12 @@ else
     private string filterPhone = string.Empty;
     private bool filterPhotoOnly;
 
+    private ElementReference listPane;
+    private ElementReference splitterHandle;
+    private IJSObjectReference? splitterModule;
+    private IJSObjectReference? splitter;
+    private bool splitterReady;
+
     private bool showNewBook;
     private string newBookName = string.Empty;
     private bool showImport;
@@ -208,6 +217,17 @@ else
         else
         {
             contacts = null;
+        }
+    }
+
+    // Wire the draggable divider once the list/detail panes have rendered.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!splitterReady && books is { Count: > 0 } && contacts is not null)
+        {
+            splitterReady = true;
+            splitterModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/splitter.js");
+            splitter = await splitterModule.InvokeAsync<IJSObjectReference>("init", splitterHandle, listPane);
         }
     }
 
@@ -403,6 +423,27 @@ else
         {
             var bytes = await Api.ExportCollectionAsync("address-books", id);
             await JS.InvokeVoidAsync("simplDownload", "contacts.vcf", "text/vcard", Convert.ToBase64String(bytes));
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (splitter is not null)
+            {
+                await splitter.InvokeVoidAsync("dispose");
+                await splitter.DisposeAsync();
+            }
+
+            if (splitterModule is not null)
+            {
+                await splitterModule.DisposeAsync();
+            }
+        }
+        catch
+        {
+            // Best-effort teardown.
         }
     }
 }
