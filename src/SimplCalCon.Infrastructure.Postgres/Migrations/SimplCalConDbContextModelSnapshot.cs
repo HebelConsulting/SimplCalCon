@@ -602,6 +602,55 @@ namespace SimplCalCon.Infrastructure.Postgres.Migrations
                     b.UseTphMappingStrategy();
                 });
 
+            modelBuilder.Entity("SimplCalCon.Domain.Scheduling.ScheduleMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Blob")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long>("ChangeNumber")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("ResourceName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId", "ChangeNumber");
+
+                    b.HasIndex("CollectionId", "ResourceName")
+                        .IsUnique();
+
+                    b.ToTable("ScheduleMessages", (string)null);
+                });
+
             modelBuilder.Entity("SimplCalCon.Domain.Tenants.Tenant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -664,6 +713,13 @@ namespace SimplCalCon.Infrastructure.Postgres.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.HasDiscriminator().HasValue("Calendar");
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Collections.ScheduleInbox", b =>
+                {
+                    b.HasBaseType("SimplCalCon.Domain.Collections.Collection");
+
+                    b.HasDiscriminator().HasValue("ScheduleInbox");
                 });
 
             modelBuilder.Entity("SimplCalCon.Domain.Objects.CalendarObject", b =>
@@ -932,6 +988,17 @@ namespace SimplCalCon.Infrastructure.Postgres.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("SimplCalCon.Domain.Scheduling.ScheduleMessage", b =>
+                {
+                    b.HasOne("SimplCalCon.Domain.Collections.ScheduleInbox", "Inbox")
+                        .WithMany("Messages")
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Inbox");
+                });
+
             modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreApplication", b =>
                 {
                     b.Navigation("Authorizations");
@@ -952,6 +1019,11 @@ namespace SimplCalCon.Infrastructure.Postgres.Migrations
             modelBuilder.Entity("SimplCalCon.Domain.Objects.CollectionObject", b =>
                 {
                     b.Navigation("Revisions");
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Collections.ScheduleInbox", b =>
+                {
+                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("SimplCalCon.Domain.Objects.CalendarObject", b =>

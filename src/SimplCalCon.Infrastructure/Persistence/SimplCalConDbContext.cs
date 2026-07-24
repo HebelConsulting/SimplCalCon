@@ -6,6 +6,7 @@ using SimplCalCon.Domain.Collections;
 using SimplCalCon.Domain.Common;
 using SimplCalCon.Domain.Objects;
 using SimplCalCon.Domain.Principals;
+using SimplCalCon.Domain.Scheduling;
 using SimplCalCon.Domain.Tenants;
 
 namespace SimplCalCon.Infrastructure.Persistence;
@@ -30,6 +31,8 @@ public class SimplCalConDbContext(DbContextOptions<SimplCalConDbContext> options
     public DbSet<Collection> Collections => Set<Collection>();
     public DbSet<Calendar> Calendars => Set<Calendar>();
     public DbSet<AddressBook> AddressBooks => Set<AddressBook>();
+    public DbSet<ScheduleInbox> ScheduleInboxes => Set<ScheduleInbox>();
+    public DbSet<ScheduleMessage> ScheduleMessages => Set<ScheduleMessage>();
     public DbSet<CollectionObject> Objects => Set<CollectionObject>();
     public DbSet<CalendarObject> CalendarObjects => Set<CalendarObject>();
     public DbSet<ContactObject> ContactObjects => Set<ContactObject>();

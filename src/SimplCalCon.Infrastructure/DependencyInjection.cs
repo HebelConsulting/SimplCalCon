@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SimplCalCon.Application.Abstractions;
 using SimplCalCon.Application.Abstractions.Acl;
 using SimplCalCon.Application.Abstractions.Identity;
+using SimplCalCon.Application.Abstractions.Scheduling;
 using SimplCalCon.Application.Abstractions.Security;
 using SimplCalCon.Application.Abstractions.Storage;
 using SimplCalCon.Infrastructure.Bootstrap;
@@ -57,6 +58,8 @@ public static class DependencyInjection
         services.AddScoped<IObjectImportExport, ObjectImportExport>();
         services.AddScoped<IAccountTakeout, AccountTakeout>();
         services.AddScoped<IFreeBusyService, FreeBusyService>();
+        services.AddScoped<IScheduleInboxRepository, ScheduleInboxRepository>();
+        services.AddScoped<ISchedulingService, SchedulingService>();
         services.AddScoped<IObjectComposer, ObjectComposer>();
         services.AddScoped<IEventSplitter, EventSplitter>();
         services.AddScoped<IDavRepository, DavRepository>();
