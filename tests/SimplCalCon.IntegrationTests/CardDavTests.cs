@@ -39,6 +39,23 @@ public sealed class CardDavTests(AuthWebApplicationFactory factory) : IClassFixt
     }
 
     [Fact]
+    public async Task Principal_collection_propfind_returns_current_user_principal()
+    {
+        // macOS accountsd PROPFINDs /dav/principals/ (the collection) during setup.
+        var (client, userId) = await DavClientAsync();
+
+        var response = await SendAsync(client, "PROPFIND", "/dav/principals/", depth: 0, body: """
+            <propfind xmlns="DAV:"><prop><current-user-principal/><principal-URL/><resourcetype/></prop></propfind>
+            """);
+
+        Assert.Equal(207, (int)response.StatusCode);
+        var doc = XDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(
+            $"/dav/principals/{userId}/",
+            doc.Descendants(Dav + "current-user-principal").Descendants(Dav + "href").First().Value);
+    }
+
+    [Fact]
     public async Task Home_auto_provisions_a_default_address_book()
     {
         var (client, userId) = await DavClientAsync();
