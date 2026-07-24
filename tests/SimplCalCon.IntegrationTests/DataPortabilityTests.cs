@@ -252,6 +252,88 @@ public sealed class DataPortabilityTests(AuthWebApplicationFactory factory) : IC
     private static async Task<int> CountAsync(HttpClient client, string url) =>
         (await client.GetFromJsonAsync<JsonElement>(url)).GetProperty("items").GetArrayLength();
 
+    [Fact]
+    public async Task Rename_calendar_changes_its_name()
+    {
+        var client = await AuthedClientAsync();
+        var cal = await CreateCalendarAsync(client);
+
+        using var request = new HttpRequestMessage(HttpMethod.Put, $"/api/calendars/{cal}")
+        {
+            Content = JsonContent.Create(new { name = "Renamed Cal" }),
+        };
+        request.Headers.TryAddWithoutValidation("If-Match", "*");
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Renamed Cal", (await Body(response)).GetProperty("name").GetString());
+    }
+
+    [Fact]
+    public async Task Delete_calendar_removes_it_from_the_list()
+    {
+        var client = await AuthedClientAsync();
+        var cal = await CreateCalendarAsync(client);
+
+        using var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/calendars/{cal}");
+        request.Headers.TryAddWithoutValidation("If-Match", "*");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(request)).StatusCode);
+
+        var list = await client.GetFromJsonAsync<JsonElement>("/api/calendars");
+        Assert.DoesNotContain(list.GetProperty("items").EnumerateArray(), c => c.GetProperty("id").GetGuid() == cal);
+    }
+
+    [Fact]
+    public async Task Move_event_transfers_it_to_another_calendar()
+    {
+        var client = await AuthedClientAsync();
+        var source = await CreateCalendarAsync(client);
+        var target = await CreateCalendarAsync(client);
+        await CreateEventAsync(client, source, "Movable");
+        var events = await client.GetFromJsonAsync<JsonElement>($"/api/calendars/{source}/events");
+        var eventId = events.GetProperty("items").EnumerateArray().First().GetProperty("id").GetGuid();
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/calendars/{source}/events/{eventId}/move")
+        {
+            Content = JsonContent.Create(new { targetId = target }),
+        };
+        request.Headers.TryAddWithoutValidation("If-Match", "*");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(request)).StatusCode);
+
+        Assert.Empty((await client.GetFromJsonAsync<JsonElement>($"/api/calendars/{source}/events"))
+            .GetProperty("items").EnumerateArray());
+        Assert.Single((await client.GetFromJsonAsync<JsonElement>($"/api/calendars/{target}/events"))
+            .GetProperty("items").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task Zip_import_merges_files_that_share_a_calendar_name()
+    {
+        var client = await AuthedClientAsync();
+        var landing = await CreateCalendarAsync(client);
+
+        using var zipStream = new MemoryStream();
+        using (var zip = new ZipArchive(zipStream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            await WriteEntryAsync(zip, "a.ics", IcsCal("Shared", "merge-a@test", "One"));
+            await WriteEntryAsync(zip, "b.ics", IcsCal("Shared", "merge-b@test", "Two"));
+        }
+
+        using var form = new MultipartFormDataContent
+        {
+            { new StringContent("skip"), "onConflict" },
+            { new StringContent("true"), "separateCollections" },
+            { new StringContent("true"), "mergeByName" },
+        };
+        var file = new ByteArrayContent(zipStream.ToArray());
+        file.Headers.ContentType = new MediaTypeHeaderValue("application/zip");
+        form.Add(file, "file", "export.zip");
+
+        var result = await Body(await client.PostAsync($"/api/calendars/{landing}/import", form));
+        Assert.Equal(1, result.GetProperty("createdCollections").GetInt32()); // both files merged into one calendar
+        Assert.Equal(2, result.GetProperty("imported").GetInt32());
+    }
+
     private static async Task<Guid> CreateCalendarAsync(HttpClient client) =>
         (await Body(await client.PostAsJsonAsync("/api/calendars", new { name = $"Cal {Guid.NewGuid():N}" })))
             .GetProperty("id").GetGuid();

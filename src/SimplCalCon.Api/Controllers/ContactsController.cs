@@ -127,6 +127,42 @@ public sealed class ContactsController(
         return NoContent();
     }
 
+    /// <summary>
+    /// Moves the contact to another address book (same tenant; write access to both): written to
+    /// the target and removed from this book. A genuine state transition (ADR 0009, 0042).
+    /// </summary>
+    [HttpPost("{id:guid}/move")]
+    [RequireIfMatch]
+    public async Task<IActionResult> Move(
+        Guid addressBookId, Guid id, [FromBody] MoveObjectRequest request, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(addressBookId, AclRight.WriteContent, cancellationToken);
+        var existing = await FindAsync(addressBookId, id, cancellationToken);
+        EnsureIfMatch(existing.ConcurrencyToken);
+
+        if (request.TargetId == addressBookId)
+        {
+            return NoContent(); // already in this address book
+        }
+
+        var target = await repository.GetAddressBookByIdAsync(request.TargetId, cancellationToken)
+            ?? throw new ResourceNotFoundException("Address book", request.TargetId);
+        await RequireRightsAsync(target.Id, AclRight.WriteContent, cancellationToken);
+
+        try
+        {
+            await objectStore.PutAsync(
+                new PutObjectRequest(target.Id, existing.ResourceName, existing.Blob, CurrentUserId), cancellationToken);
+        }
+        catch (UidConflictException)
+        {
+            throw new MoveConflictException();
+        }
+
+        await objectStore.DeleteAsync(addressBookId, existing.ResourceName, CurrentUserId, cancellationToken);
+        return NoContent();
+    }
+
     // --- Trash & version history (ADR 0028). Trash/restore act on already-deleted items, so they are If-Match-exempt. ---
 
     [HttpGet("trash")]

@@ -115,11 +115,13 @@ internal sealed class ObjectImportExport(
         bool isCalendar,
         byte[] archive,
         ImportConflictMode conflictMode,
+        bool mergeSameName,
         CancellationToken cancellationToken)
     {
         var extension = isCalendar ? ".ics" : ".vcf";
         int created = 0, imported = 0, skipped = 0, failed = 0;
         var errors = new List<string>();
+        var byName = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
 
         using var stream = new MemoryStream(archive);
         using var zip = new ZipArchive(stream, ZipArchiveMode.Read);
@@ -135,12 +137,20 @@ internal sealed class ObjectImportExport(
             // Prefer the calendar's own display name (Google/Apple set X-WR-CALNAME); else the file name.
             var name = (isCalendar ? ExtractCalendarName(content) : null)
                 ?? System.IO.Path.GetFileNameWithoutExtension(entry.Name);
-            var resourceName = UniqueResourceName(name);
 
-            var collectionId = isCalendar
-                ? (await repository.CreateCalendarAsync(ownerUserId, tenantId, resourceName, name, true, true, cancellationToken)).Id
-                : (await repository.CreateAddressBookAsync(ownerUserId, tenantId, resourceName, name, cancellationToken)).Id;
-            created++;
+            // Reuse the collection already created for this name, or create a fresh one.
+            if (!mergeSameName || !byName.TryGetValue(name, out var collectionId))
+            {
+                var resourceName = UniqueResourceName(name);
+                collectionId = isCalendar
+                    ? (await repository.CreateCalendarAsync(ownerUserId, tenantId, resourceName, name, true, true, cancellationToken)).Id
+                    : (await repository.CreateAddressBookAsync(ownerUserId, tenantId, resourceName, name, cancellationToken)).Id;
+                created++;
+                if (mergeSameName)
+                {
+                    byName[name] = collectionId;
+                }
+            }
 
             var outcome = await ImportAsync(collectionId, content, conflictMode, ownerUserId, cancellationToken);
             imported += outcome.Imported;

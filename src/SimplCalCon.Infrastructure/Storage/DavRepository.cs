@@ -91,6 +91,20 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
         return true;
     }
 
+    public async Task<Collection?> RenameCollectionAsync(Guid collectionId, string newName, CancellationToken cancellationToken)
+    {
+        var collection = await dbContext.Collections
+            .FirstOrDefaultAsync(c => c.Id == collectionId && !c.IsDeleted, cancellationToken);
+        if (collection is null)
+        {
+            return null;
+        }
+
+        collection.Name = newName;
+        await dbContext.SaveChangesAsync(cancellationToken); // bumps ConcurrencyToken (new ETag)
+        return collection;
+    }
+
     public async Task<IReadOnlyList<ContactObject>> ListObjectsAsync(Guid collectionId, CancellationToken cancellationToken) =>
         await dbContext.ContactObjects
             .Where(o => o.CollectionId == collectionId && !o.IsDeleted)

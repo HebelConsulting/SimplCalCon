@@ -6,6 +6,7 @@ using SimplCalCon.Api.Http;
 using SimplCalCon.Api.Hypermedia;
 using SimplCalCon.Application.Abstractions.Acl;
 using SimplCalCon.Application.Abstractions.Storage;
+using SimplCalCon.Domain.Collections;
 using SimplCalCon.Domain.Acl;
 
 namespace SimplCalCon.Api.Controllers;
@@ -54,6 +55,24 @@ public sealed class AddressBooksController(
             ResourceMapper.MapAddressBook(addressBook, CurrentUserId));
     }
 
+    [HttpPut("{id:guid}")]
+    [RequireIfMatch]
+    public async Task<ActionResult<AddressBookResource>> Rename(
+        Guid id, [FromBody] CollectionRenameRequest request, CancellationToken cancellationToken)
+    {
+        var addressBook = await repository.GetAddressBookByIdAsync(id, cancellationToken)
+            ?? throw new ResourceNotFoundException("Address book", id);
+
+        if (addressBook.OwnerId != CurrentUserId)
+        {
+            throw new InsufficientRightsException();
+        }
+
+        EnsureIfMatch(addressBook.ConcurrencyToken);
+        var updated = (AddressBook)(await repository.RenameCollectionAsync(id, request.Name, cancellationToken))!;
+        return ResourceMapper.MapAddressBook(updated, CurrentUserId);
+    }
+
     [HttpDelete("{id:guid}")]
     [RequireIfMatch]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
@@ -76,7 +95,7 @@ public sealed class AddressBooksController(
     [HttpPost("{id:guid}/import")]
     public async Task<ActionResult<ImportResultResource>> Import(
         Guid id, IFormFile? file, [FromForm] string? onConflict, [FromForm] bool? separateCollections,
-        CancellationToken cancellationToken)
+        [FromForm] bool? mergeByName, CancellationToken cancellationToken)
     {
         await RequireRightsAsync(id, AclRight.WriteContent, cancellationToken);
         if (file is null or { Length: 0 })
@@ -96,7 +115,8 @@ public sealed class AddressBooksController(
                 }
 
                 var result = await importExport.ImportArchiveToNewCollectionsAsync(
-                    CurrentUserId, tenantId, isCalendar: false, bytes, Portability.Conflict(onConflict), cancellationToken);
+                    CurrentUserId, tenantId, isCalendar: false, bytes, Portability.Conflict(onConflict),
+                    mergeByName != false, cancellationToken);
                 return Portability.Map(result);
             }
 

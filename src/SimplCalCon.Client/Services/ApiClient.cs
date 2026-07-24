@@ -183,7 +183,7 @@ public sealed class ApiClient(HttpClient http)
     // Data portability (ADR 0013/0029). `kind` is "calendars" or "address-books".
     public async Task<ImportResultDto?> ImportCollectionAsync(
         string kind, Guid collectionId, byte[] content, string fileName, string onConflict,
-        bool separateCollections = false)
+        bool separateCollections = false, bool mergeByName = true)
     {
         var contentType = fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
             ? "application/zip"
@@ -192,11 +192,49 @@ public sealed class ApiClient(HttpClient http)
         if (separateCollections)
         {
             form.Add(new StringContent("true"), "separateCollections");
+            form.Add(new StringContent(mergeByName ? "true" : "false"), "mergeByName");
         }
 
         var response = await http.PostAsync($"api/{kind}/{collectionId}/import", form);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<ImportResultDto>();
+    }
+
+    // Collection management (ADR 0041) + entry move (ADR 0042). `kind` is "calendars" or "address-books".
+    // If-Match:* — the UI operates on the current version.
+    public async Task<string?> RenameCollectionAsync(string kind, Guid id, string name) =>
+        await SendWithIfMatchAsync(HttpMethod.Put, $"api/{kind}/{id}", new { name });
+
+    public Task DeleteCollectionAsync(string kind, Guid id)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, $"api/{kind}/{id}");
+        request.Headers.TryAddWithoutValidation("If-Match", "*");
+        return http.SendAsync(request);
+    }
+
+    public async Task<string?> MoveEntryAsync(string kind, Guid collectionId, Guid entryId, Guid targetId) =>
+        await SendWithIfMatchAsync(
+            HttpMethod.Post, $"api/{kind}/{collectionId}/{Child(kind)}/{entryId}/move", new { targetId });
+
+    /// <summary>Sends a body with If-Match:*; returns null on success or the server's problem detail.</summary>
+    private async Task<string?> SendWithIfMatchAsync(HttpMethod method, string url, object body)
+    {
+        using var request = new HttpRequestMessage(method, url) { Content = JsonContent.Create(body) };
+        request.Headers.TryAddWithoutValidation("If-Match", "*");
+        var response = await http.SendAsync(request);
+        if (response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        try
+        {
+            return (await response.Content.ReadFromJsonAsync<ProblemDto>())?.Detail ?? $"Failed ({(int)response.StatusCode}).";
+        }
+        catch
+        {
+            return $"Failed ({(int)response.StatusCode}).";
+        }
     }
 
     public Task<byte[]> ExportCollectionAsync(string kind, Guid collectionId) =>

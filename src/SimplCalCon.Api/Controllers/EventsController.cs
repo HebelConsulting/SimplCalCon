@@ -8,6 +8,7 @@ using SimplCalCon.Application.Abstractions.Acl;
 using SimplCalCon.Application.Abstractions.Storage;
 using SimplCalCon.Domain.Acl;
 using SimplCalCon.Domain.Objects;
+using SimplCalCon.Domain.Objects.Exceptions;
 
 namespace SimplCalCon.Api.Controllers;
 
@@ -109,6 +110,42 @@ public sealed class EventsController(
                 new Link("created", $"/api/calendars/{calendarId}/events/{result.Copy.Id}"),
             },
         };
+    }
+
+    /// <summary>
+    /// Moves the event to another calendar (same tenant; write access to both): written to the
+    /// target and removed from this calendar. A genuine state transition (ADR 0009, 0042).
+    /// </summary>
+    [HttpPost("{id:guid}/move")]
+    [RequireIfMatch]
+    public async Task<IActionResult> Move(
+        Guid calendarId, Guid id, [FromBody] MoveObjectRequest request, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(calendarId, AclRight.WriteContent, cancellationToken);
+        var existing = await FindAsync(calendarId, id, cancellationToken);
+        EnsureIfMatch(existing.ConcurrencyToken);
+
+        if (request.TargetId == calendarId)
+        {
+            return NoContent(); // already in this calendar
+        }
+
+        var target = await repository.GetCalendarByIdAsync(request.TargetId, cancellationToken)
+            ?? throw new ResourceNotFoundException("Calendar", request.TargetId);
+        await RequireRightsAsync(target.Id, AclRight.WriteContent, cancellationToken);
+
+        try
+        {
+            await objectStore.PutAsync(
+                new PutObjectRequest(target.Id, existing.ResourceName, existing.Blob, CurrentUserId), cancellationToken);
+        }
+        catch (UidConflictException)
+        {
+            throw new MoveConflictException();
+        }
+
+        await objectStore.DeleteAsync(calendarId, existing.ResourceName, CurrentUserId, cancellationToken);
+        return NoContent();
     }
 
     // --- Trash & version history (ADR 0028). Trash/restore act on already-deleted items, so they are If-Match-exempt. ---

@@ -23,6 +23,8 @@
         <button @onclick="ExportAsync">Export .ics</button>
         @if (EffectiveId is { } id)
         {
+            <button @onclick="OpenRename">Rename</button>
+            <button @onclick="() => showDelete = true">Delete</button>
             <a class="ribbon-btn" href="share/calendars/@id">Share</a>
             <a class="ribbon-btn" href="trash/calendars/@id">Trash</a>
         }
@@ -127,11 +129,17 @@ else
     <div class="form-row"><InputFile OnChange="OnImportFile" accept=".ics,.zip" disabled="@InputsLocked" /></div>
     @if (IsZipSelected)
     {
-        <div class="form-row">
-            <label title="Recreate the original calendars from the archive (e.g. a Google export)">
-                <input type="checkbox" @bind="importSeparate" disabled="@InputsLocked" /> Create a separate calendar for each file in the archive
+        <label class="form-check" title="Recreate the original calendars from the archive (e.g. a Google export)">
+            <input type="checkbox" @bind="importSeparate" disabled="@InputsLocked" />
+            <span>Create a separate calendar for each file in the archive</span>
+        </label>
+        @if (importSeparate)
+        {
+            <label class="form-check" title="Files that resolve to the same calendar name are merged into one calendar">
+                <input type="checkbox" @bind="mergeByName" disabled="@InputsLocked" />
+                <span>Assign entries by their X-WR-CALNAME — don't create multiple calendars with the same name</span>
             </label>
-        </div>
+        }
     }
     <div class="form-row">
         <label>On conflict</label>
@@ -187,7 +195,45 @@ else
                 }
             }
         </div>
+        @if (calendars is { Count: > 1 })
+        {
+            <div class="form-row">
+                <label>Move to</label>
+                <select @bind="moveTarget">
+                    <option value="">— choose calendar —</option>
+                    @foreach (var c in calendars.Where(c => c.Id != EffectiveId))
+                    {
+                        <option value="@c.Id">@c.Name</option>
+                    }
+                </select>
+                <button @onclick="() => MoveAsync(ev)" disabled="@string.IsNullOrEmpty(moveTarget)">Move</button>
+            </div>
+            @if (moveError is not null)
+            {
+                <p class="import-message">@moveError</p>
+            }
+        }
     }
+</Modal>
+
+<Modal Visible="showRename" Title="Rename calendar" OnClose="() => showRename = false">
+    <div class="form-row"><input @bind="renameName" placeholder="Calendar name" /></div>
+    <div class="form-actions">
+        <button @onclick="RenameAsync" disabled="@string.IsNullOrWhiteSpace(renameName)">Save</button>
+        <button @onclick="() => showRename = false">Cancel</button>
+    </div>
+    @if (renameError is not null)
+    {
+        <p class="import-message">@renameError</p>
+    }
+</Modal>
+
+<Modal Visible="showDelete" Title="Delete calendar" OnClose="() => showDelete = false">
+    <p>Delete calendar “<strong>@SelectedCalendarName</strong>”? Its events will no longer appear. This can be undone by an administrator.</p>
+    <div class="form-actions">
+        <button class="danger" @onclick="DeleteAsync">Delete</button>
+        <button @onclick="() => showDelete = false">Cancel</button>
+    </div>
 </Modal>
 
 @code {
@@ -221,17 +267,27 @@ else
     private IBrowserFile? pendingImport;
     private string conflict = "skip";
     private bool importSeparate = true; // default on: recreate the source calendars (Google export)
+    private bool mergeByName = true;    // default on: merge files that share an X-WR-CALNAME
     private string? importMessage;
     private bool importing;   // an import is running — lock everything, including Close
     private bool importDone;  // an import finished — keep inputs locked; only Close stays active
 
+    private bool showRename;
+    private string renameName = string.Empty;
+    private string? renameError;
+    private bool showDelete;
+    private string moveTarget = string.Empty;
+    private string? moveError;
+
     private bool IsZipSelected => pendingImport?.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ?? false;
     private bool InputsLocked => importing || importDone;
+    private string? SelectedCalendarName => calendars?.FirstOrDefault(c => c.Id == EffectiveId)?.Name;
 
     private void OpenImport()
     {
         pendingImport = null;
         importSeparate = true;
+        mergeByName = true;
         importMessage = null;
         importing = false;
         importDone = false;
@@ -334,12 +390,67 @@ else
     {
         selected = e;
         splittingId = null;
+        moveTarget = string.Empty;
+        moveError = null;
     }
 
     private void CloseDetail()
     {
         selected = null;
         splittingId = null;
+        moveTarget = string.Empty;
+        moveError = null;
+    }
+
+    // --- Rename / delete / move (ADR 0041, 0042) ---
+    private void OpenRename()
+    {
+        renameName = SelectedCalendarName ?? string.Empty;
+        renameError = null;
+        showRename = true;
+    }
+
+    private async Task RenameAsync()
+    {
+        if (EffectiveId is not { } id || string.IsNullOrWhiteSpace(renameName))
+        {
+            return;
+        }
+
+        renameError = await Api.RenameCollectionAsync("calendars", id, renameName.Trim());
+        if (renameError is null)
+        {
+            calendars = await Api.GetCalendarsAsync();
+            showRename = false;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (EffectiveId is not { } id)
+        {
+            return;
+        }
+
+        await Api.DeleteCollectionAsync("calendars", id);
+        showDelete = false;
+        calendars = await Api.GetCalendarsAsync();
+        Navigation.NavigateTo(calendars.FirstOrDefault()?.Id is { } first ? $"calendars/{first}" : "calendars");
+    }
+
+    private async Task MoveAsync(EventDto ev)
+    {
+        if (EffectiveId is not { } id || !Guid.TryParse(moveTarget, out var targetId))
+        {
+            return;
+        }
+
+        moveError = await Api.MoveEntryAsync("calendars", id, ev.Id, targetId);
+        if (moveError is null)
+        {
+            CloseDetail();
+            await ReloadEventsAsync();
+        }
     }
 
     // --- Grid geometry ---
@@ -422,7 +533,7 @@ else
         {
             using var buffer = new MemoryStream();
             await pendingImport.OpenReadStream(64 * 1024 * 1024).CopyToAsync(buffer);
-            var result = await Api.ImportCollectionAsync("calendars", id, buffer.ToArray(), pendingImport.Name, conflict, importSeparate);
+            var result = await Api.ImportCollectionAsync("calendars", id, buffer.ToArray(), pendingImport.Name, conflict, importSeparate, mergeByName);
             importMessage = result is { CreatedCollections: > 0 }
                 ? $"Created {result.CreatedCollections} calendar(s); imported {result.Imported}, skipped {result.Skipped}, failed {result.Failed}."
                 : $"Imported {result?.Imported}, skipped {result?.Skipped}, failed {result?.Failed}.";

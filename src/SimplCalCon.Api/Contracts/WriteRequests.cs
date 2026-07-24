@@ -22,6 +22,21 @@ public sealed class AddressBookCreateRequest
     public required string Name { get; init; }
 }
 
+/// <summary>Rename a collection's display name (ADR 0041).</summary>
+public sealed class CollectionRenameRequest
+{
+    [Required]
+    [StringLength(200, MinimumLength = 1)]
+    public required string Name { get; init; }
+}
+
+/// <summary>Move an entry into another collection of the same kind (ADR 0042).</summary>
+public sealed class MoveObjectRequest
+{
+    [Required]
+    public required Guid TargetId { get; init; }
+}
+
 public sealed class EventWriteRequest
 {
     [Required]

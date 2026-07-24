@@ -25,6 +25,8 @@
             <button @onclick="NewContactAsync">New contact</button>
             <button @onclick="OpenImport">Import</button>
             <button @onclick="ExportAsync">Export .vcf</button>
+            <button @onclick="OpenRename">Rename</button>
+            <button @onclick="() => showDelete = true">Delete</button>
             <a class="ribbon-btn" href="share/address-books/@rid">Share</a>
             <a class="ribbon-btn" href="trash/address-books/@rid">Trash</a>
         }
@@ -134,6 +136,24 @@ else
                         <p class="detail-msg">@detailMessage</p>
                     }
                 </div>
+                @if (!editing && books is { Count: > 1 })
+                {
+                    <div class="detail-move">
+                        <label>Move to</label>
+                        <select @bind="moveTarget">
+                            <option value="">— choose address book —</option>
+                            @foreach (var b in books.Where(b => b.Id != EffectiveId))
+                            {
+                                <option value="@b.Id">@b.Name</option>
+                            }
+                        </select>
+                        <button @onclick="MoveContactAsync" disabled="@(string.IsNullOrEmpty(moveTarget) || busy)">Move</button>
+                    </div>
+                    @if (moveError is not null)
+                    {
+                        <p class="detail-msg">@moveError</p>
+                    }
+                }
             }
         </div>
     </div>
@@ -150,9 +170,17 @@ else
     <InputFile OnChange="OnImportFile" accept=".vcf,.zip" disabled="@InputsLocked" />
     @if (IsZipSelected)
     {
-        <label title="Recreate the original address books from the archive (e.g. a Google export)">
-            <input type="checkbox" @bind="importSeparate" disabled="@InputsLocked" /> Create a separate address book for each file in the archive
+        <label class="form-check" title="Recreate the original address books from the archive (e.g. a Google export)">
+            <input type="checkbox" @bind="importSeparate" disabled="@InputsLocked" />
+            <span>Create a separate address book for each file in the archive</span>
         </label>
+        @if (importSeparate)
+        {
+            <label class="form-check" title="Files that resolve to the same name are merged into one address book">
+                <input type="checkbox" @bind="mergeByName" disabled="@InputsLocked" />
+                <span>Assign entries by their name — don't create multiple address books with the same name</span>
+            </label>
+        }
     }
     <label>
         On duplicate:
@@ -173,6 +201,26 @@ else
     {
         <p>@importMessage</p>
     }
+</Modal>
+
+<Modal Visible="showRename" Title="Rename address book" OnClose="() => showRename = false">
+    <div><input @bind="renameName" placeholder="Address book name" /></div>
+    <div class="form-actions">
+        <button @onclick="RenameAsync" disabled="@string.IsNullOrWhiteSpace(renameName)">Save</button>
+        <button @onclick="() => showRename = false">Cancel</button>
+    </div>
+    @if (renameError is not null)
+    {
+        <p class="detail-msg">@renameError</p>
+    }
+</Modal>
+
+<Modal Visible="showDelete" Title="Delete address book" OnClose="() => showDelete = false">
+    <p>Delete address book “<strong>@SelectedBookName</strong>”? Its contacts will no longer appear. This can be undone by an administrator.</p>
+    <div class="form-actions">
+        <button class="danger" @onclick="DeleteAsync">Delete</button>
+        <button @onclick="() => showDelete = false">Cancel</button>
+    </div>
 </Modal>
 
 @code {
@@ -213,19 +261,81 @@ else
     private IBrowserFile? pendingImport;
     private string importConflict = "skip";
     private bool importSeparate = true; // default on: recreate the source address books (Google export)
+    private bool mergeByName = true;    // default on: merge files that share a name
     private string? importMessage;
     private bool importDone;  // an import finished — keep inputs locked; only Close stays active
 
+    private bool showRename;
+    private string renameName = string.Empty;
+    private string? renameError;
+    private bool showDelete;
+    private string moveTarget = string.Empty;
+    private string? moveError;
+
     private bool IsZipSelected => pendingImport?.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ?? false;
     private bool InputsLocked => busy || importDone;
+    private string? SelectedBookName => books?.FirstOrDefault(b => b.Id == EffectiveId)?.Name;
 
     private void OpenImport()
     {
         pendingImport = null;
         importSeparate = true;
+        mergeByName = true;
         importMessage = null;
         importDone = false;
         showImport = true;
+    }
+
+    private void OpenRename()
+    {
+        renameName = SelectedBookName ?? string.Empty;
+        renameError = null;
+        showRename = true;
+    }
+
+    private async Task RenameAsync()
+    {
+        if (EffectiveId is not { } id || string.IsNullOrWhiteSpace(renameName))
+        {
+            return;
+        }
+
+        renameError = await Api.RenameCollectionAsync("address-books", id, renameName.Trim());
+        if (renameError is null)
+        {
+            books = await Api.GetAddressBooksAsync();
+            showRename = false;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (EffectiveId is not { } id)
+        {
+            return;
+        }
+
+        await Api.DeleteCollectionAsync("address-books", id);
+        showDelete = false;
+        books = await Api.GetAddressBooksAsync();
+        Navigation.NavigateTo(books.FirstOrDefault()?.Id is { } first ? $"address-books/{first}" : "address-books");
+    }
+
+    private async Task MoveContactAsync()
+    {
+        if (EffectiveId is not { } id || selected is null || !Guid.TryParse(moveTarget, out var targetId))
+        {
+            return;
+        }
+
+        moveError = await Api.MoveEntryAsync("address-books", id, selected.Id, targetId);
+        if (moveError is null)
+        {
+            moveTarget = string.Empty;
+            selected = null;
+            selectedRaw = selectedEtag = selectedPhoto = null;
+            contacts = (await Api.GetContactsAsync(id)).ToList();
+        }
     }
 
     private Guid? EffectiveId => AddressBookId ?? books?.FirstOrDefault()?.Id;
@@ -316,6 +426,8 @@ else
         selected = contact;
         editing = false;
         detailMessage = null;
+        moveTarget = string.Empty;
+        moveError = null;
         var (vcard, etag) = await Api.GetContactRawAsync(EffectiveId!.Value, contact.Id);
         selectedRaw = vcard;
         selectedEtag = etag;
@@ -444,7 +556,7 @@ else
         {
             using var buffer = new MemoryStream();
             await pendingImport.OpenReadStream(64 * 1024 * 1024).CopyToAsync(buffer);
-            var result = await Api.ImportCollectionAsync("address-books", id, buffer.ToArray(), pendingImport.Name, importConflict, importSeparate);
+            var result = await Api.ImportCollectionAsync("address-books", id, buffer.ToArray(), pendingImport.Name, importConflict, importSeparate, mergeByName);
             importMessage = result is { CreatedCollections: > 0 }
                 ? $"Created {result.CreatedCollections} address book(s); imported {result.Imported}, skipped {result.Skipped}, failed {result.Failed}."
                 : $"Imported {result?.Imported}, skipped {result?.Skipped}, failed {result?.Failed}.";

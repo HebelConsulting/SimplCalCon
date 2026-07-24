@@ -232,3 +232,31 @@ code {
 .col-grip:hover {
     background: #cfe0f5;
 }
+
+/* Checkbox rows in modals: the label is the flex row so the text flows full-width (not squeezed
+   into a fixed label column). Shared by the Calendar + Contacts import dialogs. */
+.form-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    color: #333;
+    cursor: pointer;
+}
+
+.form-check input {
+    margin-top: 0.15rem;
+    flex: 0 0 auto;
+}
+
+/* Destructive action button (e.g. delete a collection). */
+button.danger {
+    background: #c0392b;
+    color: #fff;
+    border-color: #c0392b;
+}
+
+button.danger:hover {
+    background: #a93226;
+}

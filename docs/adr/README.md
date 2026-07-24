@@ -46,5 +46,7 @@ rather than an edit.
 | [0038](0038-calendar-list-and-grid-views.md) | Calendar list + month/week grid views (extracted LOCATION field) |
 | [0039](0039-zip-archive-import.md) | Zip-archive import (multi-file .ics/.vcf, e.g. a Google export) |
 | [0040](0040-zip-import-into-separate-collections.md) | Zip import into separate new collections (recreate a Google export's structure) |
+| [0041](0041-collection-management.md) | Collection management: rename, delete, import merge-by-name |
+| [0042](0042-move-entries-between-collections.md) | Move single entries between collections |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).
