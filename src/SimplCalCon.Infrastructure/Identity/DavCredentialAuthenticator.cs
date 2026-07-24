@@ -53,8 +53,15 @@ internal sealed class DavCredentialAuthenticator(
                 continue;
             }
 
-            appPassword.LastUsedAt = clock.UtcNow;
-            await dbContext.SaveChangesAsync(cancellationToken);
+            // Record last-used with a direct UPDATE, bypassing the optimistic-concurrency
+            // token. Native clients (Thunderbird especially) fire many /dav requests in
+            // parallel with the same app password; on a cold cache they all load-modify-save
+            // this same row, so a tracked SaveChanges made all-but-one lose the concurrency
+            // race and surface as a bogus 412. LastUsedAt is last-writer-wins bookkeeping, so
+            // a raw UPDATE is correct and race-free (SQLite + Postgres, ADR 0001).
+            await dbContext.AppPasswords
+                .Where(p => p.Id == appPassword.Id)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(p => p.LastUsedAt, clock.UtcNow), cancellationToken);
 
             var identity = new DavIdentity(user.Id, user.TenantId, user.Email, appPassword.Id);
             cache.Set(cacheKey, identity, CacheTtl);
