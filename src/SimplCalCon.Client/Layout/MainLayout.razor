@@ -12,7 +12,16 @@
             @if (me is not null)
             {
                 <span class="user-name">@me.DisplayName</span>
-                <button class="avatar" @onclick="ToggleMenu" title="@me.Email" aria-label="Account menu">@me.Initials</button>
+                <button class="avatar" @onclick="ToggleMenu" title="@me.Email" aria-label="Account menu">
+                    @if (avatarUrl is not null)
+                    {
+                        <img src="@avatarUrl" alt="@me.Initials" />
+                    }
+                    else
+                    {
+                        @me.Initials
+                    }
+                </button>
                 @if (menuOpen)
                 {
                     <div class="user-menu">
@@ -21,7 +30,7 @@
                             <div class="user-menu-email">@me.Email</div>
                             <div class="user-menu-role">@RoleLabel</div>
                         </div>
-                        <button class="user-menu-item" disabled>Profile (coming soon)</button>
+                        <button class="user-menu-item" @onclick="GoToProfile">Profile</button>
                         <button class="user-menu-item" @onclick="SignOut">Sign out</button>
                     </div>
                 }
@@ -64,6 +73,7 @@
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
     private MeDto? me;
+    private string? avatarUrl;
     private bool menuOpen;
 
     private string RoleLabel => me?.Role switch
@@ -86,6 +96,10 @@
             try
             {
                 me = await Api.GetMeAsync();
+                if (me?.HasPhoto == true)
+                {
+                    avatarUrl = await Api.GetPhotoDataUrlAsync("api/users/me/photo");
+                }
             }
             catch
             {
@@ -95,6 +109,12 @@
     }
 
     private void ToggleMenu() => menuOpen = !menuOpen;
+
+    private void GoToProfile()
+    {
+        menuOpen = false;
+        Navigation.NavigateTo("profile");
+    }
 
     private void SignOut()
     {

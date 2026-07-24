@@ -602,6 +602,28 @@ namespace SimplCalCon.Infrastructure.Postgres.Migrations
                     b.UseTphMappingStrategy();
                 });
 
+            modelBuilder.Entity("SimplCalCon.Domain.Principals.UserProfilePhoto", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<byte[]>("Photo")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("UserProfilePhotos", (string)null);
+                });
+
             modelBuilder.Entity("SimplCalCon.Domain.Scheduling.ScheduleMessage", b =>
                 {
                     b.Property<Guid>("Id")
@@ -986,6 +1008,24 @@ namespace SimplCalCon.Infrastructure.Postgres.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Principals.UserProfilePhoto", b =>
+                {
+                    b.HasOne("SimplCalCon.Domain.Tenants.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SimplCalCon.Domain.Principals.User", "User")
+                        .WithOne()
+                        .HasForeignKey("SimplCalCon.Domain.Principals.UserProfilePhoto", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("SimplCalCon.Domain.Scheduling.ScheduleMessage", b =>

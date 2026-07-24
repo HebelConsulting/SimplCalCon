@@ -1,0 +1,121 @@
+@page "/profile"
+@attribute [Authorize]
+@inject ApiClient Api
+@inject IJSRuntime JS
+
+<PageTitle>Profile</PageTitle>
+
+<h1>Profile</h1>
+
+@if (me is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <div class="profile-card">
+        <div class="profile-avatar">
+            @if (photoUrl is not null)
+            {
+                <img src="@photoUrl" alt="Profile photo" />
+            }
+            else
+            {
+                <span>@me.Initials</span>
+            }
+        </div>
+        <div>
+            <div class="profile-name">@me.DisplayName</div>
+            <div class="profile-email">@me.Email</div>
+            <div class="profile-role">@RoleLabel</div>
+        </div>
+    </div>
+
+    <h2>Photo</h2>
+    <p>Pick an image — it's cropped to a square 256×256 PNG in your browser before upload.</p>
+    <div>
+        <InputFile OnChange="OnFileAsync" accept="image/*" disabled="@busy" />
+        @if (hasPhoto)
+        {
+            <button @onclick="RemoveAsync" disabled="@busy">Remove photo</button>
+        }
+    </div>
+    @if (message is not null)
+    {
+        <p>@message</p>
+    }
+}
+
+@code {
+    private MeDto? me;
+    private string? photoUrl;
+    private bool hasPhoto;
+    private bool busy;
+    private string? message;
+    private IJSObjectReference? crop;
+
+    private string RoleLabel => me?.Role switch
+    {
+        "platform_admin" => "Platform administrator",
+        "admin" => "Tenant administrator",
+        _ => "Member",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        me = await Api.GetMeAsync();
+        hasPhoto = me?.HasPhoto == true;
+        if (hasPhoto)
+        {
+            photoUrl = await Api.GetPhotoDataUrlAsync("api/users/me/photo");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            crop = await JS.InvokeAsync<IJSObjectReference>("import", "./js/photoCrop.js");
+        }
+    }
+
+    private async Task OnFileAsync(InputFileChangeEventArgs e)
+    {
+        busy = true;
+        message = null;
+        try
+        {
+            // Downscale in the browser, then crop to a centered 256×256 square PNG.
+            var resized = await e.File.RequestImageFileAsync("image/png", 1024, 1024);
+            using var buffer = new MemoryStream();
+            await resized.OpenReadStream(8 * 1024 * 1024).CopyToAsync(buffer);
+            var source = $"data:image/png;base64,{Convert.ToBase64String(buffer.ToArray())}";
+
+            var cropped = await crop!.InvokeAsync<string>("cropToSquarePng", source, 256);
+            var png = Convert.FromBase64String(cropped[(cropped.IndexOf(',') + 1)..]);
+
+            await Api.PutMyPhotoAsync(png);
+            photoUrl = cropped;
+            hasPhoto = true;
+            message = "Photo updated.";
+        }
+        catch (Exception ex)
+        {
+            message = $"Upload failed: {ex.Message}";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task RemoveAsync()
+    {
+        busy = true;
+        await Api.DeleteMyPhotoAsync();
+        photoUrl = null;
+        hasPhoto = false;
+        message = "Photo removed.";
+        busy = false;
+    }
+}

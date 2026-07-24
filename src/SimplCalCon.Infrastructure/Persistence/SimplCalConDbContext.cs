@@ -27,6 +27,7 @@ public class SimplCalConDbContext(DbContextOptions<SimplCalConDbContext> options
     public DbSet<Group> Groups => Set<Group>();
     public DbSet<GroupMembership> GroupMemberships => Set<GroupMembership>();
     public DbSet<AppPassword> AppPasswords => Set<AppPassword>();
+    public DbSet<UserProfilePhoto> UserProfilePhotos => Set<UserProfilePhoto>();
     public DbSet<Token> Tokens => Set<Token>();
     public DbSet<Collection> Collections => Set<Collection>();
     public DbSet<Calendar> Calendars => Set<Calendar>();
