@@ -13,10 +13,11 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
     public async Task<AddressBook?> EnsureDefaultAddressBookAsync(
         Guid ownerId, Guid? tenantId, CancellationToken cancellationToken)
     {
+        // Always ensure a book at the well-known "contacts" resource, even when the user already
+        // has other (web-UI-created) address books — native clients want an obvious default to
+        // write to (ADR 0021).
         var existing = await dbContext.AddressBooks
-            .Where(a => a.OwnerId == ownerId && !a.IsDeleted)
-            .OrderBy(a => a.ResourceName)
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefaultAsync(a => a.OwnerId == ownerId && a.ResourceName == "contacts" && !a.IsDeleted, cancellationToken);
 
         if (existing is not null)
         {
