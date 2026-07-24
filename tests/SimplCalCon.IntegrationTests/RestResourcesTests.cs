@@ -77,6 +77,57 @@ public sealed class RestResourcesTests(AuthWebApplicationFactory factory) : ICla
     }
 
     [Fact]
+    public async Task Contact_raw_vcard_round_trip()
+    {
+        var client = await AuthedClientAsync();
+        var book = await client.PostAsJsonAsync("/api/address-books", new { name = "Raw" });
+        var bookId = (await Body(book)).GetProperty("id").GetGuid();
+        var created = await client.PostAsJsonAsync($"/api/address-books/{bookId}/contacts",
+            new { formattedName = "Ada Lovelace", emails = new[] { "ada@example.com" } });
+        var contactId = (await Body(created)).GetProperty("id").GetGuid();
+
+        // Read the card verbatim.
+        var raw = await client.GetAsync($"/api/address-books/{bookId}/contacts/{contactId}/raw");
+        Assert.Equal(HttpStatusCode.OK, raw.StatusCode);
+        Assert.Equal("text/vcard", raw.Content.Headers.ContentType?.MediaType);
+        var vcard = await raw.Content.ReadAsStringAsync();
+        Assert.Contains("FN:Ada Lovelace", vcard);
+        var etag = raw.Headers.ETag!.ToString();
+
+        // Edit the raw lines and save with If-Match; the structured view reflects it.
+        var edited = vcard.Replace("FN:Ada Lovelace", "FN:Ada L");
+        using var put = new HttpRequestMessage(HttpMethod.Put, $"/api/address-books/{bookId}/contacts/{contactId}/raw")
+        {
+            Content = new StringContent(edited, System.Text.Encoding.UTF8, "text/vcard"),
+        };
+        put.Headers.TryAddWithoutValidation("If-Match", etag);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(put)).StatusCode);
+
+        var fetched = await client.GetFromJsonAsync<JsonElement>($"/api/address-books/{bookId}/contacts/{contactId}");
+        Assert.Equal("Ada L", fetched.GetProperty("formattedName").GetString());
+    }
+
+    [Fact]
+    public async Task Invalid_raw_vcard_is_rejected()
+    {
+        var client = await AuthedClientAsync();
+        var book = await client.PostAsJsonAsync("/api/address-books", new { name = "Raw2" });
+        var bookId = (await Body(book)).GetProperty("id").GetGuid();
+        var created = await client.PostAsJsonAsync($"/api/address-books/{bookId}/contacts",
+            new { formattedName = "X", emails = new[] { "x@example.com" } });
+        var contactId = (await Body(created)).GetProperty("id").GetGuid();
+        var etag = (await client.GetAsync($"/api/address-books/{bookId}/contacts/{contactId}/raw")).Headers.ETag!.ToString();
+
+        using var put = new HttpRequestMessage(HttpMethod.Put, $"/api/address-books/{bookId}/contacts/{contactId}/raw")
+        {
+            Content = new StringContent("this is not a vcard", System.Text.Encoding.UTF8, "text/vcard"),
+        };
+        put.Headers.TryAddWithoutValidation("If-Match", etag);
+
+        Assert.Equal(HttpStatusCode.UnsupportedMediaType, (await client.SendAsync(put)).StatusCode);
+    }
+
+    [Fact]
     public async Task Foreign_calendar_is_forbidden()
     {
         var client = await AuthedClientAsync();

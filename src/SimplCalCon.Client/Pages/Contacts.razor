@@ -17,12 +17,15 @@
                     <option value="@b.Id">@b.Name@(b.Shared ? " (shared)" : "")</option>
                 }
             </select>
+        }
+        <button @onclick="() => showNewBook = true">New address book</button>
+        @if (EffectiveId is { } rid)
+        {
+            <button @onclick="NewContactAsync">New contact</button>
+            <button @onclick="() => showImport = true">Import</button>
             <button @onclick="ExportAsync">Export .vcf</button>
-            @if (EffectiveId is { } id)
-            {
-                <a class="ribbon-btn" href="share/address-books/@id">Share</a>
-                <a class="ribbon-btn" href="trash/address-books/@id">Trash</a>
-            }
+            <a class="ribbon-btn" href="share/address-books/@rid">Share</a>
+            <a class="ribbon-btn" href="trash/address-books/@rid">Trash</a>
         }
     </SectionContent>
 }
@@ -35,7 +38,7 @@
 }
 else if (books.Count == 0)
 {
-    <p>No address books yet — create one on the <a href="">Overview</a> tab.</p>
+    <p>No address books yet — use <strong>New address book</strong> in the ribbon above.</p>
 }
 else if (contacts is null)
 {
@@ -43,52 +46,125 @@ else if (contacts is null)
 }
 else
 {
-    <ul>
-        @foreach (var contact in contacts)
-        {
-            <li>
-                @contact.FormattedName @(contact.Emails.Count > 0 ? "— " + string.Join(", ", contact.Emails) : "")
-                <a href="history/address-books/@EffectiveId/@contact.Id">History</a>
-            </li>
-        }
-    </ul>
-    @if (contacts.Count == 0)
-    {
-        <p>No contacts.</p>
-    }
+    <div class="contacts-split">
+        <div class="contacts-list">
+            <table>
+                <thead>
+                    <tr>
+                        <th @onclick='() => Sort("name")'>Name <span class="sort">@Indicator("name")</span></th>
+                        <th @onclick='() => Sort("org")'>Organization <span class="sort">@Indicator("org")</span></th>
+                        <th @onclick='() => Sort("email")'>Email <span class="sort">@Indicator("email")</span></th>
+                        <th @onclick='() => Sort("phone")'>Phone <span class="sort">@Indicator("phone")</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in Sorted())
+                    {
+                        <tr class="@(selected?.Id == c.Id ? "selected" : null)" @onclick="() => SelectAsync(c)">
+                            <td>@c.FormattedName</td>
+                            <td>@c.Organization</td>
+                            <td>@c.Emails.FirstOrDefault()</td>
+                            <td>@c.Phones.FirstOrDefault()</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (contacts.Count == 0)
+            {
+                <p class="empty">No contacts yet.</p>
+            }
+        </div>
 
-    <h2>New contact</h2>
-    <div>
-        <input placeholder="Name" @bind="name" />
-        <input placeholder="Email" @bind="email" />
-        <button @onclick="AddAsync">Add</button>
+        <div class="contacts-detail">
+            @if (selected is null)
+            {
+                <p class="detail-empty">Select a contact to view or edit it.</p>
+            }
+            else
+            {
+                <div class="detail-photo">
+                    @if (selectedPhoto is not null)
+                    {
+                        <img src="@selectedPhoto" alt="Contact photo" />
+                    }
+                    else
+                    {
+                        <div class="detail-photo-none">No photo in this card</div>
+                    }
+                </div>
+                <div class="detail-vcard">
+                    <div class="detail-vcard-head">
+                        <span>vCard @(editing ? "(editing)" : "(read-only)")</span>
+                        <span class="detail-vcard-actions">
+                            @if (!editing)
+                            {
+                                <button @onclick="StartEdit">Edit</button>
+                            }
+                            else
+                            {
+                                <button @onclick="SaveAsync" disabled="@busy">Save</button>
+                                <button @onclick="CancelEdit" disabled="@busy">Cancel</button>
+                            }
+                        </span>
+                    </div>
+                    <textarea class="vcard-text" readonly="@(!editing)" @bind="editBuffer" @bind:event="oninput"></textarea>
+                    @if (detailMessage is not null)
+                    {
+                        <p class="detail-msg">@detailMessage</p>
+                    }
+                </div>
+            }
+        </div>
     </div>
+}
 
-    <h2>Import</h2>
+<Modal Visible="showNewBook" Title="New address book" OnClose="() => showNewBook = false">
+    <input placeholder="Name" @bind="newBookName" />
     <div>
-        <InputFile OnChange="OnImportFile" accept=".vcf" />
-        <select @bind="conflict">
-            <option value="skip">Skip duplicates</option>
-            <option value="replace">Replace duplicates</option>
+        <button @onclick="CreateBookAsync" disabled="@string.IsNullOrWhiteSpace(newBookName)">Create</button>
+    </div>
+</Modal>
+
+<Modal Visible="showImport" Title="Import contacts (.vcf)" OnClose="CloseImport">
+    <InputFile OnChange="OnImportFile" accept=".vcf" />
+    <label>
+        On duplicate:
+        <select @bind="importConflict">
+            <option value="skip">Skip</option>
+            <option value="replace">Replace</option>
         </select>
-        <button @onclick="ImportAsync" disabled="@(pendingImport is null)">Import</button>
+    </label>
+    <div>
+        <button @onclick="ImportAsync" disabled="@(pendingImport is null || busy)">Import</button>
     </div>
     @if (importMessage is not null)
     {
         <p>@importMessage</p>
     }
-}
+</Modal>
 
 @code {
-    [Parameter]
-    public Guid? AddressBookId { get; set; }
+    [Parameter] public Guid? AddressBookId { get; set; }
 
     private IReadOnlyList<AddressBookDto>? books;
-    private IReadOnlyList<ContactDto>? contacts;
-    private string name = string.Empty;
-    private string email = string.Empty;
+    private List<ContactDto>? contacts;
+    private ContactDto? selected;
+    private string? selectedRaw;
+    private string? selectedEtag;
+    private string? selectedPhoto;
+    private string editBuffer = string.Empty;
+    private bool editing;
+    private bool busy;
+    private string? detailMessage;
+
+    private string sortColumn = "name";
+    private bool sortAscending = true;
+
+    private bool showNewBook;
+    private string newBookName = string.Empty;
+    private bool showImport;
     private IBrowserFile? pendingImport;
-    private string conflict = "skip";
+    private string importConflict = "skip";
     private string? importMessage;
 
     private Guid? EffectiveId => AddressBookId ?? books?.FirstOrDefault()?.Id;
@@ -96,30 +172,167 @@ else
     protected override async Task OnParametersSetAsync()
     {
         books ??= await Api.GetAddressBooksAsync();
-        contacts = EffectiveId is { } id ? await Api.GetContactsAsync(id) : null;
+        if (EffectiveId is { } id)
+        {
+            contacts = (await Api.GetContactsAsync(id)).ToList();
+            if (selected is not null && contacts.All(c => c.Id != selected.Id))
+            {
+                ClearSelection();
+            }
+        }
+        else
+        {
+            contacts = null;
+        }
     }
 
     private void OnSwitch(ChangeEventArgs e)
     {
         if (Guid.TryParse(e.Value?.ToString(), out var id))
         {
+            ClearSelection();
             Navigation.NavigateTo($"address-books/{id}");
         }
     }
 
-    private async Task AddAsync()
+    // --- Sorting ---
+    private void Sort(string column)
     {
-        if (!string.IsNullOrWhiteSpace(name) && EffectiveId is { } id)
+        if (sortColumn == column)
         {
-            var emails = string.IsNullOrWhiteSpace(email) ? Array.Empty<string>() : [email];
-            await Api.CreateContactAsync(id, name, emails);
-            name = string.Empty;
-            email = string.Empty;
-            await ReloadContactsAsync();
+            sortAscending = !sortAscending;
+        }
+        else
+        {
+            sortColumn = column;
+            sortAscending = true;
+        }
+    }
+
+    private string Indicator(string column) => sortColumn == column ? (sortAscending ? "▲" : "▼") : "";
+
+    private IEnumerable<ContactDto> Sorted()
+    {
+        Func<ContactDto, string> key = sortColumn switch
+        {
+            "org" => c => c.Organization ?? "",
+            "email" => c => c.Emails.FirstOrDefault() ?? "",
+            "phone" => c => c.Phones.FirstOrDefault() ?? "",
+            _ => c => c.FormattedName ?? "",
+        };
+        var ordered = contacts!.OrderBy(key, StringComparer.OrdinalIgnoreCase);
+        return sortAscending ? ordered : ordered.Reverse();
+    }
+
+    // --- Selection + raw view/edit ---
+    private async Task SelectAsync(ContactDto contact)
+    {
+        selected = contact;
+        editing = false;
+        detailMessage = null;
+        var (vcard, etag) = await Api.GetContactRawAsync(EffectiveId!.Value, contact.Id);
+        selectedRaw = vcard;
+        selectedEtag = etag;
+        editBuffer = vcard;
+        selectedPhoto = VCardPhoto.TryExtractDataUrl(vcard);
+    }
+
+    private void StartEdit()
+    {
+        editing = true;
+        detailMessage = null;
+    }
+
+    private void CancelEdit()
+    {
+        editing = false;
+        editBuffer = selectedRaw ?? string.Empty;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (selected is null || EffectiveId is not { } id)
+        {
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            await Api.PutContactRawAsync(id, selected.Id, editBuffer, selectedEtag);
+            editing = false;
+            detailMessage = "Saved.";
+            contacts = (await Api.GetContactsAsync(id)).ToList();
+            var again = contacts.FirstOrDefault(c => c.Id == selected.Id);
+            if (again is not null)
+            {
+                await SelectAsync(again);
+                detailMessage = "Saved.";
+            }
+        }
+        catch (Exception ex)
+        {
+            detailMessage = $"Save failed: {ex.Message}";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void ClearSelection()
+    {
+        selected = null;
+        selectedRaw = selectedEtag = selectedPhoto = null;
+        editBuffer = string.Empty;
+        editing = false;
+        detailMessage = null;
+    }
+
+    // --- Ribbon actions ---
+    private async Task NewContactAsync()
+    {
+        if (EffectiveId is not { } id)
+        {
+            return;
+        }
+
+        var created = await Api.CreateContactAsync(id, "New Contact", []);
+        contacts = (await Api.GetContactsAsync(id)).ToList();
+        var fresh = contacts.FirstOrDefault(c => c.Id == created?.Id);
+        if (fresh is not null)
+        {
+            await SelectAsync(fresh);
+            StartEdit();
+        }
+    }
+
+    private async Task CreateBookAsync()
+    {
+        if (string.IsNullOrWhiteSpace(newBookName))
+        {
+            return;
+        }
+
+        var created = await Api.CreateAddressBookAsync(newBookName);
+        newBookName = string.Empty;
+        showNewBook = false;
+        books = await Api.GetAddressBooksAsync();
+        if (created is not null)
+        {
+            ClearSelection();
+            Navigation.NavigateTo($"address-books/{created.Id}");
         }
     }
 
     private void OnImportFile(InputFileChangeEventArgs e) => pendingImport = e.File;
+
+    private void CloseImport()
+    {
+        showImport = false;
+        pendingImport = null;
+        importMessage = null;
+    }
 
     private async Task ImportAsync()
     {
@@ -128,12 +341,14 @@ else
             return;
         }
 
+        busy = true;
         using var buffer = new MemoryStream();
         await pendingImport.OpenReadStream(32 * 1024 * 1024).CopyToAsync(buffer);
-        var result = await Api.ImportCollectionAsync("address-books", id, buffer.ToArray(), pendingImport.Name, conflict);
+        var result = await Api.ImportCollectionAsync("address-books", id, buffer.ToArray(), pendingImport.Name, importConflict);
         importMessage = $"Imported {result?.Imported}, skipped {result?.Skipped}, failed {result?.Failed}.";
         pendingImport = null;
-        await ReloadContactsAsync();
+        contacts = (await Api.GetContactsAsync(id)).ToList();
+        busy = false;
     }
 
     private async Task ExportAsync()
@@ -142,14 +357,6 @@ else
         {
             var bytes = await Api.ExportCollectionAsync("address-books", id);
             await JS.InvokeVoidAsync("simplDownload", "contacts.vcf", "text/vcard", Convert.ToBase64String(bytes));
-        }
-    }
-
-    private async Task ReloadContactsAsync()
-    {
-        if (EffectiveId is { } id)
-        {
-            contacts = await Api.GetContactsAsync(id);
         }
     }
 }

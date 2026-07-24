@@ -1,0 +1,145 @@
+.contacts-split {
+    display: flex;
+    gap: 1rem;
+    align-items: stretch;
+    flex-wrap: wrap;
+}
+
+/* Left: selectable, sortable contact table. */
+.contacts-list {
+    flex: 1 1 30rem;
+    min-width: 20rem;
+    border: 1px solid #e2e6ea;
+    border-radius: 8px;
+    overflow: auto;
+    max-height: 70vh;
+}
+
+.contacts-list table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.contacts-list thead th {
+    position: sticky;
+    top: 0;
+    background: #f4f7fb;
+    text-align: left;
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid #e2e6ea;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.contacts-list thead th .sort {
+    color: #1b6ec2;
+    font-size: 0.75rem;
+}
+
+.contacts-list tbody td {
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid #eef1f4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 14rem;
+    white-space: nowrap;
+}
+
+.contacts-list tbody tr {
+    cursor: pointer;
+}
+
+.contacts-list tbody tr:hover {
+    background: #f7f9fc;
+}
+
+.contacts-list tbody tr.selected {
+    background: #eaf3fd;
+    box-shadow: inset 3px 0 0 #1b6ec2;
+}
+
+.contacts-list .empty {
+    padding: 0.75rem;
+    color: #888;
+}
+
+/* Right: split pane — photo on top, raw vCard below. */
+.contacts-detail {
+    flex: 1 1 24rem;
+    min-width: 20rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.detail-empty {
+    color: #888;
+}
+
+.detail-photo {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 12rem;
+    border: 1px solid #e2e6ea;
+    border-radius: 8px;
+    background: #f7f9fc;
+    overflow: hidden;
+}
+
+.detail-photo img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.detail-photo-none {
+    color: #aab;
+    font-size: 0.9rem;
+}
+
+.detail-vcard {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.detail-vcard-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: #555;
+}
+
+.detail-vcard-actions {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.vcard-text {
+    width: 100%;
+    min-height: 16rem;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.82rem;
+    line-height: 1.4;
+    padding: 0.6rem;
+    border: 1px solid #cfd8e3;
+    border-radius: 6px;
+    resize: vertical;
+    background: #fff;
+}
+
+.vcard-text[readonly] {
+    background: #f7f9fc;
+    color: #333;
+}
+
+.detail-msg {
+    font-size: 0.85rem;
+    color: #333;
+}
