@@ -9,6 +9,7 @@ internal sealed record ExtractedCalendarObject(
     string Uid,
     CalendarComponentType Component,
     string? Summary,
+    string? Location,
     DateTime? DtStartUtc,
     DateTime? DtEndUtc,
     bool IsAllDay,

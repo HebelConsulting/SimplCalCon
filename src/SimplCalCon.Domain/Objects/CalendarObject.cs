@@ -11,6 +11,9 @@ public class CalendarObject : CollectionObject
 
     public string? Summary { get; set; }
 
+    /// <summary>Extracted LOCATION, for list display/search (null when absent).</summary>
+    public string? Location { get; set; }
+
     /// <summary>Master component start, converted to UTC (null for a task with no start).</summary>
     public DateTime? DtStartUtc { get; set; }
 

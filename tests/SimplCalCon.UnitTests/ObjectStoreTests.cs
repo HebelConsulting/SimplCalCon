@@ -26,6 +26,20 @@ public sealed class ObjectStoreTests
         END:VCALENDAR
         """;
 
+    private const string EventWithLocation = """
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Test//EN
+        BEGIN:VEVENT
+        UID:event-loc@test
+        SUMMARY:Standup
+        LOCATION:Room 4B
+        DTSTART:20260715T090000Z
+        DTEND:20260715T093000Z
+        END:VEVENT
+        END:VCALENDAR
+        """;
+
     private const string Task = """
         BEGIN:VCALENDAR
         VERSION:2.0
@@ -72,6 +86,18 @@ public sealed class ObjectStoreTests
         Assert.Equal(CalendarComponentType.Event, stored.ComponentType);
         Assert.Equal(1, await context.ObjectRevisions.CountAsync(r => r.ObjectId == stored.Id));
         Assert.Equal(1, (await context.Collections.FirstAsync(c => c.Id == calendarId)).ChangeSequence);
+    }
+
+    [Fact]
+    public async Task Put_event_extracts_location()
+    {
+        var calendarId = await SeedCalendarAsync();
+
+        await Store().PutAsync(new PutObjectRequest(calendarId, "event-loc.ics", EventWithLocation, null), default);
+
+        await using var context = _database.CreateContext();
+        var stored = await context.CalendarObjects.FirstAsync(o => o.CollectionId == calendarId);
+        Assert.Equal("Room 4B", stored.Location);
     }
 
     [Fact]

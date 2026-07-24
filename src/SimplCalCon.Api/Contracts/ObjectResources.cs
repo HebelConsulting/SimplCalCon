@@ -13,6 +13,8 @@ public sealed class EventResource : HypermediaResource, IETaggedResource
 
     public string? Summary { get; init; }
 
+    public string? Location { get; init; }
+
     public DateTime? StartUtc { get; init; }
 
     public DateTime? EndUtc { get; init; }

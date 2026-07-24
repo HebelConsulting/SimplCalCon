@@ -796,6 +796,10 @@ namespace SimplCalCon.Infrastructure.Postgres.Migrations
                     b.Property<bool>("IsRecurring")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("Location")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
                     b.Property<string>("Summary")
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");

@@ -1,0 +1,255 @@
+/* ---- List view: sortable/filterable/resizable event table (ADR 0038, mirrors Contacts) ---- */
+.cal-list {
+    border: 1px solid #e2e6ea;
+    border-radius: 8px;
+    overflow: auto;
+    max-height: 72vh;
+}
+
+.cal-list.hidden {
+    display: none;
+}
+
+.event-table {
+    min-width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.event-table thead th {
+    position: sticky;
+    top: 0;
+    background: #f4f7fb;
+    text-align: left;
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid #e2e6ea;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Drag handle added at a header's right edge by columnResize.js. */
+.event-table thead th .col-grip {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 7px;
+    height: 100%;
+    cursor: col-resize;
+    user-select: none;
+}
+
+.event-table thead th .col-grip:hover {
+    background: #cfe0f5;
+}
+
+.event-table thead th .sort {
+    color: #1b6ec2;
+    font-size: 0.75rem;
+}
+
+.event-table thead tr.filter-row th {
+    cursor: default;
+    padding: 0.3rem 0.4rem;
+    background: #fbfcfe;
+    border-bottom: 1px solid #e2e6ea;
+}
+
+.event-table thead tr.filter-row input:not([type="checkbox"]) {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.2rem 0.35rem;
+    font-size: 0.8rem;
+    margin: 0;
+}
+
+.event-table thead tr.filter-row label {
+    font-size: 0.78rem;
+    color: #555;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.event-table .repeats-col {
+    text-align: center;
+    width: 6rem;
+}
+
+.event-table tbody td {
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid #eef1f4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.event-table tbody tr {
+    cursor: pointer;
+}
+
+.event-table tbody tr:hover {
+    background: #f7f9fc;
+}
+
+.event-table tbody tr.sel {
+    background: #eaf3fd;
+    box-shadow: inset 3px 0 0 #1b6ec2;
+}
+
+/* ---- Calendar (grid) view ---- */
+.cal-grid-wrap {
+    margin-top: 0.5rem;
+}
+
+.grid-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+}
+
+.grid-controls .period-label {
+    font-weight: 600;
+    margin-left: 0.5rem;
+}
+
+.grid-controls .grid-spacer {
+    flex: 1 1 auto;
+}
+
+.grid-controls button.active {
+    background: #1b6ec2;
+    color: #fff;
+    border-color: #1b6ec2;
+}
+
+.grid-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    font-size: 0.78rem;
+    color: #555;
+    font-weight: 600;
+}
+
+.grid-weekdays .weekday {
+    padding: 0.3rem 0.5rem;
+}
+
+.month-grid,
+.week-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background: #e2e6ea;
+    border: 1px solid #e2e6ea;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.day-cell {
+    background: #fff;
+    min-height: 6.5rem;
+    padding: 0.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    overflow: hidden;
+}
+
+.week-grid .day-cell {
+    min-height: 18rem;
+    overflow: auto;
+}
+
+.day-cell.other-month {
+    background: #f7f9fc;
+    color: #aab;
+}
+
+.day-cell.today {
+    background: #eaf3fd;
+}
+
+.day-cell .day-number {
+    font-size: 0.78rem;
+    color: #667;
+    text-align: right;
+}
+
+.event-chip {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-size: 0.76rem;
+    line-height: 1.2;
+    padding: 0.15rem 0.3rem;
+    border: none;
+    border-radius: 4px;
+    background: #d9e9fb;
+    color: #123;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.event-chip:hover {
+    background: #bcd8f6;
+}
+
+.event-chip .chip-time {
+    color: #1b6ec2;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- Modal inner forms ---- */
+.form-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.6rem;
+}
+
+.form-row label {
+    flex: 0 0 6rem;
+    color: #555;
+    font-size: 0.9rem;
+}
+
+.form-row input,
+.form-row select {
+    flex: 1 1 auto;
+}
+
+.form-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.8rem;
+    align-items: center;
+}
+
+.import-message {
+    margin-top: 0.6rem;
+    font-size: 0.85rem;
+    color: #333;
+}
+
+.detail {
+    margin: 0 0 0.5rem;
+}
+
+.detail dt {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #889;
+    margin-top: 0.5rem;
+}
+
+.detail dd {
+    margin: 0.1rem 0 0;
+}
