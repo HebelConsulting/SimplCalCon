@@ -4,6 +4,7 @@ using SimplCalCon.Api.Dav.Http;
 using SimplCalCon.Api.Dav.Xml;
 using SimplCalCon.Api.Http;
 using SimplCalCon.Application.Abstractions.Acl;
+using SimplCalCon.Application.Abstractions.Scheduling;
 using SimplCalCon.Application.Abstractions.Storage;
 using SimplCalCon.Domain.Acl;
 using SimplCalCon.Domain.Objects.Exceptions;
@@ -13,7 +14,7 @@ namespace SimplCalCon.Api.Dav.Controllers;
 
 /// <summary>A calendar object resource: GET/PUT/DELETE with ETag conditionals, and PROPFIND (ACL-enforced, ADR 0007).</summary>
 public sealed class CalDavObjectController(
-    IDavRepository repository, IObjectStore objectStore, IAclService acl) : DavControllerBase
+    IDavRepository repository, IObjectStore objectStore, ISchedulingService scheduling, IAclService acl) : DavControllerBase
 {
     [HttpGet("~/dav/calendars/{userId:guid}/{cal}/{name}")]
     public async Task<IActionResult> Get(Guid userId, string cal, string name, CancellationToken cancellationToken)
@@ -76,6 +77,10 @@ public sealed class CalDavObjectController(
         {
             var result = await objectStore.PutAsync(
                 new PutObjectRequest(calendar.Id, name, blob, CurrentUserId), cancellationToken);
+
+            // RFC 6638 automatic scheduling (ADR 0031): deliver REQUEST/REPLY/CANCEL as needed.
+            await scheduling.ProcessWriteAsync(calendar.Id, existing?.Blob, blob, CurrentUserId, cancellationToken);
+
             Response.Headers.ETag = ETag.Format(result.ETag);
             return StatusCode(result.Created ? StatusCodes.Status201Created : StatusCodes.Status204NoContent);
         }
@@ -110,6 +115,7 @@ public sealed class CalDavObjectController(
         }
 
         await objectStore.DeleteAsync(calendar.Id, name, CurrentUserId, cancellationToken);
+        await scheduling.ProcessDeleteAsync(calendar.Id, existing.Blob, CurrentUserId, cancellationToken);
         return NoContent();
     }
 

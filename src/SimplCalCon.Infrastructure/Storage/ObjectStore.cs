@@ -249,13 +249,15 @@ internal sealed class ObjectStore(SimplCalConDbContext dbContext, IClock clock) 
     {
         if (!created)
         {
+            // Delete old rows in SQL and insert the new ones via the context. (Clearing the nav
+            // collection as well would re-delete the already-removed rows → a phantom concurrency
+            // conflict on EventAttendee whenever the nav happens to be tracked.)
             await dbContext.EventAttendees.Where(a => a.ObjectId == calendarObject.Id).ExecuteDeleteAsync(cancellationToken);
         }
 
-        calendarObject.Attendees.Clear();
         foreach (var attendee in attendees)
         {
-            calendarObject.Attendees.Add(new EventAttendee
+            dbContext.EventAttendees.Add(new EventAttendee
             {
                 Id = Guid.NewGuid(),
                 ObjectId = calendarObject.Id,

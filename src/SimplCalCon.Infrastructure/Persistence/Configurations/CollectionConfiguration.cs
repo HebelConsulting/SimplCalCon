@@ -18,7 +18,8 @@ public class CollectionConfiguration : IEntityTypeConfiguration<Collection>
 
         builder.HasDiscriminator<string>("CollectionType")
             .HasValue<Calendar>("Calendar")
-            .HasValue<AddressBook>("AddressBook");
+            .HasValue<AddressBook>("AddressBook")
+            .HasValue<ScheduleInbox>("ScheduleInbox");
 
         builder.HasOne(c => c.Tenant)
             .WithMany()
