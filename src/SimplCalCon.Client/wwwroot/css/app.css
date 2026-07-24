@@ -121,9 +121,14 @@ code {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
-/* Content area — give the plain Razor pages a cleaner, cohesive look (ADR 0025). */
+/* Content area — give the plain Razor pages a cleaner, cohesive look (ADR 0025). Text-heavy
+   pages opt into a reading-width cap via `.readable`; wide pages (Contacts, agenda) use the
+   full width (ADR 0036). */
 .content {
     padding-top: 1.5rem;
+}
+
+.content .readable {
     max-width: 64rem;
 }
 
