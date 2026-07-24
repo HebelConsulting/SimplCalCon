@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using SimplCalCon.Api.Contracts;
 using SimplCalCon.Api.Errors.Exceptions.Resources;
@@ -6,6 +7,7 @@ using SimplCalCon.Api.Hypermedia;
 using SimplCalCon.Application.Abstractions.Acl;
 using SimplCalCon.Application.Abstractions.Storage;
 using SimplCalCon.Domain.Acl;
+using SimplCalCon.Domain.Objects.Exceptions;
 
 namespace SimplCalCon.Api.Controllers;
 
@@ -57,6 +59,45 @@ public sealed class ContactsController(
         await composer.PutContactAsync(addressBookId, existing.ResourceName, ToInput(request), CurrentUserId, cancellationToken);
         var updated = await repository.GetContactObjectByIdAsync(id, cancellationToken);
         return ResourceMapper.MapContact(updated!);
+    }
+
+    // Raw vCard read/write (ADR 0036) — lets the UI show and edit the card verbatim. The PUT
+    // goes through the same validate-and-extract write path as any object write.
+    [HttpGet("{id:guid}/raw")]
+    public async Task<IActionResult> GetRaw(Guid addressBookId, Guid id, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(addressBookId, AclRight.Read, cancellationToken);
+        var contact = await FindAsync(addressBookId, id, cancellationToken);
+        Response.Headers.ETag = ETag.Format(contact.ConcurrencyToken);
+        return Content(contact.Blob, "text/vcard; charset=utf-8");
+    }
+
+    [HttpPut("{id:guid}/raw")]
+    [RequireIfMatch]
+    public async Task<IActionResult> PutRaw(Guid addressBookId, Guid id, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(addressBookId, AclRight.WriteContent, cancellationToken);
+        var existing = await FindAsync(addressBookId, id, cancellationToken);
+        EnsureIfMatch(existing.ConcurrencyToken);
+
+        using var reader = new StreamReader(Request.Body, Encoding.UTF8);
+        var blob = await reader.ReadToEndAsync(cancellationToken);
+
+        try
+        {
+            var result = await objectStore.PutAsync(
+                new PutObjectRequest(addressBookId, existing.ResourceName, blob, CurrentUserId), cancellationToken);
+            Response.Headers.ETag = ETag.Format(result.ETag);
+            return NoContent();
+        }
+        catch (UidConflictException)
+        {
+            return StatusCode(StatusCodes.Status409Conflict);
+        }
+        catch (ObjectStoreException)
+        {
+            return StatusCode(StatusCodes.Status415UnsupportedMediaType);
+        }
     }
 
     [HttpDelete("{id:guid}")]

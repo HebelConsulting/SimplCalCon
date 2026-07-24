@@ -36,17 +36,13 @@ else
             <li><a href="address-books/@book.Id">@book.Name</a>@(book.Shared ? " (shared)" : "")</li>
         }
     </ul>
-    <div>
-        <input placeholder="New address book" @bind="newBook" />
-        <button @onclick="AddAddressBookAsync">Add address book</button>
-    </div>
+    <p class="hint">Create address books from the <strong>Contacts</strong> tab.</p>
 }
 
 @code {
     private IReadOnlyList<CalendarDto>? calendars;
     private IReadOnlyList<AddressBookDto>? addressBooks;
     private string newCalendar = string.Empty;
-    private string newBook = string.Empty;
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -62,16 +58,6 @@ else
         {
             await Api.CreateCalendarAsync(newCalendar);
             newCalendar = string.Empty;
-            await LoadAsync();
-        }
-    }
-
-    private async Task AddAddressBookAsync()
-    {
-        if (!string.IsNullOrWhiteSpace(newBook))
-        {
-            await Api.CreateAddressBookAsync(newBook);
-            newBook = string.Empty;
             await LoadAsync();
         }
     }

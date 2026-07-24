@@ -82,8 +82,31 @@ public sealed class ApiClient(HttpClient http)
     public async Task<IReadOnlyList<ContactDto>> GetContactsAsync(Guid addressBookId) =>
         (await http.GetFromJsonAsync<Collection<ContactDto>>($"api/address-books/{addressBookId}/contacts"))?.Items ?? [];
 
-    public Task CreateContactAsync(Guid addressBookId, string formattedName, IReadOnlyList<string> emails) =>
-        http.PostAsJsonAsync($"api/address-books/{addressBookId}/contacts", new { formattedName, emails });
+    public async Task<ContactDto?> CreateContactAsync(Guid addressBookId, string formattedName, IReadOnlyList<string> emails) =>
+        await (await http.PostAsJsonAsync($"api/address-books/{addressBookId}/contacts", new { formattedName, emails }))
+            .Content.ReadFromJsonAsync<ContactDto>();
+
+    /// <summary>The contact's raw vCard text plus its ETag (for a conditional save).</summary>
+    public async Task<(string Vcard, string? ETag)> GetContactRawAsync(Guid addressBookId, Guid id)
+    {
+        using var response = await http.GetAsync($"api/address-books/{addressBookId}/contacts/{id}/raw");
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadAsStringAsync(), response.Headers.ETag?.ToString());
+    }
+
+    public async Task PutContactRawAsync(Guid addressBookId, Guid id, string vcard, string? etag)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, $"api/address-books/{addressBookId}/contacts/{id}/raw")
+        {
+            Content = new StringContent(vcard, System.Text.Encoding.UTF8, "text/vcard"),
+        };
+        if (etag is not null)
+        {
+            request.Headers.TryAddWithoutValidation("If-Match", etag);
+        }
+
+        (await http.SendAsync(request)).EnsureSuccessStatusCode();
+    }
 
     public async Task<IReadOnlyList<AppPasswordDto>> GetAppPasswordsAsync() =>
         (await http.GetFromJsonAsync<Collection<AppPasswordDto>>("api/app-passwords"))?.Items ?? [];
