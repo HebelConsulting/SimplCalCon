@@ -32,7 +32,8 @@ internal sealed class FreeBusyService(SimplCalConDbContext dbContext) : IFreeBus
         {
             if (!candidate.IsRecurring)
             {
-                if (candidate.DtStartUtc is { } start)
+                // TRANSP:TRANSPARENT events do not block time (RFC 5545) — exclude from free/busy.
+                if (candidate.DtStartUtc is { } start && !IsTransparent(candidate.Blob))
                 {
                     Add(periods, start, candidate.DtEndUtc ?? start, fromUtc, toUtc);
                 }
@@ -89,10 +90,23 @@ internal sealed class FreeBusyService(SimplCalConDbContext dbContext) : IFreeBus
                 break;
             }
 
+            // Per-occurrence TRANSP (an override can differ from the master): transparent occurrences
+            // do not block time (RFC 5545), so they're excluded from free/busy.
+            if (occurrence.Source is Ical.Net.CalendarComponents.CalendarEvent source
+                && string.Equals(source.Transparency, "TRANSPARENT", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             var end = occurrence.Period.EndTime?.AsUtc ?? start;
             Add(periods, DateTime.SpecifyKind(start, DateTimeKind.Utc), DateTime.SpecifyKind(end, DateTimeKind.Utc), fromUtc, toUtc);
         }
     }
+
+    // A single VEVENT's TRANSP read at the line level (TRANSP takes no parameters per RFC 5545), so the
+    // non-recurring path needn't full-parse the blob it already has in hand.
+    private static bool IsTransparent(string blob) =>
+        blob.Split('\n').Any(line => line.Trim().Equals("TRANSP:TRANSPARENT", StringComparison.OrdinalIgnoreCase));
 
     private static void Add(List<BusyPeriod> periods, DateTime start, DateTime end, DateTime fromUtc, DateTime toUtc)
     {
