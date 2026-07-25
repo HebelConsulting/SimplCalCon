@@ -740,6 +740,46 @@ namespace SimplCalCon.Infrastructure.Postgres.Migrations
                     b.ToTable("Tenants", (string)null);
                 });
 
+            modelBuilder.Entity("SimplCalCon.Domain.Tenants.TenantEmailSettings", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("FromAddress")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<string>("FromName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Host")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("PasswordEncrypted")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Port")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("UseStartTls")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Username")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.HasKey("TenantId");
+
+                    b.ToTable("TenantEmailSettings", (string)null);
+                });
+
             modelBuilder.Entity("SimplCalCon.Domain.Collections.AddressBook", b =>
                 {
                     b.HasBaseType("SimplCalCon.Domain.Collections.Collection");
@@ -1090,6 +1130,17 @@ namespace SimplCalCon.Infrastructure.Postgres.Migrations
                         .IsRequired();
 
                     b.Navigation("Inbox");
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Tenants.TenantEmailSettings", b =>
+                {
+                    b.HasOne("SimplCalCon.Domain.Tenants.Tenant", "Tenant")
+                        .WithOne()
+                        .HasForeignKey("SimplCalCon.Domain.Tenants.TenantEmailSettings", "TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreApplication", b =>

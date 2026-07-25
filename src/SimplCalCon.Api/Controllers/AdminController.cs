@@ -4,6 +4,7 @@ using SimplCalCon.Api.Contracts;
 using SimplCalCon.Api.Errors.Exceptions.Authorization;
 using SimplCalCon.Api.Hypermedia;
 using SimplCalCon.Application.Abstractions.Acl;
+using SimplCalCon.Application.Abstractions.Email;
 using SimplCalCon.Domain.Principals;
 using SimplCalCon.Infrastructure.Persistence;
 
@@ -15,8 +16,40 @@ namespace SimplCalCon.Api.Controllers;
 /// actions come later.
 /// </summary>
 [Route("api/admin")]
-public sealed class AdminController(SimplCalConDbContext dbContext, IAclService acl) : ApiControllerBase(acl)
+public sealed class AdminController(
+    SimplCalConDbContext dbContext, ITenantEmailSettingsService emailSettings, IAclService acl) : ApiControllerBase(acl)
 {
+    // --- Tenant SMTP / iMIP email settings (ADR 0047). Tenant-admin, own tenant. ---
+
+    [HttpGet("email-settings")]
+    [HttpHead("email-settings")]
+    public async Task<ActionResult<TenantEmailSettingsResource>> EmailSettings(CancellationToken cancellationToken)
+    {
+        var tenantId = await RequireTenantAdminAsync(cancellationToken);
+        var settings = await emailSettings.GetAsync(tenantId, cancellationToken);
+        return settings is null
+            ? new TenantEmailSettingsResource(false, string.Empty, 587, true, null, false, string.Empty, null)
+            : new TenantEmailSettingsResource(
+                settings.Enabled, settings.Host, settings.Port, settings.UseStartTls, settings.Username,
+                settings.HasPassword, settings.FromAddress, settings.FromName);
+    }
+
+    [HttpPut("email-settings")]
+    public async Task<IActionResult> SaveEmailSettings(
+        [FromBody] TenantEmailSettingsWriteRequest request, CancellationToken cancellationToken)
+    {
+        var tenantId = await RequireTenantAdminAsync(cancellationToken);
+        if (request.Enabled && (string.IsNullOrWhiteSpace(request.Host) || string.IsNullOrWhiteSpace(request.FromAddress)))
+        {
+            return BadRequest("A host and From address are required to enable email.");
+        }
+
+        await emailSettings.SaveAsync(tenantId, new TenantEmailSettingsInput(
+            request.Enabled, request.Host, request.Port, request.UseStartTls, request.Username,
+            request.NewPassword, request.FromAddress, request.FromName), cancellationToken);
+        return NoContent();
+    }
+
     [HttpGet("tenants")]
     public async Task<ActionResult<CollectionResource<TenantResource>>> Tenants(CancellationToken cancellationToken)
     {

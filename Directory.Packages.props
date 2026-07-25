@@ -1,5 +1,4 @@
 <Project>
-
   <!--
     Central Package Management: every NuGet version is declared here once,
     and each project references packages without a Version attribute. This is
@@ -10,9 +9,9 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
-
   <ItemGroup>
     <!-- ASP.NET Core API -->
+    <PackageVersion Include="MailKit" Version="4.17.0" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
     <!-- Scalar (MIT): browsable OpenAPI UI at /scalar in Development (ADR 0009) -->
     <PackageVersion Include="Scalar.AspNetCore" Version="2.16.16" />
@@ -24,26 +23,22 @@
     -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
   </ItemGroup>
-
   <ItemGroup>
     <!-- Structured logging (ADR 0033): Serilog (Apache-2.0) bundles the console sink,
          compact-JSON formatter, and appsettings binding used by the Api host. -->
     <PackageVersion Include="Serilog.AspNetCore" Version="9.0.0" />
   </ItemGroup>
-
   <ItemGroup>
     <!-- Auth: OpenIddict (Apache-2.0) OIDC server + EF stores; Identity password hasher primitive -->
     <PackageVersion Include="OpenIddict.AspNetCore" Version="7.6.0" />
     <PackageVersion Include="OpenIddict.EntityFrameworkCore" Version="7.6.0" />
     <PackageVersion Include="Microsoft.Extensions.Identity.Core" Version="10.0.10" />
   </ItemGroup>
-
   <ItemGroup>
     <!-- Calendar/contact format parsers (both MIT) for blob <-> indexed-field extraction (ADR 0003, 0004) -->
     <PackageVersion Include="Ical.Net" Version="5.2.3" />
     <PackageVersion Include="FolkerKinzel.VCards" Version="8.2.0" />
   </ItemGroup>
-
   <ItemGroup>
     <!-- Persistence (EF Core, dual provider: PostgreSQL + SQLite per ADR 0001) -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.10" />
@@ -51,7 +46,6 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
   </ItemGroup>
-
   <ItemGroup>
     <!-- Blazor WebAssembly client -->
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.10" />
@@ -60,7 +54,6 @@
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.10" />
   </ItemGroup>
-
   <ItemGroup>
     <!-- Test stack -->
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.10" />
@@ -69,5 +62,4 @@
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
-
 </Project>

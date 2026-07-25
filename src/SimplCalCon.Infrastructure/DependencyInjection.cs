@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SimplCalCon.Application.Abstractions;
 using SimplCalCon.Application.Abstractions.Acl;
+using SimplCalCon.Application.Abstractions.Email;
 using SimplCalCon.Application.Abstractions.Identity;
 using SimplCalCon.Application.Abstractions.Scheduling;
 using SimplCalCon.Application.Abstractions.Security;
@@ -78,6 +79,8 @@ public static class DependencyInjection
         services.AddScoped<IScheduleInboxRepository, ScheduleInboxRepository>();
         services.AddScoped<ISchedulingService, SchedulingService>();
         services.AddScoped<IInvitationService, InvitationService>();
+        services.AddScoped<ITenantEmailSettingsService, Email.TenantEmailSettingsService>();
+        services.AddScoped<IEmailSender, Email.MailKitEmailSender>();
         services.AddScoped<IObjectComposer, ObjectComposer>();
         services.AddScoped<IEventSplitter, EventSplitter>();
         services.AddScoped<IDavRepository, DavRepository>();
