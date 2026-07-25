@@ -13,6 +13,7 @@ builder.Services.AddHttpClient("SimplCalCon.Api", client => client.BaseAddress =
     .AddHttpMessageHandler<BaseAddressAuthorizationMessageHandler>();
 builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("SimplCalCon.Api"));
 builder.Services.AddScoped<ApiClient>();
+builder.Services.AddScoped<LiveUpdates>();
 
 builder.Services.AddOidcAuthentication(options =>
 {

@@ -4,6 +4,7 @@
 @inject ApiClient Api
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
+@inject LiveUpdates Live
 
 <PageTitle>Calendar</PageTitle>
 
@@ -312,10 +313,34 @@ else
 
     private Guid? EffectiveId => CalendarId ?? calendars?.FirstOrDefault()?.Id;
 
+    private Guid? subscribedId;
+
+    protected override void OnInitialized() => Live.CollectionChanged += OnCollectionChanged;
+
     protected override async Task OnParametersSetAsync()
     {
         calendars ??= await Api.GetCalendarsAsync();
         events = EffectiveId is { } id ? await Api.GetEventsAsync(id) : null;
+
+        // Subscribe to live changes for the calendar being shown (ADR 0049).
+        if (EffectiveId is { } shown && shown != subscribedId)
+        {
+            subscribedId = shown;
+            await Live.SubscribeAsync(shown);
+        }
+    }
+
+    // A live change to the shown calendar → reload its events.
+    private void OnCollectionChanged(Guid collectionId)
+    {
+        if (collectionId == EffectiveId)
+        {
+            _ = InvokeAsync(async () =>
+            {
+                events = await Api.GetEventsAsync(collectionId);
+                StateHasChanged();
+            });
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -579,6 +604,7 @@ else
 
     public async ValueTask DisposeAsync()
     {
+        Live.CollectionChanged -= OnCollectionChanged;
         try
         {
             if (columnResizer is not null)

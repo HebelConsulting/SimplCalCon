@@ -14,6 +14,8 @@ using SimplCalCon.Api.Dav;
 using SimplCalCon.Api.Errors;
 using SimplCalCon.Api.Health;
 using SimplCalCon.Api.Http;
+using SimplCalCon.Api.Realtime;
+using SimplCalCon.Application.Abstractions;
 using SimplCalCon.Infrastructure;
 using SimplCalCon.Infrastructure.Configuration;
 using SimplCalCon.Infrastructure.Postgres;
@@ -56,6 +58,11 @@ try
     builder.Services.AddControllers(options => options.Filters.Add<ETagResultFilter>());
     builder.Services.AddOpenApi();
 
+    // Live updates over SignalR (ADR 0049): the NotificationHub pushes collection/invitation
+    // change signals to the Blazor client. The SignalR notifier replaces the Infrastructure
+    // default no-op (registered after AddSimplCalConInfrastructure so it wins resolution).
+    builder.Services.AddSignalR();
+
     // Liveness (/health/live) reports process health; readiness (/health/ready) also
     // checks the database (ADR 0024). Kubernetes and the Docker HEALTHCHECK target these.
     builder.Services.AddHealthChecks()
@@ -88,6 +95,8 @@ try
                 break;
         }
     });
+
+    builder.Services.AddSingleton<IChangeNotifier, SignalRChangeNotifier>();
 
     builder.Services.AddAuthentication(options =>
         {
@@ -190,9 +199,25 @@ try
         app.MapScalarApiReference();
     }
 
+    // SignalR WebSockets can't send an Authorization header, so the client passes the bearer
+    // token in the `access_token` query string; lift it into the header for the hub path so
+    // OpenIddict validation authenticates it like any other request (ADR 0049).
+    app.Use(async (context, next) =>
+    {
+        if (string.IsNullOrEmpty(context.Request.Headers.Authorization)
+            && context.Request.Path.StartsWithSegments("/hub")
+            && context.Request.Query.TryGetValue("access_token", out var token))
+        {
+            context.Request.Headers.Authorization = $"Bearer {token}";
+        }
+
+        await next();
+    });
+
     app.UseAuthentication();
     app.UseAuthorization();
     app.MapControllers();
+    app.MapHub<NotificationHub>("/hub/notifications");
 
     app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
     app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") });

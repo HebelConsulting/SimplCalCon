@@ -55,6 +55,8 @@ public static class DependencyInjection
         services.AddScoped<IAppPasswordService, AppPasswordService>();
         services.AddScoped<IAccountActivationService, AccountActivationService>();
         services.AddScoped<IDavCredentialAuthenticator, DavCredentialAuthenticator>();
+        // Default no-transport notifier; the Api replaces it with the SignalR-backed one (ADR 0049).
+        services.AddSingleton<IChangeNotifier, NoOpChangeNotifier>();
         services.AddScoped<IObjectStore, ObjectStore>();
         services.AddScoped<IObjectImportExport, ObjectImportExport>();
         services.AddScoped<IContactPhotoService, ContactPhotoService>();
