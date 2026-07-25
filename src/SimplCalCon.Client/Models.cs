@@ -25,7 +25,7 @@ public sealed record MeDto(Guid Id, string Email, string DisplayName, Guid? Tena
 
 public sealed record CalendarDto(Guid Id, string Name, string? Color, bool SupportsEvents, bool SupportsTasks, bool Shared);
 
-public sealed record AddressBookDto(Guid Id, string Name, bool Shared);
+public sealed record AddressBookDto(Guid Id, string Name, string? Color, bool Shared);
 
 public sealed record EventDto(
     Guid Id, string? Summary, DateTime? StartUtc, DateTime? EndUtc, bool IsAllDay, bool IsRecurring,

@@ -149,6 +149,16 @@
     font-size: 0.9rem;
 }
 
+/* The owning address book (with its colour swatch) shown above the vCard (ADR 0062). */
+.detail-book {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: #556;
+    margin-bottom: 0.3rem;
+}
+
 .detail-vcard {
     flex: 1 1 auto;
     display: flex;

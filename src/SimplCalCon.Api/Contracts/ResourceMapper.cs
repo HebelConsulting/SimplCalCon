@@ -50,6 +50,7 @@ internal static partial class ResourceMapper
         Id = addressBook.Id,
         ResourceName = addressBook.ResourceName,
         Name = addressBook.Name,
+        Color = addressBook.Color,
         Shared = addressBook.OwnerId != currentUserId,
         ConcurrencyToken = addressBook.ConcurrencyToken,
         Links =

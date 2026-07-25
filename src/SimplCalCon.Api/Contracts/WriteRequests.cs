@@ -23,12 +23,16 @@ public sealed class AddressBookCreateRequest
     public required string Name { get; init; }
 }
 
-/// <summary>Rename a collection's display name (ADR 0041).</summary>
-public sealed class CollectionRenameRequest
+/// <summary>Update a collection's display name and colour (ADR 0041/0062).</summary>
+public sealed class CollectionUpdateRequest
 {
     [Required]
     [StringLength(200, MinimumLength = 1)]
     public required string Name { get; init; }
+
+    /// <summary>Hex colour (<c>#RRGGBB</c> or <c>#RRGGBBAA</c>); null clears it (the UI auto-assigns).</summary>
+    [RegularExpression("^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$", ErrorMessage = "Color must be a hex value like #RRGGBB.")]
+    public string? Color { get; init; }
 }
 
 /// <summary>Move an entry into another collection of the same kind (ADR 0042).</summary>

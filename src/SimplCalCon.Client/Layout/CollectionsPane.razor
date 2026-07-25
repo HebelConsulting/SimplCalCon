@@ -1,0 +1,76 @@
+@* Reusable left pane (ADR 0062): per-collection visibility checkbox + colour swatch/picker + name.
+   Clicking the name makes the collection "active" (the target for New/Import/Share/Rename/Delete).
+   Colour editing is owner-only; a shared collection shows its colour read-only. *@
+
+<div class="collections-pane">
+    <div class="pane-head">@Heading</div>
+    @foreach (var c in Collections)
+    {
+        <div class="coll-row @(c.Id == ActiveId ? "active" : "")">
+            <input type="checkbox" class="coll-check" checked="@Checked.Contains(c.Id)"
+                   @onchange="() => ToggleChecked(c.Id)" @onclick:stopPropagation
+                   title="Show this collection's entries" />
+
+            <label class="coll-swatch" style="background:@CollectionColors.For(c.Id, c.Color)"
+                   title="@(c.Shared ? "Only the owner can change the colour" : "Change colour")">
+                @if (!c.Shared)
+                {
+                    <input type="color" value="@CollectionColors.For(c.Id, c.Color)"
+                           @onchange="e => OnColorAsync(c, e)" @onclick:stopPropagation />
+                }
+            </label>
+
+            <button type="button" class="coll-name" @onclick="() => SetActiveAsync(c.Id)" title="@c.Name">
+                <span class="coll-name-text">@c.Name</span>
+                @if (c.Shared)
+                {
+                    <span class="shared-tag">shared</span>
+                }
+            </button>
+        </div>
+    }
+    @if (Collections.Count == 0)
+    {
+        <p class="pane-empty">@EmptyText</p>
+    }
+</div>
+
+@code {
+    /// <summary>A collection to list (calendar or address book).</summary>
+    public sealed record Item(Guid Id, string Name, string? Color, bool Shared);
+
+    [Parameter] public IReadOnlyList<Item> Collections { get; set; } = [];
+    [Parameter] public HashSet<Guid> Checked { get; set; } = [];
+    [Parameter] public Guid? ActiveId { get; set; }
+    [Parameter] public string Heading { get; set; } = "Collections";
+    [Parameter] public string EmptyText { get; set; } = "None yet.";
+
+    /// <summary>Raised when the visibility checkboxes change (parent reloads the merged view).</summary>
+    [Parameter] public EventCallback OnFilterChanged { get; set; }
+
+    /// <summary>Raised when the active collection changes.</summary>
+    [Parameter] public EventCallback<Guid> OnActiveChanged { get; set; }
+
+    /// <summary>Raised when a colour is picked (id, hex).</summary>
+    [Parameter] public EventCallback<(Guid Id, string Color)> OnColorChanged { get; set; }
+
+    private async Task ToggleChecked(Guid id)
+    {
+        if (!Checked.Remove(id))
+        {
+            Checked.Add(id);
+        }
+
+        await OnFilterChanged.InvokeAsync();
+    }
+
+    private Task SetActiveAsync(Guid id) => OnActiveChanged.InvokeAsync(id);
+
+    private async Task OnColorAsync(Item c, ChangeEventArgs e)
+    {
+        if (e.Value?.ToString() is { Length: > 0 } hex)
+        {
+            await OnColorChanged.InvokeAsync((c.Id, hex));
+        }
+    }
+}

@@ -57,20 +57,20 @@ public sealed class CalendarsController(
 
     [HttpPut("{id:guid}")]
     [RequireIfMatch]
-    public async Task<ActionResult<CalendarResource>> Rename(
-        Guid id, [FromBody] CollectionRenameRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<CalendarResource>> Update(
+        Guid id, [FromBody] CollectionUpdateRequest request, CancellationToken cancellationToken)
     {
         var calendar = await repository.GetCalendarByIdAsync(id, cancellationToken)
             ?? throw new ResourceNotFoundException("Calendar", id);
 
-        // Renaming a collection is owner-only (ADR 0023, 0041).
+        // Renaming/recolouring a collection is owner-only (ADR 0023, 0041, 0062).
         if (calendar.OwnerId != CurrentUserId)
         {
             throw new InsufficientRightsException();
         }
 
         EnsureIfMatch(calendar.ConcurrencyToken);
-        var updated = (Calendar)(await repository.RenameCollectionAsync(id, request.Name, cancellationToken))!;
+        var updated = (Calendar)(await repository.UpdateCollectionAsync(id, request.Name, request.Color, cancellationToken))!;
         return ResourceMapper.MapCalendar(updated, CurrentUserId);
     }
 

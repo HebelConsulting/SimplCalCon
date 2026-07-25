@@ -35,6 +35,8 @@ public sealed class AddressBookResource : HypermediaResource, IETaggedResource
 
     public required string Name { get; init; }
 
+    public string? Color { get; init; }
+
     public bool Shared { get; init; }
 
     [JsonIgnore]

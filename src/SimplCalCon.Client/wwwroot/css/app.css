@@ -278,3 +278,112 @@ button.danger:hover {
 /* Tenant SMTP settings form (ADR 0047). */
 .smtp-form { max-width: 34rem; }
 .smtp-message { margin-left: 0.6rem; color: #333; font-size: 0.9rem; }
+
+/* ---- Collections left pane + colour filter/picker (ADR 0062, shared by Calendar + Contacts) ---- */
+.cal-layout { display: flex; gap: 1rem; align-items: flex-start; }
+.cal-main { flex: 1 1 auto; min-width: 0; }
+
+.collections-pane {
+    flex: 0 0 15rem;
+    width: 15rem;
+    border: 1px solid #e2e6ea;
+    border-radius: 8px;
+    padding: 0.4rem;
+    max-height: 76vh;
+    overflow: auto;
+    background: #fff;
+}
+
+.collections-pane .pane-head {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #889;
+    padding: 0.3rem 0.4rem 0.4rem;
+}
+
+.coll-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.3rem 0.35rem;
+    border-radius: 6px;
+}
+
+.coll-row:hover { background: #f4f7fb; }
+
+.coll-row.active {
+    background: #eaf3fd;
+    box-shadow: inset 3px 0 0 #1b6ec2;
+}
+
+.coll-check { flex: 0 0 auto; }
+
+.coll-swatch {
+    position: relative;
+    flex: 0 0 auto;
+    width: 1.05rem;
+    height: 1.05rem;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.coll-swatch input[type="color"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+}
+
+.coll-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    padding: 0.1rem 0;
+    font: inherit;
+    color: inherit;
+}
+
+.coll-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.coll-row .shared-tag {
+    flex: 0 0 auto;
+    font-size: 0.62rem;
+    color: #889;
+    border: 1px solid #dde;
+    border-radius: 3px;
+    padding: 0 0.25rem;
+}
+
+.pane-empty { color: #889; font-size: 0.85rem; padding: 0.4rem; }
+
+/* A small colour chip for the list "colour" column and the detail pane. */
+.swatch {
+    display: inline-block;
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 3px;
+    vertical-align: middle;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.event-table .color-col,
+.contact-table .color-col { width: 1.7rem; text-align: center; }
+
+@media (max-width: 720px) {
+    .cal-layout { flex-direction: column; }
+    .collections-pane { flex-basis: auto; width: 100%; max-height: 14rem; }
+}

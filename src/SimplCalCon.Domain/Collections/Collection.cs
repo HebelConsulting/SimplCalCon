@@ -27,6 +27,9 @@ public abstract class Collection : IHasConcurrencyToken
 
     public string? Description { get; set; }
 
+    /// <summary>Display colour for the collection's entries as a hex string (<c>#RRGGBB</c>); null = the UI auto-assigns one (ADR 0062).</summary>
+    public string? Color { get; set; }
+
     /// <summary>DAV path segment for the collection; unique within the owner's home set.</summary>
     public required string ResourceName { get; set; }
 

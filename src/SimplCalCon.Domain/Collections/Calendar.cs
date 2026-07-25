@@ -3,9 +3,6 @@ namespace SimplCalCon.Domain.Collections;
 /// <summary>A calendar collection holding events (VEVENT) and/or tasks (VTODO).</summary>
 public class Calendar : Collection
 {
-    /// <summary>Display color, e.g. <c>#3B82F6</c>.</summary>
-    public string? Color { get; set; }
-
     public bool SupportsEvents { get; set; } = true;
 
     public bool SupportsTasks { get; set; } = true;
