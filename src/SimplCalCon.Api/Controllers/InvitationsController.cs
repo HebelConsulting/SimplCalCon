@@ -22,6 +22,11 @@ public sealed class InvitationsController(IInvitationService invitations, IAclSe
         };
     }
 
+    [HttpGet("count")]
+    [HttpHead("count")]
+    public async Task<ActionResult<InvitationCountResource>> Count(CancellationToken cancellationToken) =>
+        new InvitationCountResource(await invitations.CountAsync(CurrentUserId, cancellationToken));
+
     // Accept/tentative/decline. A state transition on the invitation, so a POST verb sub-resource (ADR 0009).
     [HttpPost("respond")]
     public async Task<IActionResult> Respond(

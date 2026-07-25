@@ -76,6 +76,18 @@ public sealed class ApiClient(HttpClient http)
     public Task RespondToInvitationAsync(string resourceName, string response) =>
         http.PostAsJsonAsync("api/invitations/respond", new { resourceName, response });
 
+    public async Task<int> GetInvitationCountAsync()
+    {
+        try
+        {
+            return (await http.GetFromJsonAsync<InvitationCountDto>("api/invitations/count"))?.Count ?? 0;
+        }
+        catch
+        {
+            return 0; // not signed in yet / transient — no badge
+        }
+    }
+
     public async Task<IReadOnlyList<EventDto>> GetEventsAsync(Guid calendarId) =>
         (await http.GetFromJsonAsync<Collection<EventDto>>($"api/calendars/{calendarId}/events"))?.Items ?? [];
 

@@ -10,6 +10,9 @@ public interface IInvitationService
 {
     Task<IReadOnlyList<Invitation>> ListAsync(Guid userId, CancellationToken cancellationToken);
 
+    /// <summary>The number of pending invitations (REQUEST messages) — for the shell badge (ADR 0045).</summary>
+    Task<int> CountAsync(Guid userId, CancellationToken cancellationToken);
+
     /// <summary>Responds to the inbox invitation; false if it no longer exists.</summary>
     Task<bool> RespondAsync(
         Guid userId, string resourceName, InvitationResponse response, CancellationToken cancellationToken);

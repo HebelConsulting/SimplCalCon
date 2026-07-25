@@ -252,6 +252,27 @@ public sealed class SchedulingTests(AuthWebApplicationFactory factory) : IClassF
         Assert.True(exists);
     }
 
+    [Fact]
+    public async Task Invitation_count_reflects_a_new_pending_request()
+    {
+        var client = await BearerClientAsync();
+        var before = (await client.GetFromJsonAsync<JsonElement>("/api/invitations/count")).GetProperty("count").GetInt32();
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<SimplCalConDbContext>();
+            var admin = await dbContext.Users.FirstAsync(
+                u => u.NormalizedEmail == AuthWebApplicationFactory.DemoAdminEmail.ToUpperInvariant());
+            var inboxes = scope.ServiceProvider.GetRequiredService<IScheduleInboxRepository>();
+            var inbox = await inboxes.EnsureInboxAsync(admin.Id, admin.TenantId!.Value, default);
+            await inboxes.DeliverAsync(
+                inbox.Id, RequestBlob($"cnt-{Guid.NewGuid():N}", AuthWebApplicationFactory.DemoAdminEmail), "REQUEST", default);
+        }
+
+        var after = (await client.GetFromJsonAsync<JsonElement>("/api/invitations/count")).GetProperty("count").GetInt32();
+        Assert.Equal(before + 1, after);
+    }
+
     private static string RequestBlob(string uid, string attendeeEmail) => $"""
         BEGIN:VCALENDAR
         VERSION:2.0
