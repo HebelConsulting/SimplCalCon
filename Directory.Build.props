@@ -9,6 +9,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
+    <!-- Product version, kept in sync with the released git tag / container image (ADR 0024). -->
+    <VersionPrefix>0.1.0</VersionPrefix>
+
     <!-- Warnings are errors repo-wide: a build with warnings is not done. -->
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
