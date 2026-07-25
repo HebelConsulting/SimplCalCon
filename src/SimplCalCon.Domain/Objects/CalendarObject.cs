@@ -31,4 +31,21 @@ public class CalendarObject : CollectionObject
 
     /// <summary>Indexed ORGANIZER/ATTENDEE rows, rebuilt from the blob on every write (ADR 0030).</summary>
     public ICollection<EventAttendee> Attendees { get; set; } = [];
+
+    /// <summary>
+    /// Occurrence-window index state (ADR 0061). True when every occurrence is materialized into
+    /// <see cref="Occurrences"/> — a non-recurring event, or a bounded rule whose whole span fits the
+    /// rolling window. When false, only <see cref="OccurrencesFromUtc"/>..<see cref="OccurrencesUntilUtc"/>
+    /// is materialized and time-range queries outside that window fall back to on-the-fly expansion.
+    /// </summary>
+    public bool OccurrencesComplete { get; set; } = true;
+
+    /// <summary>Lower bound of the materialized window (null when <see cref="OccurrencesComplete"/> covers all).</summary>
+    public DateTime? OccurrencesFromUtc { get; set; }
+
+    /// <summary>Upper bound of the materialized window (null when <see cref="OccurrencesComplete"/> covers all).</summary>
+    public DateTime? OccurrencesUntilUtc { get; set; }
+
+    /// <summary>Materialized occurrence rows for this recurring event (ADR 0061); empty for non-recurring.</summary>
+    public ICollection<EventOccurrence> Occurrences { get; set; } = [];
 }

@@ -64,6 +64,42 @@ public sealed class CalendarOccurrenceTests
     }
 
     [Fact]
+    public void Materialize_bounded_series_is_not_truncated()
+    {
+        var (windows, truncated) = CalendarOccurrence.Materialize(Weekly, Sep1, new DateTime(2027, 1, 1, 0, 0, 0, DateTimeKind.Utc), 2000);
+
+        Assert.Equal(4, windows.Count);
+        Assert.False(truncated); // COUNT=4 series ends inside the window
+    }
+
+    [Fact]
+    public void Materialize_unbounded_series_truncates_at_the_window_end()
+    {
+        const string dailyUnbounded =
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:d1\r\n" +
+            "DTSTART:20260907T090000Z\r\nDTEND:20260907T093000Z\r\nRRULE:FREQ=DAILY\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        var to = new DateTime(2026, 9, 20, 0, 0, 0, DateTimeKind.Utc);
+
+        var (windows, truncated) = CalendarOccurrence.Materialize(dailyUnbounded, Sep1, to, 2000);
+
+        Assert.True(truncated);                            // series continues past the window
+        Assert.All(windows, w => Assert.True(w.StartUtc < to));
+    }
+
+    [Fact]
+    public void Materialize_stops_at_the_row_cap()
+    {
+        const string dailyUnbounded =
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:d1\r\n" +
+            "DTSTART:20260907T090000Z\r\nDTEND:20260907T093000Z\r\nRRULE:FREQ=DAILY\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
+        var (windows, truncated) = CalendarOccurrence.Materialize(dailyUnbounded, Sep1, new DateTime(2027, 1, 1, 0, 0, 0, DateTimeKind.Utc), 5);
+
+        Assert.Equal(5, windows.Count);
+        Assert.True(truncated); // cap hit before the window end
+    }
+
+    [Fact]
     public void An_override_uses_its_own_start_and_summary_but_the_original_recurrence_id()
     {
         const string withOverride =

@@ -52,7 +52,7 @@ public sealed class ContactPhotoRefreshTests
 
         await using (var context = _database.CreateContext())
         {
-            var objectStore = new ObjectStore(context, _clock, NullLogger<ObjectStore>.Instance, new NoOpChangeNotifier());
+            var objectStore = StoreFactory.ObjectStore(context, _clock);
             var service = new ContactPhotoService(
                 context, objectStore, new StubHttpClientFactory(), _clock, NullLogger<ContactPhotoService>.Instance);
 
@@ -100,7 +100,7 @@ public sealed class ContactPhotoRefreshTests
         await using (var context = _database.CreateContext())
         {
             var service = new ContactPhotoService(
-                context, new ObjectStore(context, _clock, NullLogger<ObjectStore>.Instance, new NoOpChangeNotifier()),
+                context, StoreFactory.ObjectStore(context, _clock),
                 new StubHttpClientFactory(), _clock, NullLogger<ContactPhotoService>.Instance);
             await service.RefreshStaleAsync(10, default);
         }

@@ -271,17 +271,44 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
             return await query.ToListAsync(cancellationToken);
         }
 
-        // Pre-filter in SQL: non-recurring objects by overlap; recurring and no-start
-        // objects are candidates that we expand precisely below.
-        query = query.Where(o => o.IsRecurring || o.DtStartUtc == null
-            || ((endUtc == null || o.DtStartUtc < endUtc)
-                && (startUtc == null || (o.DtEndUtc ?? o.DtStartUtc) >= startUtc)));
+        return await QueryOverlappingAsync(query, startUtc, endUtc, cancellationToken);
+    }
 
-        var candidates = await query.ToListAsync(cancellationToken);
+    /// <summary>
+    /// Objects in <paramref name="baseQuery"/> that overlap [start, end) — via the occurrence-window
+    /// index (ADR 0061) where it fully covers the query, else on-the-fly expansion. Semantics match
+    /// <see cref="CalendarOccurrence.OverlapsRange"/> (start-based) so index and fallback agree.
+    /// </summary>
+    private async Task<List<CalendarObject>> QueryOverlappingAsync(
+        IQueryable<CalendarObject> baseQuery, DateTime? start, DateTime? end, CancellationToken cancellationToken)
+    {
+        // A half-open/unbounded range can't be narrowed for recurring objects (OverlapsRange returns
+        // true leniently) — include every recurring object plus non-recurring column overlaps.
+        if (start is null || end is null)
+        {
+            return await baseQuery.Where(o => o.IsRecurring || o.DtStartUtc == null
+                || ((end == null || o.DtStartUtc < end) && (start == null || (o.DtEndUtc ?? o.DtStartUtc) >= start)))
+                .ToListAsync(cancellationToken);
+        }
 
-        return candidates
-            .Where(o => !o.IsRecurring || CalendarOccurrence.OverlapsRange(o.Blob, startUtc, endUtc))
-            .ToList();
+        // Answered purely in SQL: non-recurring column overlaps + recurring objects whose materialized
+        // window covers the query (occurrence-index EXISTS — no recurrence expansion).
+        var results = await baseQuery.Where(o =>
+                (!o.IsRecurring && (o.DtStartUtc == null
+                    || (o.DtStartUtc < end && (o.DtEndUtc ?? o.DtStartUtc) >= start)))
+                || (o.IsRecurring
+                    && (o.OccurrencesComplete
+                        || (o.OccurrencesFromUtc <= start && o.OccurrencesUntilUtc >= end))
+                    && o.Occurrences.Any(x => x.StartUtc >= start && x.StartUtc < end)))
+            .ToListAsync(cancellationToken);
+
+        // Recurring objects whose window does NOT cover the query fall back to precise expansion.
+        var uncovered = await baseQuery.Where(o => o.IsRecurring
+                && !(o.OccurrencesComplete || (o.OccurrencesFromUtc <= start && o.OccurrencesUntilUtc >= end)))
+            .ToListAsync(cancellationToken);
+
+        results.AddRange(uncovered.Where(o => CalendarOccurrence.OverlapsRange(o.Blob, start, end)));
+        return results;
     }
 
     public async Task<IReadOnlyList<CalendarObjectOccurrence>> QueryCalendarOccurrencesAsync(
@@ -332,16 +359,14 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
 
         var start = filter.StartUtc;
         var end = filter.EndUtc;
-        if (start is not null || end is not null)
-        {
-            query = query.Where(o => o.IsRecurring || o.DtStartUtc == null
-                || ((end == null || o.DtStartUtc < end) && (start == null || (o.DtEndUtc ?? o.DtStartUtc) >= start)));
-        }
 
-        var candidates = await query.ToListAsync(cancellationToken);
+        // Time-range overlap via the occurrence-window index where covered (ADR 0061), else expansion;
+        // then apply the blob-level property filter on the survivors (their blobs are already loaded).
+        var overlapping = start is null && end is null
+            ? await query.ToListAsync(cancellationToken)
+            : await QueryOverlappingAsync(query, start, end, cancellationToken);
 
-        return candidates
-            .Where(o => (start is null && end is null) || !o.IsRecurring || CalendarOccurrence.OverlapsRange(o.Blob, start, end))
+        return overlapping
             .Where(o => DavFilterEvaluator.Matches(o.Blob, filter))
             .ToList();
     }

@@ -17,7 +17,7 @@ namespace SimplCalCon.Infrastructure.Storage;
 /// </summary>
 internal sealed class ObjectStore(
     SimplCalConDbContext dbContext, IClock clock, ILogger<ObjectStore> logger,
-    IChangeNotifier changeNotifier) : IObjectStore
+    IChangeNotifier changeNotifier, OccurrenceIndexer occurrenceIndexer) : IObjectStore
 {
     public async Task<StoredObjectResult> PutAsync(PutObjectRequest request, CancellationToken cancellationToken)
     {
@@ -221,6 +221,15 @@ internal sealed class ObjectStore(
             dbContext.Objects.Add(stored);
         }
 
+        // Refresh the occurrence-window index from the new blob (ADR 0061) as part of this same save,
+        // so the object, its occurrence rows, and a single ETag regeneration commit together (a second
+        // save afterwards would bump the ETag again and desync it from the revision we record). For a
+        // freshly-created object EF orders the parent insert before its occurrence rows.
+        if (stored is CalendarObject calendarObject)
+        {
+            await occurrenceIndexer.RebuildAsync(calendarObject, now, cancellationToken);
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
         await AppendRevisionAsync(stored, operation, authorPrincipalId, now, cancellationToken);
 
@@ -251,6 +260,10 @@ internal sealed class ObjectStore(
         stored.UpdatedAt = now;
         stored.RevisionNumber += 1;
         stored.ChangeNumber = ++collection.ChangeSequence;
+
+        // Drop the object's occurrence-index rows so time-range queries stop matching it (ADR 0061);
+        // a later restore rebuilds them from the blob. In-transaction with the soft-delete.
+        await dbContext.EventOccurrences.Where(o => o.ObjectId == stored.Id).ExecuteDeleteAsync(cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
         await AppendRevisionAsync(stored, RevisionOperation.Deleted, authorPrincipalId, now, cancellationToken);
