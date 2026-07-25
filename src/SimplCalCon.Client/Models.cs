@@ -56,6 +56,7 @@ public sealed record CreatedAppPassword(Guid Id, string Label, string Secret);
 
 public sealed record ShareDto(Guid PrincipalId, string Kind, string DisplayName, string? Email, IReadOnlyList<string> Rights);
 public sealed record SharedCollectionDto(Guid Id, string Kind, string Name, string OwnerName, IReadOnlyList<string> Rights);
+public sealed record SharedByMeDto(Guid Id, string Kind, string Name, IReadOnlyList<ShareDto> Shares);
 
 public sealed record PrincipalDto(Guid Id, string Kind, string DisplayName, string? Email);
 public sealed record TenantEmailSettingsDto(

@@ -238,6 +238,9 @@ public sealed class ApiClient(HttpClient http)
     public async Task<IReadOnlyList<SharedCollectionDto>> GetSharedWithMeAsync() =>
         (await http.GetFromJsonAsync<Collection<SharedCollectionDto>>("api/shared-with-me"))?.Items ?? [];
 
+    public async Task<IReadOnlyList<SharedByMeDto>> GetSharedByMeAsync() =>
+        (await http.GetFromJsonAsync<Collection<SharedByMeDto>>("api/shared-by-me"))?.Items ?? [];
+
     public async Task<IReadOnlyList<PrincipalDto>> SearchPrincipalsAsync(string query) =>
         (await http.GetFromJsonAsync<Collection<PrincipalDto>>($"api/principals?q={Uri.EscapeDataString(query)}"))?.Items ?? [];
 
