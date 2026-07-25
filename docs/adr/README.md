@@ -51,5 +51,6 @@ rather than an edit.
 | [0043](0043-dav-query-filter-evaluation.md) | DAV query-filter evaluation (calendar-query / addressbook-query) |
 | [0044](0044-mutation-testing-stryker.md) | Mutation testing with Stryker.NET (Infrastructure, informational) |
 | [0045](0045-rest-ui-invitations.md) | REST + web-UI invitations (accept/tentative/decline) |
+| [0046](0046-sharing-ui-and-shared-with-me.md) | Sharing UI modernization + "shared with me" |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

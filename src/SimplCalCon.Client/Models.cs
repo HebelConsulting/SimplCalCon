@@ -49,6 +49,7 @@ public sealed record AppPasswordDto(Guid Id, string Label, DateTime CreatedAt, D
 public sealed record CreatedAppPassword(Guid Id, string Label, string Secret);
 
 public sealed record ShareDto(Guid PrincipalId, string Kind, string DisplayName, string? Email, IReadOnlyList<string> Rights);
+public sealed record SharedCollectionDto(Guid Id, string Kind, string Name, string OwnerName, IReadOnlyList<string> Rights);
 
 public sealed record PrincipalDto(Guid Id, string Kind, string DisplayName, string? Email);
 

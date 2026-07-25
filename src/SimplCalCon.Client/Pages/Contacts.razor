@@ -27,7 +27,7 @@
             <button @onclick="ExportAsync">Export .vcf</button>
             <button @onclick="OpenRename">Rename</button>
             <button @onclick="() => showDelete = true">Delete</button>
-            <a class="ribbon-btn" href="share/address-books/@rid">Share</a>
+            <button @onclick="() => showShare = true">Share</button>
             <a class="ribbon-btn" href="trash/address-books/@rid">Trash</a>
         }
     </SectionContent>
@@ -223,6 +223,13 @@ else
     </div>
 </Modal>
 
+<Modal Visible="showShare" Title="Share address book" OnClose="() => showShare = false">
+    @if (EffectiveId is { } sid)
+    {
+        <ShareEditor Kind="address-books" CollectionId="sid" />
+    }
+</Modal>
+
 @code {
     [Parameter] public Guid? AddressBookId { get; set; }
 
@@ -265,6 +272,7 @@ else
     private string? importMessage;
     private bool importDone;  // an import finished — keep inputs locked; only Close stays active
 
+    private bool showShare;
     private bool showRename;
     private string renameName = string.Empty;
     private string? renameError;

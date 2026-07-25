@@ -1,5 +1,8 @@
 using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json;
 using System.Xml.Linq;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -59,6 +62,45 @@ public sealed class AclSharingTests(AuthWebApplicationFactory factory) : IClassF
 
         // A third user with no grant is still denied.
         Assert.Equal(HttpStatusCode.Forbidden, (await strangerClient.GetAsync(card)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Shared_with_me_lists_a_collection_shared_by_another_user()
+    {
+        var (ownerClient, ownerId) = await DavTestUser.CreateAsync(factory, "swm-owner");
+        var cal = $"c{Guid.NewGuid():N}";
+        Assert.Equal(HttpStatusCode.Created, (await Send(ownerClient, "MKCALENDAR", $"/dav/calendars/{ownerId}/{cal}")).StatusCode);
+        var calId = await CalendarIdAsync(ownerId, cal);
+
+        Guid adminId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<SimplCalConDbContext>();
+            adminId = await dbContext.Users
+                .Where(u => u.NormalizedEmail == AuthWebApplicationFactory.DemoAdminEmail.ToUpperInvariant())
+                .Select(u => u.Id).FirstAsync();
+        }
+
+        await GrantAsync(calId, adminId, AclRight.Read);
+
+        var admin = factory.CreateClient();
+        admin.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", await AuthFlow.GetDemoAdminAccessTokenAsync(factory));
+
+        var shared = await admin.GetFromJsonAsync<JsonElement>("/api/shared-with-me");
+        var mine = shared.GetProperty("items").EnumerateArray().First(i => i.GetProperty("id").GetGuid() == calId);
+        Assert.Equal("calendars", mine.GetProperty("kind").GetString());
+        Assert.Equal("DAV Test User", mine.GetProperty("ownerName").GetString());
+        Assert.Contains("read", mine.GetProperty("rights").EnumerateArray().Select(r => r.GetString()));
+    }
+
+    private async Task<Guid> CalendarIdAsync(Guid ownerId, string resourceName)
+    {
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<SimplCalConDbContext>();
+        return await dbContext.Calendars
+            .Where(c => c.OwnerId == ownerId && c.ResourceName == resourceName)
+            .Select(c => c.Id).FirstAsync();
     }
 
     private async Task GrantAsync(Guid collectionId, Guid principalId, AclRight rights)

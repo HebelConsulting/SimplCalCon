@@ -260,3 +260,17 @@ button.danger {
 button.danger:hover {
     background: #a93226;
 }
+
+/* Sharing editor + Shared-with-me (ADR 0046). */
+.share-list { list-style: none; margin: 0.3rem 0 0.9rem; padding: 0; }
+.share-list li { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; border-bottom: 1px solid #eef1f4; }
+.share-who { flex: 1 1 auto; min-width: 0; }
+.share-kind { color: #889; font-size: 0.85rem; }
+.share-muted { color: #889; }
+.share-add { display: flex; gap: 0.4rem; margin-bottom: 0.5rem; }
+.share-add input { flex: 1 1 auto; min-width: 0; }
+
+.shared-list { list-style: none; margin: 0; padding: 0; max-width: 44rem; }
+.shared-list li { padding: 0.5rem 0.6rem; border: 1px solid #e2e6ea; border-radius: 8px; margin-bottom: 0.4rem; }
+.shared-open { font-weight: 600; background: none; border: none; color: #1b6ec2; cursor: pointer; padding: 0; font-size: 1rem; }
+.shared-meta { display: block; font-size: 0.85rem; color: #667; margin-top: 0.15rem; }
