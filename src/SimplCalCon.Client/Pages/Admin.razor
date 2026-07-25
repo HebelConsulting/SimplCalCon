@@ -106,6 +106,64 @@ else
             </div>
         </div>
     }
+
+    <h2>Groups — share with a set of people</h2>
+    @if (groups is null)
+    {
+        <p>Loading…</p>
+    }
+    else
+    {
+        <div class="form-row">
+            <input @bind="newGroupName" placeholder="New group name" />
+            <button @onclick="CreateGroupAsync" disabled="@string.IsNullOrWhiteSpace(newGroupName)">Add group</button>
+            @if (groupMessage is not null)
+            {
+                <span class="smtp-message">@groupMessage</span>
+            }
+        </div>
+        <ul class="admin-user-list">
+            @foreach (var g in groups)
+            {
+                <li>
+                    <span class="admin-user-name">@g.Name</span>
+                    <span class="admin-user-meta">@g.MemberCount member(s)</span>
+                    <button @onclick="() => ManageGroupAsync(g)">@(managedGroupId == g.Id ? "Close" : "Manage")</button>
+                    <button class="danger" @onclick="() => DeleteGroupAsync(g)">Delete</button>
+                    @if (managedGroupId == g.Id)
+                    {
+                        <div class="group-members">
+                            <ul>
+                                @foreach (var m in members)
+                                {
+                                    <li>
+                                        @m.DisplayName@(m.Kind == "group" ? " (group)" : "")
+                                        <button @onclick="() => RemoveMemberAsync(g.Id, m.Id)">Remove</button>
+                                    </li>
+                                }
+                            </ul>
+                            <div class="form-row">
+                                <input @bind="memberQuery" @bind:event="oninput" @bind:after="SearchMembersAsync" placeholder="Add member — search…" />
+                            </div>
+                            @if (searchResults.Count > 0)
+                            {
+                                <ul class="search-results">
+                                    @foreach (var p in searchResults)
+                                    {
+                                        <li>
+                                            <button @onclick="() => AddMemberAsync(g.Id, p)">
+                                                @p.DisplayName@(p.Kind == "group" ? " (group)" : "") @p.Email
+                                            </button>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        </div>
+                    }
+                </li>
+            }
+        </ul>
+    }
 }
 
 @code {
@@ -120,6 +178,15 @@ else
     private string testTo = string.Empty;
     private bool savingEmail;
     private string? emailMessage;
+
+    // Groups (ADR 0059)
+    private IReadOnlyList<GroupDto>? groups;
+    private string newGroupName = string.Empty;
+    private string? groupMessage;
+    private Guid? managedGroupId;
+    private IReadOnlyList<GroupMemberDto> members = [];
+    private string memberQuery = string.Empty;
+    private IReadOnlyList<PrincipalDto> searchResults = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -136,6 +203,7 @@ else
         else
         {
             users = await Api.GetTenantUsersAsync();
+            groups = await Api.GetGroupsAsync();
             var settings = await Api.GetTenantEmailSettingsAsync();
             email = new EmailForm
             {
@@ -224,6 +292,66 @@ else
         {
             savingEmail = false;
         }
+    }
+
+    // --- Groups (ADR 0059) ---
+    private async Task CreateGroupAsync()
+    {
+        var response = await Api.CreateGroupAsync(newGroupName.Trim());
+        groupMessage = response.IsSuccessStatusCode
+            ? null
+            : response.StatusCode == System.Net.HttpStatusCode.Conflict ? "A group with that name already exists." : "Couldn't create the group.";
+        if (response.IsSuccessStatusCode)
+        {
+            newGroupName = string.Empty;
+            groups = await Api.GetGroupsAsync();
+        }
+    }
+
+    private async Task DeleteGroupAsync(GroupDto group)
+    {
+        await Api.DeleteGroupAsync(group.Id);
+        if (managedGroupId == group.Id)
+        {
+            managedGroupId = null;
+        }
+
+        groups = await Api.GetGroupsAsync();
+    }
+
+    private async Task ManageGroupAsync(GroupDto group)
+    {
+        groupMessage = null;
+        if (managedGroupId == group.Id)
+        {
+            managedGroupId = null;
+            return;
+        }
+
+        managedGroupId = group.Id;
+        memberQuery = string.Empty;
+        searchResults = [];
+        members = await Api.GetGroupMembersAsync(group.Id);
+    }
+
+    private async Task SearchMembersAsync() =>
+        searchResults = memberQuery.Trim().Length == 0 ? [] : await Api.SearchPrincipalsAsync(memberQuery.Trim());
+
+    private async Task AddMemberAsync(Guid groupId, PrincipalDto principal)
+    {
+        var response = await Api.AddGroupMemberAsync(groupId, principal.Id);
+        groupMessage = response.IsSuccessStatusCode ? null : "Couldn't add that member (would it create a cycle?).";
+        memberQuery = string.Empty;
+        searchResults = [];
+        members = await Api.GetGroupMembersAsync(groupId);
+        groups = await Api.GetGroupsAsync();
+    }
+
+    private async Task RemoveMemberAsync(Guid groupId, Guid principalId)
+    {
+        await Api.RemoveGroupMemberAsync(groupId, principalId);
+        members = await Api.GetGroupMembersAsync(groupId);
+        groups = await Api.GetGroupsAsync();
     }
 
     private sealed class EmailForm

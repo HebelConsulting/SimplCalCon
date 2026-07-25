@@ -51,3 +51,14 @@ public sealed class TestEmailRequest
 {
     public string To { get; init; } = string.Empty;
 }
+
+/// <summary>A tenant group and its member count, for the admin view (ADR 0059).</summary>
+public sealed record GroupResource(Guid Id, string Name, int MemberCount);
+
+/// <summary>A member of a group (user or nested group), ADR 0059.</summary>
+public sealed record GroupMemberResource(Guid Id, string Kind, string DisplayName, string? Email);
+
+public sealed class CreateGroupRequest
+{
+    public string Name { get; init; } = string.Empty;
+}

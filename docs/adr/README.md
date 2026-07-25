@@ -64,5 +64,6 @@ rather than an edit.
 | [0056](0056-inbound-imip.md) | Inbound iMIP (REST ingestion endpoint + IMAP poller) |
 | [0057](0057-contact-photo-background-refresh.md) | Background contact-photo refresh + self-heal |
 | [0058](0058-shared-by-me.md) | "Shared by me" owner aggregate |
+| [0059](0059-group-management.md) | Tenant-admin group + membership management |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).
