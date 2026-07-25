@@ -34,6 +34,8 @@ configuration is **per-tenant**, set by the tenant admin.
 - **Data Protection keys must be persisted in production** (like the OIDC certs, ADR 0018) for a
   stored password to survive restarts; dev uses ephemeral keys, so the password must be re-entered
   after a dev restart (the decrypt fails soft → treated as no password).
+- A **"send test email"** button (`POST /api/admin/email-settings/test { to }` → `IEmailSender.SendAsync`
+  plain email using the saved config, ignoring the `Enabled` flag so it verifies *before* enabling;
+  SMTP failures are surfaced to the admin) confirms the config end-to-end.
 - **Deferred:** **inbound** iMIP (receiving replies *by email* → parsing → delivering to an inbox,
-  which needs an IMAP/webhook ingestion pipeline); DKIM/SPF alignment guidance; a per-tenant "send a
-  test email" button.
+  which needs an IMAP/webhook ingestion pipeline); DKIM/SPF alignment guidance.

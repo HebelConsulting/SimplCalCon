@@ -44,6 +44,19 @@ public sealed class ApiClient(HttpClient http)
     public Task SaveTenantEmailSettingsAsync(object body) =>
         http.PutAsJsonAsync("api/admin/email-settings", body);
 
+    /// <summary>Sends a test email via the tenant's saved SMTP settings; null on success, else the failure detail.</summary>
+    public async Task<string?> SendTestEmailAsync(string to)
+    {
+        var response = await http.PostAsJsonAsync("api/admin/email-settings/test", new { to });
+        if (response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        var body = (await response.Content.ReadAsStringAsync()).Trim().Trim('"');
+        return string.IsNullOrWhiteSpace(body) ? $"Failed ({(int)response.StatusCode})." : body;
+    }
+
     public async Task<IReadOnlyList<CalendarDto>> GetCalendarsAsync() =>
         (await http.GetFromJsonAsync<Collection<CalendarDto>>("api/calendars"))?.Items ?? [];
 

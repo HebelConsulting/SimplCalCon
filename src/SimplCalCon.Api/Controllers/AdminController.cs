@@ -17,8 +17,39 @@ namespace SimplCalCon.Api.Controllers;
 /// </summary>
 [Route("api/admin")]
 public sealed class AdminController(
-    SimplCalConDbContext dbContext, ITenantEmailSettingsService emailSettings, IAclService acl) : ApiControllerBase(acl)
+    SimplCalConDbContext dbContext, ITenantEmailSettingsService emailSettings, IEmailSender emailSender, IAclService acl)
+    : ApiControllerBase(acl)
 {
+    [HttpPost("email-settings/test")]
+    public async Task<IActionResult> TestEmail(
+        [FromBody] TestEmailRequest request, CancellationToken cancellationToken)
+    {
+        var tenantId = await RequireTenantAdminAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(request.To))
+        {
+            return BadRequest("A recipient address is required.");
+        }
+
+        var config = await emailSettings.GetConfigAsync(tenantId, cancellationToken);
+        if (config is null || string.IsNullOrWhiteSpace(config.Host))
+        {
+            return BadRequest("Save the SMTP host and From address first.");
+        }
+
+        try
+        {
+            await emailSender.SendAsync(
+                config, request.To, "SimplCalCon test email",
+                "This is a test message from SimplCalCon — your SMTP settings are working.", cancellationToken);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            // Diagnostic endpoint: surface the SMTP failure (connection/auth/TLS) to the admin.
+            return BadRequest($"Send failed: {ex.Message}");
+        }
+    }
+
     // --- Tenant SMTP / iMIP email settings (ADR 0047). Tenant-admin, own tenant. ---
 
     [HttpGet("email-settings")]
