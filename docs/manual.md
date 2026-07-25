@@ -193,6 +193,27 @@ import noted above.
 The base `/dav/` path is normally all you need. If a client insists on an explicit principal URL, it
 is `/dav/principals/{userId}/` — your `{userId}` is shown in the web UI; both forms work.
 
+### Subscribing to a read-only feed (incl. Microsoft Outlook)
+
+Some clients can't do two-way CalDAV/CardDAV — most notably **Microsoft Outlook**, which has no native
+CalDAV support (see [`outlook-gap-analysis.md`](outlook-gap-analysis.md)). For those, publish a
+**read-only subscription feed**:
+
+1. In the web UI, open a calendar (or address book) → **Edit** (owner only) → **Subscription** →
+   **Enable subscription link**, then **Copy** the URL. It looks like
+   `https://…/api/calendars/{id}/feed/{token}.ics` (`webcal://…` works too).
+2. In the client, add an *internet calendar subscription* and paste the URL:
+   - **Outlook (classic Windows / web / Outlook.com):** Add calendar → From internet → paste.
+   - **Apple Calendar:** File → New Calendar Subscription. **Google Calendar:** Other calendars →
+     From URL. **Thunderbird:** New Calendar → On the Network → iCalendar (ICS).
+
+The link is read-only, so edits happen in SimplCalCon (or a full CalDAV client) and the subscription
+refreshes on the client's own schedule (often hourly). The URL is a secret — anyone with it can read
+the collection. Use **Reset** to rotate it (old links stop working) or **Disable** to revoke it.
+Address books also offer a `.vcf` feed, though few clients subscribe to remote contact feeds.
+For *two-way* Outlook sync on Windows desktop, use the third-party Outlook CalDav Synchronizer add-in
+against `https://…/dav/` with an app password.
+
 ## Receiving invitations by email (inbound iMIP)
 
 SimplCalCon can *send* invitation emails to external attendees (Admin → **Email (SMTP)**). To also

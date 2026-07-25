@@ -254,6 +254,23 @@ else
         <input type="color" @bind="renameColor" />
         <span class="hint">Shared with everyone; each person can still pick their own.</span>
     </div>
+    <div class="form-row">
+        <label>Subscription</label>
+        @if (ActiveBook?.FeedToken is { } token && EffectiveId is { } fid)
+        {
+            <div class="feed-box">
+                <input class="feed-url" readonly value="@FeedUrl("address-books", fid, token, "vcf")" />
+                <button type="button" @onclick='() => CopyAsync(FeedUrl("address-books", fid, token, "vcf"))'>Copy</button>
+                <button type="button" @onclick="ResetFeedAsync">Reset</button>
+                <button type="button" class="danger" @onclick="DisableFeedAsync">Disable</button>
+                <span class="hint">Read-only .vcf feed. Support varies by client (mainstream apps subscribe to calendars, not contacts).</span>
+            </div>
+        }
+        else
+        {
+            <button type="button" @onclick="EnableFeedAsync">Enable subscription link</button>
+        }
+    </div>
     <div class="form-actions">
         <button @onclick="RenameAsync" disabled="@string.IsNullOrWhiteSpace(renameName)">Save</button>
         <button @onclick="() => showRename = false">Cancel</button>
@@ -885,6 +902,42 @@ else
             books = await Api.GetAddressBooksAsync();
             await ReloadAsync();
             showRename = false;
+        }
+    }
+
+    // --- Subscription feed (ADR 0069) ---
+    private string FeedUrl(string kind, Guid id, string token, string ext) =>
+        $"{Navigation.BaseUri}api/{kind}/{id}/feed/{token}.{ext}";
+
+    private async Task CopyAsync(string text)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        }
+        catch
+        {
+            // Clipboard blocked — the URL is still selectable in the field.
+        }
+    }
+
+    private async Task EnableFeedAsync()
+    {
+        if (EffectiveId is { } id)
+        {
+            await Api.EnableFeedAsync("address-books", id);
+            books = await Api.GetAddressBooksAsync();
+        }
+    }
+
+    private Task ResetFeedAsync() => EnableFeedAsync();
+
+    private async Task DisableFeedAsync()
+    {
+        if (EffectiveId is { } id)
+        {
+            await Api.DisableFeedAsync("address-books", id);
+            books = await Api.GetAddressBooksAsync();
         }
     }
 

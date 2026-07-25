@@ -107,6 +107,21 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
         return collection;
     }
 
+    public async Task<string?> SetFeedTokenAsync(Guid collectionId, bool enabled, CancellationToken cancellationToken)
+    {
+        var collection = await dbContext.Collections
+            .FirstOrDefaultAsync(c => c.Id == collectionId && !c.IsDeleted, cancellationToken);
+        if (collection is null)
+        {
+            return null;
+        }
+
+        // Enable/reset always mints a fresh token (so a leaked link can be rotated); disable clears it.
+        collection.FeedToken = enabled ? Security.SecretGenerator.Create() : null;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return collection.FeedToken;
+    }
+
     public async Task<IReadOnlyList<ContactObject>> ListObjectsAsync(Guid collectionId, CancellationToken cancellationToken) =>
         await dbContext.ContactObjects
             .Where(o => o.CollectionId == collectionId && !o.IsDeleted)

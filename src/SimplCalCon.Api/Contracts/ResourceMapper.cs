@@ -35,6 +35,7 @@ internal static partial class ResourceMapper
         Name = calendar.Name,
         Color = calendar.Color,
         MyColor = myColor,
+        FeedToken = calendar.OwnerId == currentUserId ? calendar.FeedToken : null,
         SupportsEvents = calendar.SupportsEvents,
         SupportsTasks = calendar.SupportsTasks,
         Shared = calendar.OwnerId != currentUserId,
@@ -53,6 +54,7 @@ internal static partial class ResourceMapper
         Name = addressBook.Name,
         Color = addressBook.Color,
         MyColor = myColor,
+        FeedToken = addressBook.OwnerId == currentUserId ? addressBook.FeedToken : null,
         Shared = addressBook.OwnerId != currentUserId,
         ConcurrencyToken = addressBook.ConcurrencyToken,
         Links =

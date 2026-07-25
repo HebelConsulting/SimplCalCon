@@ -30,6 +30,9 @@ public abstract class Collection : IHasConcurrencyToken
     /// <summary>Display colour for the collection's entries as a hex string (<c>#RRGGBB</c>); null = the UI auto-assigns one (ADR 0062).</summary>
     public string? Color { get; set; }
 
+    /// <summary>Unguessable capability token for the read-only subscription feed (ADR 0069); null = feed disabled.</summary>
+    public string? FeedToken { get; set; }
+
     /// <summary>DAV path segment for the collection; unique within the owner's home set.</summary>
     public required string ResourceName { get; set; }
 

@@ -30,6 +30,9 @@ public interface IDavRepository
     /// <summary>Updates a collection's display name and colour (ADR 0041/0062); returns the updated collection or null if absent.</summary>
     Task<Collection?> UpdateCollectionAsync(Guid collectionId, string newName, string? color, CancellationToken cancellationToken);
 
+    /// <summary>Enables (generates a fresh token) or disables the read-only subscription feed (ADR 0069); returns the new token or null.</summary>
+    Task<string?> SetFeedTokenAsync(Guid collectionId, bool enabled, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<ContactObject>> ListObjectsAsync(Guid collectionId, CancellationToken cancellationToken);
 
     Task<ContactObject?> GetObjectAsync(Guid collectionId, string resourceName, CancellationToken cancellationToken);

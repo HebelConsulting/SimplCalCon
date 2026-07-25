@@ -59,6 +59,35 @@ public sealed class AddressBooksController(
         return NoContent();
     }
 
+    // Read-only subscription feed (ADR 0069): owner enables/resets (fresh token) or disables it.
+    [HttpPut("{id:guid}/feed")]
+    public async Task<ActionResult<AddressBookResource>> EnableFeed(Guid id, CancellationToken cancellationToken)
+    {
+        var addressBook = await repository.GetAddressBookByIdAsync(id, cancellationToken)
+            ?? throw new ResourceNotFoundException("Address book", id);
+        if (addressBook.OwnerId != CurrentUserId)
+        {
+            throw new InsufficientRightsException();
+        }
+
+        addressBook.FeedToken = await repository.SetFeedTokenAsync(id, enabled: true, cancellationToken);
+        return ResourceMapper.MapAddressBook(addressBook, CurrentUserId);
+    }
+
+    [HttpDelete("{id:guid}/feed")]
+    public async Task<IActionResult> DisableFeed(Guid id, CancellationToken cancellationToken)
+    {
+        var addressBook = await repository.GetAddressBookByIdAsync(id, cancellationToken)
+            ?? throw new ResourceNotFoundException("Address book", id);
+        if (addressBook.OwnerId != CurrentUserId)
+        {
+            throw new InsufficientRightsException();
+        }
+
+        await repository.SetFeedTokenAsync(id, enabled: false, cancellationToken);
+        return NoContent();
+    }
+
     [HttpPost]
     public async Task<ActionResult<AddressBookResource>> Create(
         [FromBody] AddressBookCreateRequest request, CancellationToken cancellationToken)

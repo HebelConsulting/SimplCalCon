@@ -366,6 +366,10 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("FeedToken")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("INTEGER");
 
@@ -386,6 +390,9 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FeedToken")
+                        .IsUnique();
 
                     b.HasIndex("TenantId");
 

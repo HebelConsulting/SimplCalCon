@@ -410,6 +410,23 @@ else
         <input type="color" @bind="renameColor" />
         <span class="hint">Shared with everyone; each person can still pick their own.</span>
     </div>
+    <div class="form-row">
+        <label>Subscription</label>
+        @if (ActiveCalendar?.FeedToken is { } token && EffectiveId is { } fid)
+        {
+            <div class="feed-box">
+                <input class="feed-url" readonly value="@FeedUrl("calendars", fid, token, "ics")" />
+                <button type="button" @onclick='() => CopyAsync(FeedUrl("calendars", fid, token, "ics"))'>Copy</button>
+                <button type="button" @onclick="ResetFeedAsync">Reset</button>
+                <button type="button" class="danger" @onclick="DisableFeedAsync">Disable</button>
+                <span class="hint">Read-only. Paste into Outlook/Apple/Google/Thunderbird as an internet calendar (webcal:// also works).</span>
+            </div>
+        }
+        else
+        {
+            <button type="button" @onclick="EnableFeedAsync">Enable subscription link</button>
+        }
+    </div>
     <div class="form-actions">
         <button @onclick="RenameAsync" disabled="@string.IsNullOrWhiteSpace(renameName)">Save</button>
         <button @onclick="() => showRename = false">Cancel</button>
@@ -989,6 +1006,42 @@ else
             calendars = await Api.GetCalendarsAsync();
             await ReloadAllAsync();
             showRename = false;
+        }
+    }
+
+    // --- Subscription feed (ADR 0069) ---
+    private string FeedUrl(string kind, Guid id, string token, string ext) =>
+        $"{Navigation.BaseUri}api/{kind}/{id}/feed/{token}.{ext}";
+
+    private async Task CopyAsync(string text)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        }
+        catch
+        {
+            // Clipboard blocked (permissions/insecure context) — the URL is still selectable in the field.
+        }
+    }
+
+    private async Task EnableFeedAsync()
+    {
+        if (EffectiveId is { } id)
+        {
+            await Api.EnableFeedAsync("calendars", id);
+            calendars = await Api.GetCalendarsAsync();
+        }
+    }
+
+    private Task ResetFeedAsync() => EnableFeedAsync(); // PUT always mints a fresh token
+
+    private async Task DisableFeedAsync()
+    {
+        if (EffectiveId is { } id)
+        {
+            await Api.DisableFeedAsync("calendars", id);
+            calendars = await Api.GetCalendarsAsync();
         }
     }
 
