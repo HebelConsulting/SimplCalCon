@@ -43,6 +43,37 @@ internal sealed class ContactPhotoService(
         };
     }
 
+    public async Task<int> RefreshStaleAsync(int batchSize, CancellationToken cancellationToken)
+    {
+        var cutoff = clock.UtcNow.UtcDateTime - RevalidateAfter;
+        var staleObjectIds = await dbContext.ContactPhotos.AsNoTracking()
+            .Where(p => p.FetchedAt < cutoff)
+            .OrderBy(p => p.FetchedAt)
+            .Take(batchSize)
+            .Select(p => p.ObjectId)
+            .ToListAsync(cancellationToken);
+
+        var processed = 0;
+        foreach (var objectId in staleObjectIds)
+        {
+            var contact = await dbContext.ContactObjects.AsNoTracking()
+                .FirstOrDefaultAsync(o => o.Id == objectId && !o.IsDeleted, cancellationToken);
+
+            // The contact is gone, or no longer references an external URL → the cache row is orphaned.
+            if (contact is null || VCardPhotoRef.Parse(contact.Blob) is not VCardPhotoRef.Url url)
+            {
+                await dbContext.ContactPhotos.Where(p => p.ObjectId == objectId).ExecuteDeleteAsync(cancellationToken);
+                continue;
+            }
+
+            // Reuse the lazy resolve path: re-fetch (refreshing the cache) or self-heal a dead URL.
+            await ResolveUrlAsync(contact, url.Value, null, cancellationToken);
+            processed++;
+        }
+
+        return processed;
+    }
+
     private async Task<ContactPhotoResult?> ResolveUrlAsync(
         ContactObject contact, string url, Guid? actingUserId, CancellationToken cancellationToken)
     {

@@ -62,5 +62,6 @@ rather than an edit.
 | [0054](0054-dav-depth-partial-data-param-filter-expand.md) | DAV depth: partial calendar/address-data, param-filter, expand |
 | [0055](0055-bulk-actions.md) | Bulk move/delete for events & contacts |
 | [0056](0056-inbound-imip.md) | Inbound iMIP (REST ingestion endpoint + IMAP poller) |
+| [0057](0057-contact-photo-background-refresh.md) | Background contact-photo refresh + self-heal |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).
