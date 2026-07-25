@@ -83,6 +83,7 @@ public static class DavNames
     public static readonly XName CalComp = CalDav + "comp";
     public static readonly XName CalProp = CalDav + "prop";
     public static readonly XName CalExpand = CalDav + "expand";
+    public static readonly XName CalLimitRecurrenceSet = CalDav + "limit-recurrence-set";
     public static readonly XName CalAllComp = CalDav + "allcomp";
     public static readonly XName CalAllProp = CalDav + "allprop";
 

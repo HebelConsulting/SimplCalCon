@@ -51,7 +51,8 @@ Legend: ✅ verified · ⬜ not yet checked · ⚠️ works with caveat (note it
   nesting is approximated.
 - `address-data` / `calendar-data` honor a requested `<comp>`/`<prop>` subset, and
   `calendar-data` supports `expand` (one VEVENT per occurrence) — ADR 0054.
-  `limit-recurrence-set` and partial data on `sync-collection` are not implemented.
+  `limit-recurrence-set` is honored (master + only in-range overrides, ADR 0068); partial
+  data on `sync-collection` is not implemented.
 - Time-range matching is **true RFC 4791 interval overlap** (ADR 0067): an event that
   started before a client's visible window but runs into it is returned (a look-back by
   the event's own duration catches spanning occurrences). Recurring events also now
