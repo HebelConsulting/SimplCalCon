@@ -60,3 +60,6 @@ nunit-*.xml
 *.db
 *.db-shm
 *.db-wal
+
+# Stryker.NET mutation-testing output
+StrykerOutput/
