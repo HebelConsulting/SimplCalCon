@@ -11,6 +11,7 @@ internal static class CalendarObjectParser
     public static ExtractedCalendarObject Parse(string blob)
     {
         var calendar = Load(blob);
+        var recurrenceRule = ExtractRawRrule(blob);
 
         var calendarEvent = calendar.Events.FirstOrDefault(e => e.RecurrenceIdentifier is null)
             ?? calendar.Events.FirstOrDefault();
@@ -25,6 +26,7 @@ internal static class CalendarObjectParser
                 ToUtc(calendarEvent.DtEnd),
                 calendarEvent.IsAllDay,
                 calendarEvent.RecurrenceRule is not null,
+                recurrenceRule,
                 ExtractAttendees(calendarEvent.Organizer, calendarEvent.Attendees));
         }
 
@@ -41,10 +43,30 @@ internal static class CalendarObjectParser
                 ToUtc(todo.Due),
                 todo.DtStart is { HasTime: false },
                 todo.RecurrenceRule is not null,
+                recurrenceRule,
                 ExtractAttendees(todo.Organizer, todo.Attendees));
         }
 
         throw new MalformedObjectException("No VEVENT or VTODO component was found.");
+    }
+
+    // The verbatim first RRULE value (without the "RRULE:" prefix), so a rule richer than the web
+    // editor can model is preserved exactly on round-trip (ADR 0050). Unfolds RFC 5545 line folds.
+    private static string? ExtractRawRrule(string blob)
+    {
+        var unfolded = blob.Replace("\r\n ", string.Empty).Replace("\r\n\t", string.Empty)
+            .Replace("\n ", string.Empty).Replace("\n\t", string.Empty);
+        foreach (var line in unfolded.Split('\n'))
+        {
+            var trimmed = line.TrimEnd('\r');
+            if (trimmed.StartsWith("RRULE:", StringComparison.OrdinalIgnoreCase))
+            {
+                var value = trimmed["RRULE:".Length..].Trim();
+                return value.Length > 0 ? value : null;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

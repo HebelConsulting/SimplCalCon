@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using SimplCalCon.Application.Abstractions.Storage;
 
 namespace SimplCalCon.Api.Contracts;
 
@@ -59,6 +60,16 @@ public sealed class EventWriteRequest
     public DateTime? EndUtc { get; init; }
 
     public bool IsAllDay { get; init; }
+
+    [StringLength(1024)]
+    public string? Location { get; init; }
+
+    /// <summary>Structured repeat rule (ADR 0050); null = does not repeat (or use <see cref="RecurrenceRule"/> to preserve).</summary>
+    public Recurrence? Recurrence { get; init; }
+
+    /// <summary>A raw RRULE value to preserve verbatim when the rule is too complex for the structured editor (ADR 0050).</summary>
+    [StringLength(1024)]
+    public string? RecurrenceRule { get; init; }
 
     /// <summary>Organizer calendar-user address (ADR 0030); defaults to the caller when attendees are present.</summary>
     public string? Organizer { get; init; }

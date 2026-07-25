@@ -284,6 +284,36 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
             .ToList();
     }
 
+    public async Task<IReadOnlyList<CalendarObjectOccurrence>> QueryCalendarOccurrencesAsync(
+        Guid collectionId, DateTime startUtc, DateTime endUtc, CancellationToken cancellationToken)
+    {
+        // Pre-filter in SQL: recurring/no-start candidates, plus non-recurring events overlapping the window.
+        var candidates = await dbContext.CalendarObjects
+            .Include(o => o.Attendees)
+            .Where(o => o.CollectionId == collectionId && !o.IsDeleted)
+            .Where(o => o.IsRecurring || o.DtStartUtc == null
+                || (o.DtStartUtc < endUtc && (o.DtEndUtc ?? o.DtStartUtc) >= startUtc))
+            .ToListAsync(cancellationToken);
+
+        var occurrences = new List<CalendarObjectOccurrence>();
+        foreach (var candidate in candidates)
+        {
+            if (candidate.IsRecurring)
+            {
+                foreach (var (start, end) in CalendarOccurrence.Occurrences(candidate.Blob, startUtc, endUtc))
+                {
+                    occurrences.Add(new CalendarObjectOccurrence(candidate, start, end));
+                }
+            }
+            else if (candidate.DtStartUtc is { } masterStart)
+            {
+                occurrences.Add(new CalendarObjectOccurrence(candidate, masterStart, candidate.DtEndUtc ?? masterStart));
+            }
+        }
+
+        return occurrences;
+    }
+
     public async Task<IReadOnlyList<CalendarObject>> QueryCalendarObjectsAsync(
         Guid collectionId, CalendarQueryFilter filter, CancellationToken cancellationToken)
     {

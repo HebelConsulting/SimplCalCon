@@ -22,9 +22,24 @@ public sealed class EventsController(
 {
     [HttpGet]
     public async Task<ActionResult<CollectionResource<EventResource>>> List(
-        Guid calendarId, [FromQuery] DateTime? fromUtc, [FromQuery] DateTime? toUtc, CancellationToken cancellationToken)
+        Guid calendarId, [FromQuery] DateTime? fromUtc, [FromQuery] DateTime? toUtc, [FromQuery] bool expand,
+        CancellationToken cancellationToken)
     {
         await RequireRightsAsync(calendarId, AclRight.Read, cancellationToken);
+
+        // expand=true over a bounded window returns one item per recurrence occurrence (ADR 0050);
+        // otherwise recurring events appear once at their master start.
+        if (expand && fromUtc is { } from && toUtc is { } to)
+        {
+            var occurrences = await repository.QueryCalendarOccurrencesAsync(
+                calendarId, DateTime.SpecifyKind(from, DateTimeKind.Utc), DateTime.SpecifyKind(to, DateTimeKind.Utc),
+                cancellationToken);
+            return new CollectionResource<EventResource>
+            {
+                Items = occurrences.Select(o => ResourceMapper.MapEvent(o.Object, o.StartUtc, o.EndUtc)).ToList(),
+                Links = { new Link("self", $"/api/calendars/{calendarId}/events") },
+            };
+        }
 
         var events = fromUtc is not null || toUtc is not null
             ? await repository.QueryCalendarObjectsAsync(calendarId, fromUtc, toUtc, cancellationToken)
@@ -279,6 +294,9 @@ public sealed class EventsController(
 
     private static EventInput ToInput(EventWriteRequest request) =>
         new(request.Summary, request.StartUtc, request.EndUtc, request.IsAllDay,
+            request.Location,
             request.Organizer,
-            request.Attendees.Select(a => new AttendeeInput(a.Address, a.CommonName)).ToList());
+            request.Attendees.Select(a => new AttendeeInput(a.Address, a.CommonName)).ToList(),
+            request.Recurrence,
+            request.RecurrenceRule);
 }

@@ -91,17 +91,27 @@ public sealed class ApiClient(HttpClient http)
     public async Task<IReadOnlyList<EventDto>> GetEventsAsync(Guid calendarId) =>
         (await http.GetFromJsonAsync<Collection<EventDto>>($"api/calendars/{calendarId}/events"))?.Items ?? [];
 
-    public Task CreateEventAsync(
-        Guid calendarId, string summary, DateTime startUtc, DateTime? endUtc, bool isAllDay,
-        IReadOnlyList<string>? attendees = null) =>
-        http.PostAsJsonAsync($"api/calendars/{calendarId}/events", new
+    public Task<EventDto?> GetEventAsync(Guid calendarId, Guid eventId) =>
+        http.GetFromJsonAsync<EventDto>($"api/calendars/{calendarId}/events/{eventId}");
+
+    // Expanded occurrences across a window for the grid (ADR 0050): recurring events appear on every date.
+    public async Task<IReadOnlyList<EventDto>> GetEventOccurrencesAsync(Guid calendarId, DateTime fromUtc, DateTime toUtc) =>
+        (await http.GetFromJsonAsync<Collection<EventDto>>(
+            $"api/calendars/{calendarId}/events?fromUtc={fromUtc:o}&toUtc={toUtc:o}&expand=true"))?.Items ?? [];
+
+    public Task CreateEventAsync(Guid calendarId, object body) =>
+        http.PostAsJsonAsync($"api/calendars/{calendarId}/events", body);
+
+    // Update an event. If-Match:* — the UI edits the current version (consistent with split/restore).
+    public async Task UpdateEventAsync(Guid calendarId, Guid eventId, object body)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, $"api/calendars/{calendarId}/events/{eventId}")
         {
-            summary,
-            startUtc,
-            endUtc,
-            isAllDay,
-            attendees = (attendees ?? []).Select(a => new { address = a }).ToList(),
-        });
+            Content = JsonContent.Create(body),
+        };
+        request.Headers.TryAddWithoutValidation("If-Match", "*");
+        (await http.SendAsync(request)).EnsureSuccessStatusCode();
+    }
 
     public async Task<FreeBusyDto?> GetFreeBusyAsync(string address, DateTime fromUtc, DateTime toUtc) =>
         await http.GetFromJsonAsync<FreeBusyDto>(

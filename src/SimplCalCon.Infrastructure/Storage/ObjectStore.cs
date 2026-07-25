@@ -169,6 +169,7 @@ internal sealed class ObjectStore(
             calendarObject.DtEndUtc = extracted.DtEndUtc;
             calendarObject.IsAllDay = extracted.IsAllDay;
             calendarObject.IsRecurring = extracted.IsRecurring;
+            calendarObject.RecurrenceRule = extracted.RecurrenceRule;
             calendarObject.Blob = blob;
             await RebuildAttendeesAsync(calendarObject, created, extracted.Attendees, cancellationToken);
             stored = calendarObject;

@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using SimplCalCon.Api.Hypermedia;
 using SimplCalCon.Application.Abstractions.Scheduling;
+using SimplCalCon.Application.Abstractions.Storage;
 using SimplCalCon.Domain.Collections;
 using SimplCalCon.Domain.Objects;
 
@@ -58,31 +59,42 @@ internal static partial class ResourceMapper
         },
     };
 
-    public static EventResource MapEvent(CalendarObject calendarObject) => new()
+    public static EventResource MapEvent(CalendarObject calendarObject) =>
+        MapEvent(calendarObject, calendarObject.DtStartUtc, calendarObject.DtEndUtc);
+
+    /// <summary>Maps an event, overriding its times with an expanded occurrence's window (ADR 0050).</summary>
+    public static EventResource MapEvent(CalendarObject calendarObject, DateTime? startUtc, DateTime? endUtc)
     {
-        Id = calendarObject.Id,
-        ResourceName = calendarObject.ResourceName,
-        Summary = calendarObject.Summary,
-        Location = calendarObject.Location,
-        StartUtc = calendarObject.DtStartUtc,
-        EndUtc = calendarObject.DtEndUtc,
-        IsAllDay = calendarObject.IsAllDay,
-        IsRecurring = calendarObject.IsRecurring,
-        Attendees = calendarObject.Attendees
-            .OrderByDescending(a => a.IsOrganizer)
-            .Select(a => new AttendeeResource
-            {
-                Address = a.Address,
-                CommonName = a.CommonName,
-                Role = a.Role.ToString(),
-                ParticipationStatus = a.ParticipationStatus.ToString(),
-                IsOrganizer = a.IsOrganizer,
-            })
-            .ToList(),
-        DeletedAt = calendarObject.IsDeleted ? calendarObject.DeletedAt : null,
-        ConcurrencyToken = calendarObject.ConcurrencyToken,
-        Links = { new Link("self", $"/api/calendars/{calendarObject.CollectionId}/events/{calendarObject.Id}") },
-    };
+        var supported = RecurrenceRule.TryParse(calendarObject.RecurrenceRule, out var recurrence);
+        return new EventResource
+        {
+            Id = calendarObject.Id,
+            ResourceName = calendarObject.ResourceName,
+            Summary = calendarObject.Summary,
+            Location = calendarObject.Location,
+            StartUtc = startUtc,
+            EndUtc = endUtc,
+            IsAllDay = calendarObject.IsAllDay,
+            IsRecurring = calendarObject.IsRecurring,
+            Recurrence = supported ? recurrence : null,
+            RecurrenceRule = calendarObject.RecurrenceRule,
+            RecurrenceSupported = supported,
+            Attendees = calendarObject.Attendees
+                .OrderByDescending(a => a.IsOrganizer)
+                .Select(a => new AttendeeResource
+                {
+                    Address = a.Address,
+                    CommonName = a.CommonName,
+                    Role = a.Role.ToString(),
+                    ParticipationStatus = a.ParticipationStatus.ToString(),
+                    IsOrganizer = a.IsOrganizer,
+                })
+                .ToList(),
+            DeletedAt = calendarObject.IsDeleted ? calendarObject.DeletedAt : null,
+            ConcurrencyToken = calendarObject.ConcurrencyToken,
+            Links = { new Link("self", $"/api/calendars/{calendarObject.CollectionId}/events/{calendarObject.Id}") },
+        };
+    }
 
     public static RevisionResource MapRevision(ObjectRevision revision, string selfBase) => new()
     {

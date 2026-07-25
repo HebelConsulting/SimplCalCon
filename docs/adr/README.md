@@ -55,5 +55,6 @@ rather than an edit.
 | [0047](0047-email-imip-per-tenant-smtp.md) | Email iMIP via per-tenant SMTP (external attendees) |
 | [0048](0048-attendee-delete-as-decline.md) | Attendee delete as decline (REPLY;PARTSTAT=DECLINED) |
 | [0049](0049-live-updates-signalr.md) | Live updates over SignalR (collections + invitation badge) |
+| [0050](0050-recurring-event-editing.md) | Recurring-event editing (structured RRULE editor + grid expansion) |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

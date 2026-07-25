@@ -52,6 +52,11 @@ internal sealed class ObjectComposer(SimplCalConDbContext dbContext, IObjectStor
         builder.Append("DTSTAMP:").Append(Timestamp(clock.UtcNow.UtcDateTime)).Append("\r\n");
         builder.Append("SUMMARY:").Append(Escape(input.Summary)).Append("\r\n");
 
+        if (!string.IsNullOrWhiteSpace(input.Location))
+        {
+            builder.Append("LOCATION:").Append(Escape(input.Location)).Append("\r\n");
+        }
+
         // Organizer + attendees (ADR 0030). An explicit organizer, or default to the first when only attendees are given.
         if (input.Organizer is { } organizer && !string.IsNullOrWhiteSpace(organizer))
         {
@@ -85,6 +90,13 @@ internal sealed class ObjectComposer(SimplCalConDbContext dbContext, IObjectStor
             var end = input.EndUtc ?? input.StartUtc.AddHours(1);
             builder.Append("DTSTART:").Append(Timestamp(input.StartUtc)).Append("\r\n");
             builder.Append("DTEND:").Append(Timestamp(end)).Append("\r\n");
+        }
+
+        // Recurrence (ADR 0050): a structured rule is formatted; an unsupported rule is preserved verbatim.
+        var rule = input.Recurrence is { } recurrence ? RecurrenceRule.Format(recurrence) : input.RawRecurrenceRule;
+        if (!string.IsNullOrWhiteSpace(rule))
+        {
+            builder.Append("RRULE:").Append(rule.Trim()).Append("\r\n");
         }
 
         builder.Append("END:VEVENT\r\nEND:VCALENDAR\r\n");
