@@ -12,4 +12,7 @@ public sealed record ItipMail(
 public interface IEmailSender
 {
     Task SendItipAsync(TenantSmtpConfig config, ItipMail mail, CancellationToken cancellationToken);
+
+    /// <summary>Sends a plain text email — used by the "send test email" admin check (ADR 0047).</summary>
+    Task SendAsync(TenantSmtpConfig config, string to, string subject, string body, CancellationToken cancellationToken);
 }

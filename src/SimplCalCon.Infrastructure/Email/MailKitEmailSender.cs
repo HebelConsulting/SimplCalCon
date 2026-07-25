@@ -11,17 +11,13 @@ namespace SimplCalCon.Infrastructure.Email;
 /// </summary>
 internal sealed class MailKitEmailSender : IEmailSender
 {
-    public async Task SendItipAsync(TenantSmtpConfig config, ItipMail mail, CancellationToken cancellationToken)
+    public Task SendItipAsync(TenantSmtpConfig config, ItipMail mail, CancellationToken cancellationToken)
     {
-        var message = new MimeMessage();
-        message.From.Add(new MailboxAddress(config.FromName ?? string.Empty, config.FromAddress));
-        message.To.Add(MailboxAddress.Parse(mail.To));
+        var message = NewMessage(config, mail.To, mail.Subject);
         if (!string.IsNullOrWhiteSpace(mail.ReplyTo))
         {
             message.ReplyTo.Add(MailboxAddress.Parse(mail.ReplyTo));
         }
-
-        message.Subject = mail.Subject;
 
         var text = new TextPart("plain") { Text = mail.TextBody };
         var calendar = new TextPart("calendar") { Text = mail.CalendarBody };
@@ -30,6 +26,26 @@ internal sealed class MailKitEmailSender : IEmailSender
         calendar.ContentType.Parameters["component"] = "VEVENT";
         message.Body = new MultipartAlternative { text, calendar };
 
+        return SendMessageAsync(config, message, cancellationToken);
+    }
+
+    public Task SendAsync(TenantSmtpConfig config, string to, string subject, string body, CancellationToken cancellationToken)
+    {
+        var message = NewMessage(config, to, subject);
+        message.Body = new TextPart("plain") { Text = body };
+        return SendMessageAsync(config, message, cancellationToken);
+    }
+
+    private static MimeMessage NewMessage(TenantSmtpConfig config, string to, string subject)
+    {
+        var message = new MimeMessage { Subject = subject };
+        message.From.Add(new MailboxAddress(config.FromName ?? string.Empty, config.FromAddress));
+        message.To.Add(MailboxAddress.Parse(to));
+        return message;
+    }
+
+    private static async Task SendMessageAsync(TenantSmtpConfig config, MimeMessage message, CancellationToken cancellationToken)
+    {
         using var smtp = new SmtpClient();
         var socketOptions = config.UseStartTls ? SecureSocketOptions.StartTls : SecureSocketOptions.Auto;
         await smtp.ConnectAsync(config.Host, config.Port, socketOptions, cancellationToken);

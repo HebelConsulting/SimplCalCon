@@ -29,3 +29,9 @@ public sealed class TenantEmailSettingsWriteRequest
 
     public string? FromName { get; init; }
 }
+
+/// <summary>Send a test email to verify a tenant's SMTP settings (ADR 0047).</summary>
+public sealed class TestEmailRequest
+{
+    public string To { get; init; } = string.Empty;
+}

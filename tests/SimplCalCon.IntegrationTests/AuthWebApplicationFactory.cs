@@ -13,12 +13,21 @@ namespace SimplCalCon.IntegrationTests;
 public sealed class CapturingEmailSender : IEmailSender
 {
     private readonly ConcurrentQueue<(TenantSmtpConfig Config, ItipMail Mail)> _sent = new();
+    private readonly ConcurrentQueue<(string To, string Subject)> _plain = new();
 
     public IReadOnlyCollection<(TenantSmtpConfig Config, ItipMail Mail)> Sent => _sent;
+
+    public IReadOnlyCollection<(string To, string Subject)> PlainSent => _plain;
 
     public Task SendItipAsync(TenantSmtpConfig config, ItipMail mail, CancellationToken cancellationToken)
     {
         _sent.Enqueue((config, mail));
+        return Task.CompletedTask;
+    }
+
+    public Task SendAsync(TenantSmtpConfig config, string to, string subject, string body, CancellationToken cancellationToken)
+    {
+        _plain.Enqueue((to, subject));
         return Task.CompletedTask;
     }
 }

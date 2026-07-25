@@ -28,10 +28,19 @@ internal sealed class TenantEmailSettingsService : ITenantEmailSettingsService
             return null;
         }
 
-        return new TenantSmtpConfig(
-            settings.Host, settings.Port, settings.UseStartTls, settings.Username,
-            Decrypt(settings.PasswordEncrypted), settings.FromAddress, settings.FromName);
+        return ToConfig(settings);
     }
+
+    public async Task<TenantSmtpConfig?> GetConfigAsync(Guid tenantId, CancellationToken cancellationToken)
+    {
+        var settings = await dbContext.TenantEmailSettings.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.TenantId == tenantId, cancellationToken);
+        return settings is null ? null : ToConfig(settings);
+    }
+
+    private TenantSmtpConfig ToConfig(TenantEmailSettings settings) => new(
+        settings.Host, settings.Port, settings.UseStartTls, settings.Username,
+        Decrypt(settings.PasswordEncrypted), settings.FromAddress, settings.FromName);
 
     public async Task<TenantEmailSettingsView?> GetAsync(Guid tenantId, CancellationToken cancellationToken)
     {

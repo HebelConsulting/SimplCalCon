@@ -315,6 +315,23 @@ public sealed class SchedulingTests(AuthWebApplicationFactory factory) : IClassF
         Assert.Equal("outsider@external.example", sent.Mail.To);
     }
 
+    [Fact]
+    public async Task Send_test_email_uses_the_saved_smtp_settings_even_when_disabled()
+    {
+        var client = await BearerClientAsync();
+        await client.PutAsJsonAsync("/api/admin/email-settings", new
+        {
+            enabled = false, host = "smtp.example.test", port = 25, useStartTls = false,
+            username = (string?)null, newPassword = (string?)null, fromAddress = "cal@example.test", fromName = "Calendar",
+        });
+
+        var to = $"tester-{Guid.NewGuid():N}@example.test";
+        var response = await client.PostAsJsonAsync("/api/admin/email-settings/test", new { to });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Contains(factory.EmailSender.PlainSent, m => m.To == to);
+    }
+
     private static async Task<Guid> CreateCalendarAsync(HttpClient client) =>
         (await Body(await client.PostAsJsonAsync("/api/calendars", new { name = $"Cal {Guid.NewGuid():N}" }))).GetProperty("id").GetGuid();
 
