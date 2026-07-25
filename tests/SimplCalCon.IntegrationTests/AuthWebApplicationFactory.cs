@@ -61,6 +61,7 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
 
     public const string DemoAdminEmail = "admin@demo.test";
     public const string DemoAdminPassword = "Demo-Admin-Passphrase-2026";
+    public const string InboundApiKey = "test-inbound-secret";
 
     // CI can run the suite against PostgreSQL by setting these; the default is a
     // throwaway per-factory SQLite file (ADR 0001, 0024).
@@ -106,6 +107,8 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
                 ["SimplCalCon:Bootstrap:DemoTenant:AdminPassword"] = DemoAdminPassword,
                 // Enable WebDAV-Push with an ephemeral VAPID key pair for the tests (ADR 0052).
                 ["SimplCalCon:WebPush:AllowEphemeralKeys"] = "true",
+                // Inbound iMIP REST endpoint shared secret (ADR 0056).
+                ["SimplCalCon:InboundEmail:ApiKey"] = InboundApiKey,
             });
         });
     }

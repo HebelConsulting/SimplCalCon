@@ -192,3 +192,24 @@ import noted above.
 
 The base `/dav/` path is normally all you need. If a client insists on an explicit principal URL, it
 is `/dav/principals/{userId}/` — your `{userId}` is shown in the web UI; both forms work.
+
+## Receiving invitations by email (inbound iMIP)
+
+SimplCalCon can *send* invitation emails to external attendees (Admin → **Email (SMTP)**). To also
+*receive* invitations/replies from external senders, enable one of two inbound paths (both are
+off by default). SimplCalCon does not run a mail server, so mail must be handed to it.
+
+**REST endpoint** — set `SimplCalCon:InboundEmail:ApiKey` to a secret, then have your mail system
+(an MTA pipe, or an inbound-email webhook such as SendGrid Inbound Parse / Mailgun Routes /
+Postmark) `POST` each raw message to `/api/inbound-imip` with the header `X-Inbound-Key: <secret>`.
+The endpoint returns `404` until the key is configured.
+
+**IMAP polling** — in Admin → **Email**, fill in the **Inbound (IMAP)** section (host, port, SSL,
+username, password, folder) and tick *Poll a mailbox*, then set
+`SimplCalCon:InboundEmail:PollerEnabled=true` (and optionally `PollSeconds`). The server polls each
+configured mailbox for unseen mail and marks handled messages read. The IMAP password is stored
+encrypted (Data Protection); like the OIDC certs, the DP keys must be persisted in production.
+
+However it arrives, an incoming **REQUEST** appears in the recipient's invitations (bell badge), a
+**REPLY** updates the organizer's event with the attendee's response, and a **CANCEL** removes the
+event and notifies the attendee.

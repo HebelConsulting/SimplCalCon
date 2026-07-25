@@ -59,10 +59,13 @@ public sealed class AdminController(
         var tenantId = await RequireTenantAdminAsync(cancellationToken);
         var settings = await emailSettings.GetAsync(tenantId, cancellationToken);
         return settings is null
-            ? new TenantEmailSettingsResource(false, string.Empty, 587, true, null, false, string.Empty, null)
+            ? new TenantEmailSettingsResource(false, string.Empty, 587, true, null, false, string.Empty, null,
+                false, null, 993, true, null, false, "INBOX")
             : new TenantEmailSettingsResource(
                 settings.Enabled, settings.Host, settings.Port, settings.UseStartTls, settings.Username,
-                settings.HasPassword, settings.FromAddress, settings.FromName);
+                settings.HasPassword, settings.FromAddress, settings.FromName,
+                settings.InboundEnabled, settings.ImapHost, settings.ImapPort, settings.ImapUseSsl,
+                settings.ImapUsername, settings.HasImapPassword, settings.ImapFolder ?? "INBOX");
     }
 
     [HttpPut("email-settings")]
@@ -77,7 +80,9 @@ public sealed class AdminController(
 
         await emailSettings.SaveAsync(tenantId, new TenantEmailSettingsInput(
             request.Enabled, request.Host, request.Port, request.UseStartTls, request.Username,
-            request.NewPassword, request.FromAddress, request.FromName), cancellationToken);
+            request.NewPassword, request.FromAddress, request.FromName,
+            request.InboundEnabled, request.ImapHost, request.ImapPort, request.ImapUseSsl,
+            request.ImapUsername, request.NewImapPassword, request.ImapFolder), cancellationToken);
         return NoContent();
     }
 

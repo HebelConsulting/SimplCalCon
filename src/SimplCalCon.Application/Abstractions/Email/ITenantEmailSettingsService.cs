@@ -17,10 +17,20 @@ public interface ITenantEmailSettingsService
 
     /// <summary>Creates or updates the settings; a null <see cref="TenantEmailSettingsInput.NewPassword"/> keeps the stored one.</summary>
     Task SaveAsync(Guid tenantId, TenantEmailSettingsInput input, CancellationToken cancellationToken);
+
+    /// <summary>The inbound IMAP config for polling (decrypted), or null when disabled/unconfigured (ADR 0056).</summary>
+    Task<TenantImapConfig?> GetImapConfigAsync(Guid tenantId, CancellationToken cancellationToken);
+
+    /// <summary>Tenant ids with inbound IMAP enabled — for the poller to iterate (ADR 0056).</summary>
+    Task<IReadOnlyList<Guid>> ListInboundTenantIdsAsync(CancellationToken cancellationToken);
 }
 
 public sealed record TenantEmailSettingsView(
-    bool Enabled, string Host, int Port, bool UseStartTls, string? Username, bool HasPassword, string FromAddress, string? FromName);
+    bool Enabled, string Host, int Port, bool UseStartTls, string? Username, bool HasPassword, string FromAddress, string? FromName,
+    bool InboundEnabled, string? ImapHost, int ImapPort, bool ImapUseSsl, string? ImapUsername, bool HasImapPassword, string? ImapFolder);
 
 public sealed record TenantEmailSettingsInput(
-    bool Enabled, string Host, int Port, bool UseStartTls, string? Username, string? NewPassword, string FromAddress, string? FromName);
+    bool Enabled, string Host, int Port, bool UseStartTls, string? Username, string? NewPassword, string FromAddress, string? FromName,
+    bool InboundEnabled, string? ImapHost, int ImapPort, bool ImapUseSsl, string? ImapUsername, string? NewImapPassword, string? ImapFolder);
+
+public sealed record TenantImapConfig(string Host, int Port, bool UseSsl, string? Username, string? Password, string Folder);

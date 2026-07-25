@@ -61,5 +61,6 @@ rather than an edit.
 | [0053](0053-itip-on-per-instance-edits.md) | iTIP scheduling on per-instance recurrence edits |
 | [0054](0054-dav-depth-partial-data-param-filter-expand.md) | DAV depth: partial calendar/address-data, param-filter, expand |
 | [0055](0055-bulk-actions.md) | Bulk move/delete for events & contacts |
+| [0056](0056-inbound-imip.md) | Inbound iMIP (REST ingestion endpoint + IMAP poller) |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

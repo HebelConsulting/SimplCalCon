@@ -795,6 +795,30 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ImapFolder")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImapHost")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImapPasswordEncrypted")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ImapPort")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("ImapUseSsl")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ImapUsername")
+                        .HasMaxLength(320)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("InboundEnabled")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("PasswordEncrypted")
                         .HasColumnType("TEXT");
 

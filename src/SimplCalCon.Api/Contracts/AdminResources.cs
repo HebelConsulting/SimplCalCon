@@ -6,11 +6,12 @@ public sealed record TenantResource(Guid Id, string Name, string Slug, string St
 /// <summary>A user within a tenant, for the tenant-admin view (ADR 0034).</summary>
 public sealed record AdminUserResource(Guid Id, string DisplayName, string Email, string Role, string Status);
 
-/// <summary>A tenant's SMTP/iMIP settings for the tenant-admin view (ADR 0047); the password is never returned.</summary>
+/// <summary>A tenant's SMTP/iMIP settings for the tenant-admin view (ADR 0047/0056); passwords are never returned.</summary>
 public sealed record TenantEmailSettingsResource(
-    bool Enabled, string Host, int Port, bool UseStartTls, string? Username, bool HasPassword, string FromAddress, string? FromName);
+    bool Enabled, string Host, int Port, bool UseStartTls, string? Username, bool HasPassword, string FromAddress, string? FromName,
+    bool InboundEnabled, string? ImapHost, int ImapPort, bool ImapUseSsl, string? ImapUsername, bool HasImapPassword, string? ImapFolder);
 
-/// <summary>Write a tenant's SMTP settings (ADR 0047). NewPassword: null keeps the stored one, "" clears it.</summary>
+/// <summary>Write a tenant's SMTP + inbound IMAP settings (ADR 0047/0056). New*Password: null keeps the stored one, "" clears it.</summary>
 public sealed class TenantEmailSettingsWriteRequest
 {
     public bool Enabled { get; init; }
@@ -28,6 +29,21 @@ public sealed class TenantEmailSettingsWriteRequest
     public string FromAddress { get; init; } = string.Empty;
 
     public string? FromName { get; init; }
+
+    // Inbound IMAP (ADR 0056).
+    public bool InboundEnabled { get; init; }
+
+    public string? ImapHost { get; init; }
+
+    public int ImapPort { get; init; } = 993;
+
+    public bool ImapUseSsl { get; init; } = true;
+
+    public string? ImapUsername { get; init; }
+
+    public string? NewImapPassword { get; init; }
+
+    public string? ImapFolder { get; init; }
 }
 
 /// <summary>Send a test email to verify a tenant's SMTP settings (ADR 0047).</summary>
