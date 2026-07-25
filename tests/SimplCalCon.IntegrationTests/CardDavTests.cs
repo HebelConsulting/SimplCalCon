@@ -151,6 +151,33 @@ public sealed class CardDavTests(AuthWebApplicationFactory factory) : IClassFixt
     }
 
     [Fact]
+    public async Task Addressbook_query_evaluates_a_text_match_prop_filter()
+    {
+        var (client, userId) = await DavClientAsync();
+        var book = await CreateBookAsync(client, userId);
+        var baseUrl = $"/dav/addressbooks/{userId}/{book}";
+        await SendAsync(client, "PUT", $"{baseUrl}/alice.vcf", content: VCard("alice", "Alice Anderson"), contentType: "text/vcard");
+        await SendAsync(client, "PUT", $"{baseUrl}/bob.vcf", content: VCard("bob", "Bob Brown"), contentType: "text/vcard");
+
+        var report = await SendAsync(client, "REPORT", $"{baseUrl}/", body: """
+            <card:addressbook-query xmlns="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav">
+              <prop><getetag/></prop>
+              <card:filter>
+                <card:prop-filter name="FN">
+                  <card:text-match match-type="contains">alice</card:text-match>
+                </card:prop-filter>
+              </card:filter>
+            </card:addressbook-query>
+            """);
+
+        Assert.Equal(207, (int)report.StatusCode);
+        var hrefs = XDocument.Parse(await report.Content.ReadAsStringAsync())
+            .Descendants(Dav + "response").Descendants(Dav + "href").Select(h => h.Value).ToList();
+        Assert.Contains($"{baseUrl}/alice.vcf", hrefs);
+        Assert.DoesNotContain($"{baseUrl}/bob.vcf", hrefs);
+    }
+
+    [Fact]
     public async Task Sync_collection_reports_changes_and_removals()
     {
         var (client, userId) = await DavClientAsync();

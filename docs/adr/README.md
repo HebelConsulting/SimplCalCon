@@ -48,5 +48,6 @@ rather than an edit.
 | [0040](0040-zip-import-into-separate-collections.md) | Zip import into separate new collections (recreate a Google export's structure) |
 | [0041](0041-collection-management.md) | Collection management: rename, delete, import merge-by-name |
 | [0042](0042-move-entries-between-collections.md) | Move single entries between collections |
+| [0043](0043-dav-query-filter-evaluation.md) | DAV query-filter evaluation (calendar-query / addressbook-query) |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).
