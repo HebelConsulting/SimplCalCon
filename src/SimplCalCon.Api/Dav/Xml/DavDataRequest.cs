@@ -31,7 +31,14 @@ internal static class DavDataRequest
             ? new ExpandWindow(start, end)
             : null;
 
-        return new CalendarDataRequest(components, expand);
+        var limitElement = calendarData.Element(DavNames.CalLimitRecurrenceSet);
+        var limit = limitElement is not null
+            && ParseUtc(limitElement.Attribute("start")?.Value) is { } limitStart
+            && ParseUtc(limitElement.Attribute("end")?.Value) is { } limitEnd
+            ? new RecurrenceLimit(limitStart, limitEnd)
+            : null;
+
+        return new CalendarDataRequest(components, expand, limit);
     }
 
     public static AddressDataRequest ParseAddressData(XElement? addressData)

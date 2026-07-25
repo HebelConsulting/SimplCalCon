@@ -109,6 +109,37 @@ public sealed class DavDepthTests(AuthWebApplicationFactory factory) : IClassFix
         Assert.DoesNotContain("RRULE", xml);                                 // expansion drops the rule
     }
 
+    [Fact]
+    public async Task Multiget_limit_recurrence_set_keeps_master_and_only_in_range_overrides()
+    {
+        var (client, userId) = await DavTestUser.CreateAsync(factory, "depth-limit");
+        var cal = await MkcalendarAsync(client, userId);
+        var path = $"/dav/calendars/{userId}/{cal}";
+        await Send(client, "PUT", $"{path}/s.ics", content: SeriesWithOverrides("s@t"), contentType: "text/calendar");
+
+        var report = await Send(client, "REPORT", $"{path}/", body:
+            $"""
+            <C:calendar-multiget xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+              <D:prop><C:calendar-data>
+                <C:limit-recurrence-set start="20260701T000000Z" end="20260715T000000Z"/>
+              </C:calendar-data></D:prop>
+              <D:href>{path}/s.ics</D:href>
+            </C:calendar-multiget>
+            """);
+
+        var xml = await report.Content.ReadAsStringAsync();
+        Assert.Contains("FREQ=WEEKLY", xml);              // master RRULE preserved (not expanded)
+        Assert.Contains("MovedInRange", xml);             // override overlapping the window
+        Assert.DoesNotContain("MovedOutOfRange", xml);    // override outside the window
+    }
+
+    private static string SeriesWithOverrides(string uid) =>
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\n" +
+        $"BEGIN:VEVENT\r\nUID:{uid}\r\nDTSTART:20260701T090000Z\r\nDTEND:20260701T100000Z\r\nSUMMARY:Series\r\nRRULE:FREQ=WEEKLY;COUNT=10\r\nEND:VEVENT\r\n" +
+        $"BEGIN:VEVENT\r\nUID:{uid}\r\nRECURRENCE-ID:20260708T090000Z\r\nDTSTART:20260708T140000Z\r\nDTEND:20260708T150000Z\r\nSUMMARY:MovedInRange\r\nEND:VEVENT\r\n" +
+        $"BEGIN:VEVENT\r\nUID:{uid}\r\nRECURRENCE-ID:20260805T090000Z\r\nDTSTART:20260805T140000Z\r\nDTEND:20260805T150000Z\r\nSUMMARY:MovedOutOfRange\r\nEND:VEVENT\r\n" +
+        "END:VCALENDAR\r\n";
+
     private static async Task<string> MkcalendarAsync(HttpClient client, Guid userId)
     {
         var name = $"cal-{Guid.NewGuid():N}";

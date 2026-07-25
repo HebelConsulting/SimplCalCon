@@ -95,6 +95,45 @@ public sealed class DavDataFormatterTests
         Assert.DoesNotContain("DESCRIPTION", result);
     }
 
+    // A weekly series with two overridden instances — one in the limit window, one outside it.
+    private const string WeeklyWithOverrides =
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\n" +
+        "BEGIN:VEVENT\r\nUID:w1\r\nDTSTART:20260701T090000Z\r\nDTEND:20260701T100000Z\r\nSUMMARY:Series\r\nRRULE:FREQ=WEEKLY;COUNT=10\r\nEND:VEVENT\r\n" +
+        "BEGIN:VEVENT\r\nUID:w1\r\nRECURRENCE-ID:20260708T090000Z\r\nDTSTART:20260708T140000Z\r\nDTEND:20260708T150000Z\r\nSUMMARY:MovedInRange\r\nEND:VEVENT\r\n" +
+        "BEGIN:VEVENT\r\nUID:w1\r\nRECURRENCE-ID:20260805T090000Z\r\nDTSTART:20260805T140000Z\r\nDTEND:20260805T150000Z\r\nSUMMARY:MovedOutOfRange\r\nEND:VEVENT\r\n" +
+        "END:VCALENDAR\r\n";
+
+    [Fact]
+    public void Limit_recurrence_set_keeps_the_master_and_only_in_range_overrides()
+    {
+        var request = new CalendarDataRequest(
+            new Dictionary<string, DavCompSelection>(),
+            Expand: null,
+            Limit: new RecurrenceLimit(new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), new DateTime(2026, 7, 15, 0, 0, 0, DateTimeKind.Utc)));
+
+        var result = _formatter.FormatCalendar(WeeklyWithOverrides, request);
+
+        Assert.Contains("RRULE", result);                    // master kept, RRULE intact (not expanded)
+        Assert.Contains("FREQ=WEEKLY", result);
+        Assert.Contains("MovedInRange", result);             // override overlapping the window kept
+        Assert.DoesNotContain("MovedOutOfRange", result);    // override outside the window dropped
+        Assert.Equal(2, Regex.Matches(result, "BEGIN:VEVENT").Count); // master + one override
+    }
+
+    [Fact]
+    public void Expand_takes_precedence_over_limit_recurrence_set()
+    {
+        var request = new CalendarDataRequest(
+            new Dictionary<string, DavCompSelection>(),
+            Expand: new ExpandWindow(new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc), new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc)),
+            Limit: new RecurrenceLimit(new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc), new DateTime(2026, 9, 2, 0, 0, 0, DateTimeKind.Utc)));
+
+        var result = _formatter.FormatCalendar(Weekly, request);
+
+        Assert.DoesNotContain("RRULE", result); // expand flattened, not limited
+        Assert.Equal(3, Regex.Matches(result, "BEGIN:VEVENT").Count);
+    }
+
     [Fact]
     public void Expand_produces_one_vevent_per_occurrence_without_rrule()
     {

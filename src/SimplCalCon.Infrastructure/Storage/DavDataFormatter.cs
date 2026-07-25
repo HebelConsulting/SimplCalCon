@@ -23,9 +23,13 @@ internal sealed class DavDataFormatter : IDavDataFormatter
             return blob;
         }
 
+        // expand flattens to occurrences (and already bounds the range); limit-recurrence-set keeps the
+        // master + only in-range overrides (RFC 4791 §9.6.5). They're alternatives — expand wins.
         var working = request.Expand is { } window
             ? CalendarObjectParser.ExpandForData(blob, window.StartUtc, window.EndUtc)
-            : blob;
+            : request.Limit is { } limit
+                ? CalendarObjectParser.LimitRecurrenceSet(blob, limit.StartUtc, limit.EndUtc)
+                : blob;
 
         return request.Components.Count == 0 ? working : Subset(working, request.Components);
     }

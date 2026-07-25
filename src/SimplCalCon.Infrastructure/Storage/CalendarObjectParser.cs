@@ -168,6 +168,64 @@ internal static class CalendarObjectParser
         new CalendarSerializer().SerializeToString(calendar) ?? string.Empty;
 
     /// <summary>
+    /// Applies a calendar-data <c>limit-recurrence-set</c> (RFC 4791 §9.6.5): keep the master
+    /// component(s) and only the overridden instances (RECURRENCE-ID components) that overlap
+    /// [startUtc, endUtc); the RRULE is left intact (unlike <c>expand</c>). A malformed blob is
+    /// returned unchanged.
+    /// </summary>
+    public static string LimitRecurrenceSet(string blob, DateTime startUtc, DateTime endUtc)
+    {
+        Ical.Net.Calendar calendar;
+        try
+        {
+            calendar = Load(blob);
+        }
+        catch (Exception)
+        {
+            return blob;
+        }
+
+        // Rebuild rather than Remove: the master and its overrides all share one UID, and Ical.Net's
+        // component collections match Remove by UID — so removing an override would drop the master.
+        var limited = new Ical.Net.Calendar { ProductId = calendar.ProductId, Version = calendar.Version };
+        foreach (var timeZone in calendar.TimeZones)
+        {
+            limited.Children.Add(timeZone);
+        }
+
+        foreach (var e in calendar.Events)
+        {
+            if (e.RecurrenceIdentifier is null || OverrideInRange(e.DtStart, e.DtEnd, e.RecurrenceIdentifier, startUtc, endUtc))
+            {
+                limited.Events.Add(e);
+            }
+        }
+
+        foreach (var t in calendar.Todos)
+        {
+            if (t.RecurrenceIdentifier is null || OverrideInRange(t.DtStart, t.Due, t.RecurrenceIdentifier, startUtc, endUtc))
+            {
+                limited.Todos.Add(t);
+            }
+        }
+
+        return Serialize(limited);
+    }
+
+    // An overridden instance overlaps [start, end) using its own moved times (RECURRENCE-ID as a fallback).
+    private static bool OverrideInRange(CalDateTime? dtStart, CalDateTime? effectiveEnd, RecurrenceIdentifier? recurrenceId, DateTime start, DateTime end)
+    {
+        var s = dtStart?.AsUtc ?? recurrenceId?.StartTime.AsUtc;
+        if (s is null)
+        {
+            return true; // can't determine → keep it
+        }
+
+        var e = effectiveEnd?.AsUtc ?? s.Value;
+        return s.Value < end && e >= start;
+    }
+
+    /// <summary>
     /// Expands recurring components into one VEVENT per occurrence starting within [startUtc, endUtc)
     /// for a calendar-data <c>expand</c> REPORT (ADR 0054): each gets a RECURRENCE-ID + concrete
     /// DTSTART/DTEND and loses its RRULE/EXDATE. A malformed blob is returned unchanged.

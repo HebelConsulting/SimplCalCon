@@ -7,12 +7,13 @@ namespace SimplCalCon.Application.Abstractions.Storage;
 /// </summary>
 public sealed record CalendarDataRequest(
     IReadOnlyDictionary<string, DavCompSelection> Components,
-    ExpandWindow? Expand)
+    ExpandWindow? Expand,
+    RecurrenceLimit? Limit = null)
 {
     public static readonly CalendarDataRequest Full = new(new Dictionary<string, DavCompSelection>(), null);
 
     /// <summary>Nothing to do — return the blob unchanged.</summary>
-    public bool IsFull => Components.Count == 0 && Expand is null;
+    public bool IsFull => Components.Count == 0 && Expand is null && Limit is null;
 }
 
 /// <summary>The properties/sub-components to keep for one component (RFC 4791 <c>comp</c>).</summary>
@@ -20,6 +21,9 @@ public sealed record DavCompSelection(bool AllProps, bool AllComps, IReadOnlySet
 
 /// <summary>A recurrence-expansion window: return one component per occurrence starting in [Start, End).</summary>
 public sealed record ExpandWindow(DateTime StartUtc, DateTime EndUtc);
+
+/// <summary>A limit-recurrence-set window (RFC 4791 §9.6.5): keep the master + only overrides overlapping [Start, End).</summary>
+public sealed record RecurrenceLimit(DateTime StartUtc, DateTime EndUtc);
 
 /// <summary>A parsed CardDAV <c>address-data</c> request (RFC 6352 §10.4): which vCard properties to return.</summary>
 public sealed record AddressDataRequest(IReadOnlySet<string> Props)
