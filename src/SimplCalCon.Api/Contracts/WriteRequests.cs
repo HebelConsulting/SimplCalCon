@@ -37,6 +37,17 @@ public sealed class MoveObjectRequest
     public required Guid TargetId { get; init; }
 }
 
+/// <summary>Respond to a schedule-inbox invitation (ADR 0045).</summary>
+public sealed class InvitationRespondRequest
+{
+    [Required]
+    public required string ResourceName { get; init; }
+
+    /// <summary>accepted | tentative | declined.</summary>
+    [Required]
+    public required string Response { get; init; }
+}
+
 public sealed class EventWriteRequest
 {
     [Required]

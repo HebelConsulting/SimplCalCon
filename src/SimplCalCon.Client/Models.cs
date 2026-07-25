@@ -62,6 +62,10 @@ public sealed record RevisionDto(long RevisionNumber, string Operation, DateTime
 public sealed record ImportResultDto(
     int Imported, int Skipped, int Failed, IReadOnlyList<string> Errors, int CreatedCollections = 0);
 
+public sealed record InvitationDto(
+    string ResourceName, string Uid, string? Summary, DateTime? StartUtc, DateTime? EndUtc,
+    string OrganizerEmail, string? OrganizerName);
+
 public sealed record TakeoutImportResultDto(
     int CollectionsCreated, int Imported, int Skipped, int Failed, IReadOnlyList<string> Errors);
 

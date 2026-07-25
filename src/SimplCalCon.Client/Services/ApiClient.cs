@@ -49,6 +49,13 @@ public sealed class ApiClient(HttpClient http)
     public async Task<AddressBookDto?> CreateAddressBookAsync(string name) =>
         await (await http.PostAsJsonAsync("api/address-books", new { name })).Content.ReadFromJsonAsync<AddressBookDto>();
 
+    // Invitations — the web view of the schedule-inbox (ADR 0045).
+    public async Task<IReadOnlyList<InvitationDto>> GetInvitationsAsync() =>
+        (await http.GetFromJsonAsync<Collection<InvitationDto>>("api/invitations"))?.Items ?? [];
+
+    public Task RespondToInvitationAsync(string resourceName, string response) =>
+        http.PostAsJsonAsync("api/invitations/respond", new { resourceName, response });
+
     public async Task<IReadOnlyList<EventDto>> GetEventsAsync(Guid calendarId) =>
         (await http.GetFromJsonAsync<Collection<EventDto>>($"api/calendars/{calendarId}/events"))?.Items ?? [];
 

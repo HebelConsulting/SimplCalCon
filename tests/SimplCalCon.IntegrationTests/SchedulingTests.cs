@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Xml.Linq;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using SimplCalCon.Application.Abstractions.Scheduling;
 using SimplCalCon.Infrastructure.Persistence;
 using SimplCalCon.IntegrationTests.TestSupport;
 
@@ -211,6 +212,61 @@ public sealed class SchedulingTests(AuthWebApplicationFactory factory) : IClassF
 
     private static Task<HttpResponseMessage> Report(HttpClient client, string url, string body) =>
         Report(client, url, body, "REPORT", null);
+
+    [Fact]
+    public async Task Rest_invitation_is_listed_then_accepted_and_added_to_calendar()
+    {
+        var client = await BearerClientAsync();
+        var uid = $"inv-{Guid.NewGuid():N}";
+
+        // Seed a REQUEST into the demo admin's schedule-inbox (as an organizer's invite would deliver).
+        Guid userId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SimplCalConDbContext>();
+            var admin = await db.Users.FirstAsync(u => u.NormalizedEmail == AuthWebApplicationFactory.DemoAdminEmail.ToUpperInvariant());
+            userId = admin.Id;
+            var inboxes = scope.ServiceProvider.GetRequiredService<IScheduleInboxRepository>();
+            var inbox = await inboxes.EnsureInboxAsync(userId, admin.TenantId!.Value, default);
+            await inboxes.DeliverAsync(inbox.Id, RequestBlob(uid, AuthWebApplicationFactory.DemoAdminEmail), "REQUEST", default);
+        }
+
+        // It appears over REST.
+        var list = await client.GetFromJsonAsync<JsonElement>("/api/invitations");
+        var mine = list.GetProperty("items").EnumerateArray().First(i => i.GetProperty("uid").GetString() == uid);
+        Assert.Equal("Team Offsite", mine.GetProperty("summary").GetString());
+        var resourceName = mine.GetProperty("resourceName").GetString();
+
+        // Accept it.
+        var respond = await client.PostAsJsonAsync("/api/invitations/respond", new { resourceName, response = "accepted" });
+        Assert.Equal(HttpStatusCode.NoContent, respond.StatusCode);
+
+        // Drained from the inbox, and now in the user's calendar.
+        var after = await client.GetFromJsonAsync<JsonElement>("/api/invitations");
+        Assert.DoesNotContain(after.GetProperty("items").EnumerateArray(), i => i.GetProperty("uid").GetString() == uid);
+
+        using var check = factory.Services.CreateScope();
+        var context = check.ServiceProvider.GetRequiredService<SimplCalConDbContext>();
+        var exists = await context.CalendarObjects.AnyAsync(o => o.Uid == uid && !o.IsDeleted
+            && context.Calendars.Any(c => c.Id == o.CollectionId && c.OwnerId == userId));
+        Assert.True(exists);
+    }
+
+    private static string RequestBlob(string uid, string attendeeEmail) => $"""
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Test//EN
+        METHOD:REQUEST
+        BEGIN:VEVENT
+        UID:{uid}
+        SUMMARY:Team Offsite
+        DTSTART:20260801T090000Z
+        DTEND:20260801T100000Z
+        ORGANIZER:mailto:organizer@demo.test
+        ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:{attendeeEmail}
+        END:VEVENT
+        END:VCALENDAR
+        """;
 
     private static async Task<Guid> CreateCalendarAsync(HttpClient client) =>
         (await Body(await client.PostAsJsonAsync("/api/calendars", new { name = $"Cal {Guid.NewGuid():N}" }))).GetProperty("id").GetGuid();

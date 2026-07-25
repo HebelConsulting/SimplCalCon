@@ -77,6 +77,7 @@ public static class DependencyInjection
         services.AddScoped<IFreeBusyService, FreeBusyService>();
         services.AddScoped<IScheduleInboxRepository, ScheduleInboxRepository>();
         services.AddScoped<ISchedulingService, SchedulingService>();
+        services.AddScoped<IInvitationService, InvitationService>();
         services.AddScoped<IObjectComposer, ObjectComposer>();
         services.AddScoped<IEventSplitter, EventSplitter>();
         services.AddScoped<IDavRepository, DavRepository>();

@@ -50,5 +50,6 @@ rather than an edit.
 | [0042](0042-move-entries-between-collections.md) | Move single entries between collections |
 | [0043](0043-dav-query-filter-evaluation.md) | DAV query-filter evaluation (calendar-query / addressbook-query) |
 | [0044](0044-mutation-testing-stryker.md) | Mutation testing with Stryker.NET (Infrastructure, informational) |
+| [0045](0045-rest-ui-invitations.md) | REST + web-UI invitations (accept/tentative/decline) |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).
