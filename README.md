@@ -91,7 +91,7 @@ The demo Compose file is for local/demo use. For a real deployment:
 ## Tech stack
 
 .NET 10 · ASP.NET Core · EF Core (PostgreSQL + SQLite) · OpenIddict · Blazor WebAssembly · Serilog ·
-Ical.Net / FolkerKinzel.VCards · Docker / Podman · Helm · Caddy.
+Ical.Net / FolkerKinzel.VCards · xUnit · Stryker.NET (mutation testing) · Docker / Podman · Helm · Caddy.
 
 ## License
 

@@ -1,0 +1,27 @@
+name: Mutation testing
+
+# Stryker.NET mutation testing (ADR 0044). Slow (it re-runs the test suite per mutant), so it does
+# NOT gate PRs — it runs on demand and weekly, and uploads the HTML report as an artifact. The
+# score is informational (the config's break threshold is 0, so it never fails the job on score).
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 1' # Mondays 04:00 UTC
+
+jobs:
+  stryker:
+    name: Stryker (Infrastructure via UnitTests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet tool restore
+      - run: dotnet stryker
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-report
+          path: StrykerOutput/**/reports/mutation-report.html
+          if-no-files-found: warn

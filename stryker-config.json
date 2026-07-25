@@ -1,0 +1,11 @@
+{
+  "stryker-config": {
+    "project": "SimplCalCon.Infrastructure.csproj",
+    "test-projects": [
+      "tests/SimplCalCon.UnitTests/SimplCalCon.UnitTests.csproj"
+    ],
+    "reporters": ["progress", "html", "cleartext"],
+    "mutation-level": "Standard",
+    "thresholds": { "high": 80, "low": 60, "break": 0 }
+  }
+}
