@@ -7,6 +7,9 @@ supporting. Run it against a deployed instance (an app password per device).
 
 Legend: ✅ verified · ⬜ not yet checked · ⚠️ works with caveat (note it).
 
+**Microsoft Outlook** speaks no CalDAV/CardDAV — see the separate
+[Outlook gap analysis](outlook-gap-analysis.md) for how it interoperates (add-in / ICS feed / iMIP).
+
 ## CardDAV (ADR 0021)
 
 | Flow | iOS/macOS Contacts | Android (DAVx⁵) | Thunderbird |
