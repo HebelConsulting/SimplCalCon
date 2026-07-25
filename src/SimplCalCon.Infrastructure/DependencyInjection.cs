@@ -39,6 +39,7 @@ public static class DependencyInjection
         services.Configure<Push.WebPushOptions>(configuration.GetSection("SimplCalCon:WebPush"));
         services.Configure<Email.InboundEmailOptions>(configuration.GetSection("SimplCalCon:InboundEmail"));
         services.Configure<Storage.ContactPhotoOptions>(configuration.GetSection("SimplCalCon:ContactPhotos"));
+        services.Configure<Storage.RetentionOptions>(configuration.GetSection("SimplCalCon:Retention"));
 
         services.AddDbContext<SimplCalConDbContext>(options =>
         {
@@ -74,6 +75,8 @@ public static class DependencyInjection
         services.AddScoped<IObjectImportExport, ObjectImportExport>();
         services.AddScoped<IContactPhotoService, ContactPhotoService>();
         services.AddHostedService<Storage.ContactPhotoRefreshService>();
+        services.AddScoped<IRetentionService, Storage.RetentionService>();
+        services.AddHostedService<Storage.RetentionSweepService>();
 
         // Fetches external contact-photo URLs (ADR 0037). Guards against SSRF at connect time,
         // caps the response, and follows only a couple of redirects.
