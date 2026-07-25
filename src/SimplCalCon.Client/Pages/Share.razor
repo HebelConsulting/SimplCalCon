@@ -1,94 +1,16 @@
 @page "/share/{Kind}/{CollectionId:guid}"
 @attribute [Authorize]
-@inject ApiClient Api
 
 <PageTitle>Share</PageTitle>
 
+<SectionContent SectionName="RibbonSection">
+    <a class="ribbon-btn" href="@(Kind == "calendars" ? "calendars" : "address-books")">← Back</a>
+</SectionContent>
+
 <h1>Sharing</h1>
-<p><a href="">← Collections</a></p>
-
-@if (shares is null)
-{
-    <p>Loading…</p>
-}
-else
-{
-    <h2>Shared with</h2>
-    @if (shares.Count == 0)
-    {
-        <p>Not shared with anyone yet.</p>
-    }
-    else
-    {
-        <ul>
-            @foreach (var share in shares)
-            {
-                <li>
-                    @share.DisplayName (@share.Kind.ToLowerInvariant()) — @string.Join(", ", share.Rights)
-                    <button @onclick="() => RemoveAsync(share.PrincipalId)">Remove</button>
-                </li>
-            }
-        </ul>
-    }
-
-    <h2>Add people</h2>
-    <div>
-        <input placeholder="Search users/groups" @bind="query" @bind:event="oninput" />
-        <button @onclick="SearchAsync">Search</button>
-    </div>
-    <label><input type="checkbox" @bind="canWrite" /> Allow editing</label>
-    <label><input type="checkbox" @bind="canShare" /> Allow re-sharing</label>
-    @if (matches is not null)
-    {
-        <ul>
-            @foreach (var principal in matches)
-            {
-                <li>
-                    @principal.DisplayName@(principal.Email is null ? "" : $" ({principal.Email})")
-                    <button @onclick="() => GrantAsync(principal.Id)">Share</button>
-                </li>
-            }
-        </ul>
-    }
-}
+<ShareEditor Kind="@Kind" CollectionId="CollectionId" />
 
 @code {
     [Parameter] public string Kind { get; set; } = "calendars";
     [Parameter] public Guid CollectionId { get; set; }
-
-    private IReadOnlyList<ShareDto>? shares;
-    private IReadOnlyList<PrincipalDto>? matches;
-    private string query = string.Empty;
-    private bool canWrite;
-    private bool canShare;
-
-    protected override Task OnParametersSetAsync() => LoadAsync();
-
-    private async Task LoadAsync() => shares = await Api.GetSharesAsync(Kind, CollectionId);
-
-    private async Task SearchAsync() => matches = await Api.SearchPrincipalsAsync(query);
-
-    private async Task GrantAsync(Guid principalId)
-    {
-        var rights = new List<string> { "read" };
-        if (canWrite)
-        {
-            rights.Add("write-content");
-        }
-
-        if (canShare)
-        {
-            rights.Add("share");
-        }
-
-        await Api.PutShareAsync(Kind, CollectionId, principalId, rights);
-        matches = null;
-        await LoadAsync();
-    }
-
-    private async Task RemoveAsync(Guid principalId)
-    {
-        await Api.DeleteShareAsync(Kind, CollectionId, principalId);
-        await LoadAsync();
-    }
 }

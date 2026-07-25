@@ -1,0 +1,123 @@
+@* Reusable sharing editor (ADR 0046): list grants with an editable role, add people, remove. *@
+@inject ApiClient Api
+
+@if (shares is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <h3>Shared with</h3>
+    @if (shares.Count == 0)
+    {
+        <p class="share-muted">Not shared with anyone yet.</p>
+    }
+    else
+    {
+        <ul class="share-list">
+            @foreach (var share in shares)
+            {
+                <li>
+                    <span class="share-who">@share.DisplayName <span class="share-kind">(@share.Kind.ToLowerInvariant())</span></span>
+                    <select value="@PresetOf(share.Rights)" @onchange="e => ChangeAsync(share.PrincipalId, e)">
+                        @foreach (var role in Roles)
+                        {
+                            <option value="@role.Key">@role.Value</option>
+                        }
+                    </select>
+                    <button @onclick="() => RemoveAsync(share.PrincipalId)">Remove</button>
+                </li>
+            }
+        </ul>
+    }
+
+    <h3>Add people</h3>
+    <div class="share-add">
+        <input placeholder="Search users or groups" @bind="query" @bind:event="oninput" @onkeyup="OnKeyAsync" />
+        <select @bind="addRole">
+            @foreach (var role in Roles)
+            {
+                <option value="@role.Key">@role.Value</option>
+            }
+        </select>
+        <button @onclick="SearchAsync">Search</button>
+    </div>
+    @if (matches is not null)
+    {
+        @if (matches.Count == 0)
+        {
+            <p class="share-muted">No matches.</p>
+        }
+        <ul class="share-list">
+            @foreach (var principal in matches)
+            {
+                <li>
+                    <span class="share-who">@principal.DisplayName@(principal.Email is null ? "" : $" ({principal.Email})")</span>
+                    <button @onclick="() => GrantAsync(principal.Id)">Add</button>
+                </li>
+            }
+        </ul>
+    }
+}
+
+@code {
+    [Parameter] public string Kind { get; set; } = "calendars";
+    [Parameter] public Guid CollectionId { get; set; }
+
+    private static readonly IReadOnlyList<KeyValuePair<string, string>> Roles =
+    [
+        new("viewer", "Viewer (read)"),
+        new("editor", "Editor (read + edit)"),
+        new("manager", "Manager (read + edit + re-share)"),
+    ];
+
+    private IReadOnlyList<ShareDto>? shares;
+    private IReadOnlyList<PrincipalDto>? matches;
+    private string query = string.Empty;
+    private string addRole = "viewer";
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync() => shares = await Api.GetSharesAsync(Kind, CollectionId);
+
+    private async Task SearchAsync() =>
+        matches = string.IsNullOrWhiteSpace(query) ? null : await Api.SearchPrincipalsAsync(query.Trim());
+
+    private async Task OnKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchAsync();
+        }
+    }
+
+    private static string PresetOf(IReadOnlyList<string> rights) =>
+        rights.Contains("share") ? "manager" : rights.Contains("write-content") ? "editor" : "viewer";
+
+    private static IReadOnlyList<string> RightsOf(string preset) => preset switch
+    {
+        "manager" => ["read", "write-content", "share"],
+        "editor" => ["read", "write-content"],
+        _ => ["read"],
+    };
+
+    private async Task GrantAsync(Guid principalId)
+    {
+        await Api.PutShareAsync(Kind, CollectionId, principalId, RightsOf(addRole));
+        matches = null;
+        query = string.Empty;
+        await LoadAsync();
+    }
+
+    private async Task ChangeAsync(Guid principalId, ChangeEventArgs e)
+    {
+        await Api.PutShareAsync(Kind, CollectionId, principalId, RightsOf(e.Value?.ToString() ?? "viewer"));
+        await LoadAsync();
+    }
+
+    private async Task RemoveAsync(Guid principalId)
+    {
+        await Api.DeleteShareAsync(Kind, CollectionId, principalId);
+        await LoadAsync();
+    }
+}

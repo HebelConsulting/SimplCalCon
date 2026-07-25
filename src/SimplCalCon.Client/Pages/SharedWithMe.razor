@@ -1,0 +1,44 @@
+@page "/shared"
+@attribute [Authorize]
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Shared with me</PageTitle>
+
+<SectionContent SectionName="RibbonSection">
+    <a class="ribbon-btn" href="">← Overview</a>
+</SectionContent>
+
+<h1>Shared with me</h1>
+
+@if (items is null)
+{
+    <p>Loading…</p>
+}
+else if (items.Count == 0)
+{
+    <p>Nothing has been shared with you yet.</p>
+}
+else
+{
+    <ul class="shared-list">
+        @foreach (var item in items)
+        {
+            <li>
+                <button class="shared-open" @onclick="() => Open(item)">@item.Name</button>
+                <span class="shared-meta">
+                    @(item.Kind == "calendars" ? "Calendar" : "Address book") · from @item.OwnerName · @string.Join(", ", item.Rights)
+                </span>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private IReadOnlyList<SharedCollectionDto>? items;
+
+    protected override async Task OnInitializedAsync() => items = await Api.GetSharedWithMeAsync();
+
+    private void Open(SharedCollectionDto item) =>
+        Nav.NavigateTo(item.Kind == "calendars" ? $"calendars/{item.Id}" : $"address-books/{item.Id}");
+}
