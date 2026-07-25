@@ -79,6 +79,9 @@ public sealed class WebPushChangeNotifier(
     // WebDAV-Push has no user-scoped signal; the schedule-inbox is itself a collection.
     public Task InvitationsChangedAsync(Guid userId, CancellationToken cancellationToken) => Task.CompletedTask;
 
+    // "Shared with me" is a web-client concept; native DAV clients see shared collections in their home-set.
+    public Task SharesChangedAsync(IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken) => Task.CompletedTask;
+
     // Must match the sync-token the DAV surface returns (DavTokens.Format) so the client can dedupe.
     private static string SyncToken(long changeSequence) => $"https://simplcalcon.example/ns/sync/{changeSequence}";
 

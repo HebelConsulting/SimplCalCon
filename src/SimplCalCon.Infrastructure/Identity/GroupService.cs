@@ -1,13 +1,17 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SimplCalCon.Application.Abstractions;
 using SimplCalCon.Application.Abstractions.Acl;
 using SimplCalCon.Domain.Principals;
 using SimplCalCon.Infrastructure.Persistence;
+using SimplCalCon.Infrastructure.Storage;
 
 namespace SimplCalCon.Infrastructure.Identity;
 
 /// <summary>Tenant-scoped group + membership management (ADR 0059); nesting cycles are rejected by the DbContext.</summary>
-internal sealed class GroupService(SimplCalConDbContext dbContext, IClock clock, IPrincipalDirectory directory) : IGroupService
+internal sealed class GroupService(
+    SimplCalConDbContext dbContext, IClock clock, IPrincipalDirectory directory,
+    IChangeNotifier changeNotifier, ILogger<GroupService> logger) : IGroupService
 {
     public async Task<IReadOnlyList<GroupSummary>> ListAsync(Guid tenantId, CancellationToken cancellationToken) =>
         await dbContext.Groups
@@ -88,6 +92,7 @@ internal sealed class GroupService(SimplCalConDbContext dbContext, IClock clock,
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
+            await NotifyMemberSharesChangedAsync(memberId, cancellationToken);
             return AddMemberResult.Added;
         }
         catch (InvalidOperationException)
@@ -104,9 +109,33 @@ internal sealed class GroupService(SimplCalConDbContext dbContext, IClock clock,
             return false;
         }
 
-        return await dbContext.GroupMemberships
+        var removed = await dbContext.GroupMemberships
             .Where(m => m.GroupId == groupId && m.MemberId == memberId)
             .ExecuteDeleteAsync(cancellationToken) > 0;
+        if (removed)
+        {
+            await NotifyMemberSharesChangedAsync(memberId, cancellationToken);
+        }
+
+        return removed;
+    }
+
+    // A membership change alters what the affected member (its transitive users) can access, so their
+    // "shared with me" should reload (ADR 0064). Best-effort — never fails the membership change.
+    private async Task NotifyMemberSharesChangedAsync(Guid memberId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var users = await PrincipalGraph.GetMemberUserIdsAsync(dbContext, memberId, cancellationToken);
+            if (users.Count > 0)
+            {
+                await changeNotifier.SharesChangedAsync(users, cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to push shares-changed notification for member {MemberId}.", memberId);
+        }
     }
 
     private async Task<bool> InTenantAsync(Guid tenantId, Guid groupId, CancellationToken cancellationToken) =>

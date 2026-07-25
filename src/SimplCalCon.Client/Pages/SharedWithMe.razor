@@ -1,7 +1,9 @@
 @page "/shared"
 @attribute [Authorize]
+@implements IDisposable
 @inject ApiClient Api
 @inject NavigationManager Nav
+@inject LiveUpdates Live
 
 <PageTitle>Shared</PageTitle>
 
@@ -70,12 +72,27 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Live.SharesChanged += OnSharesChanged;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
         items = await Api.GetSharedWithMeAsync();
         byMe = await Api.GetSharedByMeAsync();
     }
+
+    // A grant/revoke or group-membership change affecting me (ADR 0064) → reload both sections live.
+    private void OnSharesChanged() => _ = InvokeAsync(async () =>
+    {
+        await LoadAsync();
+        StateHasChanged();
+    });
 
     private void Open(SharedCollectionDto item) => Open(item.Id, item.Kind);
 
     private void Open(Guid id, string kind) =>
         Nav.NavigateTo(kind == "calendars" ? $"calendars/{id}" : $"address-books/{id}");
+
+    public void Dispose() => Live.SharesChanged -= OnSharesChanged;
 }

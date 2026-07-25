@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using SimplCalCon.Application.Abstractions;
 using SimplCalCon.Domain.Acl;
 using SimplCalCon.Domain.Acl.Exceptions;
 using SimplCalCon.Domain.Collections;
@@ -16,7 +18,69 @@ public sealed class AclServiceTests
     private readonly TestDatabase _database = new();
     private readonly MutableClock _clock = new(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
 
-    private AclService Service() => new(_database.CreateContext(), _clock);
+    private AclService Service() => Service(new NoOpChangeNotifier());
+
+    private AclService Service(IChangeNotifier notifier) =>
+        new(_database.CreateContext(), _clock, notifier, NullLogger<AclService>.Instance);
+
+    [Fact]
+    public async Task Grant_notifies_the_owner_and_the_sharee()
+    {
+        var (tenantId, ownerId) = await SeedTenantWithUserAsync();
+        var shareeId = await SeedUserAsync(tenantId);
+        var bookId = await SeedAddressBookAsync(tenantId, ownerId);
+        var notifier = new CapturingNotifier();
+
+        await Service(notifier).GrantAsync(bookId, shareeId, AclRight.Read, default);
+
+        Assert.Equal(new HashSet<Guid> { ownerId, shareeId }, notifier.LastShares!.ToHashSet());
+    }
+
+    [Fact]
+    public async Task Grant_to_a_group_notifies_transitive_members_and_the_owner()
+    {
+        var (tenantId, ownerId) = await SeedTenantWithUserAsync();
+        var memberId = await SeedUserAsync(tenantId);
+        var inner = await SeedGroupAsync(tenantId, "inner");
+        var outer = await SeedGroupAsync(tenantId, "outer");
+        await AddMemberAsync(inner, memberId);
+        await AddMemberAsync(outer, inner);
+        var bookId = await SeedAddressBookAsync(tenantId, ownerId);
+        var notifier = new CapturingNotifier();
+
+        await Service(notifier).GrantAsync(bookId, outer, AclRight.Read, default);
+
+        Assert.Equal(new HashSet<Guid> { ownerId, memberId }, notifier.LastShares!.ToHashSet());
+    }
+
+    [Fact]
+    public async Task Revoke_notifies_the_affected_users()
+    {
+        var (tenantId, ownerId) = await SeedTenantWithUserAsync();
+        var shareeId = await SeedUserAsync(tenantId);
+        var bookId = await SeedAddressBookAsync(tenantId, ownerId);
+        await Service().GrantAsync(bookId, shareeId, AclRight.Read, default);
+        var notifier = new CapturingNotifier();
+
+        await Service(notifier).RevokeAsync(bookId, shareeId, default);
+
+        Assert.Equal(new HashSet<Guid> { ownerId, shareeId }, notifier.LastShares!.ToHashSet());
+    }
+
+    private sealed class CapturingNotifier : IChangeNotifier
+    {
+        public List<Guid>? LastShares { get; private set; }
+
+        public Task CollectionChangedAsync(Guid collectionId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task InvitationsChangedAsync(Guid userId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task SharesChangedAsync(IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken)
+        {
+            LastShares = userIds.ToList();
+            return Task.CompletedTask;
+        }
+    }
 
     [Fact]
     public async Task Owner_has_all_rights()
