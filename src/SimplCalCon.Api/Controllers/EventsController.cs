@@ -107,16 +107,27 @@ public sealed class EventsController(
         var existing = await FindAsync(calendarId, id, cancellationToken);
         EnsureIfMatch(existing.ConcurrencyToken);
         var recurrenceIdUtc = ParseRecurrenceId(recurrenceId);
+        var oldBlob = existing.Blob;
 
         if (scope == "following")
         {
-            await recurrenceEditor.SplitSeriesAsync(
+            var newSeries = await recurrenceEditor.SplitSeriesAsync(
                 calendarId, existing.ResourceName, recurrenceIdUtc, ToInput(request), CurrentUserId, cancellationToken);
+
+            // The old series was shortened (a modification) and a new series was created — invite for both (ADR 0053).
+            var truncated = await repository.GetCalendarObjectByIdAsync(id, cancellationToken);
+            await scheduling.ProcessWriteAsync(calendarId, oldBlob, truncated!.Blob, CurrentUserId, cancellationToken);
+            var created = await repository.GetCalendarObjectByIdAsync(newSeries.Id, cancellationToken);
+            await scheduling.ProcessWriteAsync(calendarId, null, created!.Blob, CurrentUserId, cancellationToken);
         }
         else
         {
             await recurrenceEditor.OverrideOccurrenceAsync(
                 calendarId, existing.ResourceName, recurrenceIdUtc, ToInput(request), CurrentUserId, cancellationToken);
+
+            // A single-occurrence override is a modification of the series — invite attendees (ADR 0053).
+            var overridden = await repository.GetCalendarObjectByIdAsync(id, cancellationToken);
+            await scheduling.ProcessWriteAsync(calendarId, oldBlob, overridden!.Blob, CurrentUserId, cancellationToken);
         }
 
         var updated = await repository.GetCalendarObjectByIdAsync(id, cancellationToken);
@@ -133,6 +144,7 @@ public sealed class EventsController(
         var existing = await FindAsync(calendarId, id, cancellationToken);
         EnsureIfMatch(existing.ConcurrencyToken);
         var recurrenceIdUtc = ParseRecurrenceId(recurrenceId);
+        var oldBlob = existing.Blob;
 
         if (scope == "following")
         {
@@ -143,6 +155,14 @@ public sealed class EventsController(
         {
             await recurrenceEditor.ExcludeOccurrenceAsync(
                 calendarId, existing.ResourceName, recurrenceIdUtc, CurrentUserId, cancellationToken);
+        }
+
+        // Excluding/truncating an occurrence is a modification of the series (the object still exists),
+        // so attendees are notified via a REQUEST reflecting the EXDATE/shortened rule — not a full CANCEL (ADR 0053).
+        var updated = await repository.GetCalendarObjectByIdAsync(id, cancellationToken);
+        if (updated is not null)
+        {
+            await scheduling.ProcessWriteAsync(calendarId, oldBlob, updated.Blob, CurrentUserId, cancellationToken);
         }
 
         return NoContent();

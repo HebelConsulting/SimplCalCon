@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using SimplCalCon.IntegrationTests.TestSupport;
 
@@ -156,6 +157,52 @@ public sealed class RecurringEventTests(AuthWebApplicationFactory factory) : ICl
         Assert.Equal(2, after.Count); // the 3rd and 4th are gone
     }
 
+    [Fact]
+    public async Task Overriding_one_occurrence_notifies_the_attendee(){
+        var att = await DavTestUser.CreateDetailedAsync(factory, "occ-att");
+        var org = await BearerClientAsync();
+        var calendarId = await CreateCalendarAsync(org);
+        var id = await CreateWeeklyWithAttendeeAsync(org, calendarId, att.Email);
+
+        var slot = (await ExpandAsync(org, calendarId))[1].GetProperty("recurrenceId").GetDateTime();
+        using var put = new HttpRequestMessage(
+            HttpMethod.Put, $"/api/calendars/{calendarId}/events/{id}/occurrences/{Basic(slot)}?scope=this")
+        {
+            Content = JsonContent.Create(new
+            {
+                summary = "Moved once",
+                startUtc = slot.AddHours(1),
+                endUtc = slot.AddHours(1).AddMinutes(15),
+                isAllDay = false,
+            }),
+        };
+        put.Headers.TryAddWithoutValidation("If-Match", "*");
+        (await org.SendAsync(put)).EnsureSuccessStatusCode();
+
+        // The per-instance edit delivered a REQUEST (with the overridden summary) to the attendee (ADR 0053).
+        var inbox = await InboxDataAsync(att.Client, att.UserId);
+        Assert.Contains("METHOD:REQUEST", inbox);
+        Assert.Contains("Moved once", inbox);
+    }
+
+    [Fact]
+    public async Task Deleting_one_occurrence_notifies_the_attendee_with_an_exdate(){
+        var att = await DavTestUser.CreateDetailedAsync(factory, "exd-att");
+        var org = await BearerClientAsync();
+        var calendarId = await CreateCalendarAsync(org);
+        var id = await CreateWeeklyWithAttendeeAsync(org, calendarId, att.Email);
+
+        var slot = (await ExpandAsync(org, calendarId))[1].GetProperty("recurrenceId").GetDateTime();
+        using var delete = new HttpRequestMessage(
+            HttpMethod.Delete, $"/api/calendars/{calendarId}/events/{id}/occurrences/{Basic(slot)}?scope=this");
+        delete.Headers.TryAddWithoutValidation("If-Match", "*");
+        (await org.SendAsync(delete)).EnsureSuccessStatusCode();
+
+        var inbox = await InboxDataAsync(att.Client, att.UserId);
+        Assert.Contains("METHOD:REQUEST", inbox);
+        Assert.Contains("EXDATE", inbox);
+    }
+
     private async Task<Guid> CreateWeeklyAsync(HttpClient client, Guid calendarId, int count)
     {
         var created = await client.PostAsJsonAsync($"/api/calendars/{calendarId}/events", new
@@ -168,6 +215,34 @@ public sealed class RecurringEventTests(AuthWebApplicationFactory factory) : ICl
         });
         created.EnsureSuccessStatusCode();
         return (await Body(created)).GetProperty("id").GetGuid();
+    }
+
+    private async Task<Guid> CreateWeeklyWithAttendeeAsync(HttpClient client, Guid calendarId, string attendee)
+    {
+        var created = await client.PostAsJsonAsync($"/api/calendars/{calendarId}/events", new
+        {
+            summary = "Standup",
+            startUtc = new DateTime(2026, 9, 7, 9, 0, 0, DateTimeKind.Utc),
+            endUtc = new DateTime(2026, 9, 7, 9, 15, 0, DateTimeKind.Utc),
+            isAllDay = false,
+            organizer = AuthWebApplicationFactory.DemoAdminEmail,
+            attendees = new[] { new { address = attendee } },
+            recurrence = new { frequency = "WEEKLY", interval = 1, byDay = Array.Empty<string>(), count = 4 },
+        });
+        created.EnsureSuccessStatusCode();
+        return (await Body(created)).GetProperty("id").GetGuid();
+    }
+
+    private static async Task<string> InboxDataAsync(HttpClient client, Guid userId)
+    {
+        var request = new HttpRequestMessage(new HttpMethod("PROPFIND"), $"/dav/calendars/{userId}/inbox")
+        {
+            Content = new StringContent(
+                """<propfind xmlns="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><prop><c:calendar-data/></prop></propfind>""",
+                Encoding.UTF8, "application/xml"),
+        };
+        request.Headers.Add("Depth", "1");
+        return await (await client.SendAsync(request)).Content.ReadAsStringAsync();
     }
 
     private static async Task<List<JsonElement>> ExpandAsync(HttpClient client, Guid calendarId)

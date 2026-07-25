@@ -58,5 +58,6 @@ rather than an edit.
 | [0050](0050-recurring-event-editing.md) | Recurring-event editing (structured RRULE editor + grid expansion) |
 | [0051](0051-per-instance-recurrence-edits.md) | Per-instance recurrence edits + monthly Nth-weekday |
 | [0052](0052-webdav-push.md) | WebDAV-Push (Web Push notifications to native DAV clients) |
+| [0053](0053-itip-on-per-instance-edits.md) | iTIP scheduling on per-instance recurrence edits |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).
