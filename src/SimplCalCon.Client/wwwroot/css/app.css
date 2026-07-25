@@ -357,6 +357,10 @@ button.danger:hover {
 
 .hint { font-size: 0.78rem; color: #889; }
 
+/* Subscription-feed row (ADR 0069). */
+.feed-box { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; flex: 1 1 auto; min-width: 0; }
+.feed-url { flex: 1 1 16rem; min-width: 0; font-family: ui-monospace, monospace; font-size: 0.78rem; }
+
 .coll-name {
     flex: 1 1 auto;
     min-width: 0;

@@ -16,6 +16,11 @@ public class CollectionConfiguration : IEntityTypeConfiguration<Collection>
         // A hex colour (#RRGGBB / #RRGGBBAA). Column already exists on the Collections table (was
         // mapped to Calendar only); kept at 32 so moving it to the base needs no AlterColumn (ADR 0062).
         builder.Property(c => c.Color).HasMaxLength(32);
+
+        // Subscription-feed capability token (ADR 0069): unique so it can be looked up directly;
+        // nullable, and both providers treat NULLs as distinct so disabled collections don't collide.
+        builder.Property(c => c.FeedToken).HasMaxLength(64);
+        builder.HasIndex(c => c.FeedToken).IsUnique();
         builder.Property(c => c.ResourceName).IsRequired().HasMaxLength(200);
         builder.Property(c => c.CreatedAt).IsRequired();
 

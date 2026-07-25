@@ -315,6 +315,12 @@ public sealed class ApiClient(HttpClient http)
     public Task ClearMyColorAsync(string kind, Guid id) =>
         http.DeleteAsync($"api/{kind}/{id}/color");
 
+    // Subscription feed (ADR 0069): enable/reset (fresh token) or disable, owner-only.
+    public async Task EnableFeedAsync(string kind, Guid id) =>
+        (await http.PutAsync($"api/{kind}/{id}/feed", null)).EnsureSuccessStatusCode();
+
+    public Task DisableFeedAsync(string kind, Guid id) => http.DeleteAsync($"api/{kind}/{id}/feed");
+
     public Task DeleteCollectionAsync(string kind, Guid id)
     {
         using var request = new HttpRequestMessage(HttpMethod.Delete, $"api/{kind}/{id}");

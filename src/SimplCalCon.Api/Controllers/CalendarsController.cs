@@ -59,6 +59,35 @@ public sealed class CalendarsController(
         return NoContent();
     }
 
+    // Read-only subscription feed (ADR 0069): owner enables/resets (fresh token) or disables it.
+    [HttpPut("{id:guid}/feed")]
+    public async Task<ActionResult<CalendarResource>> EnableFeed(Guid id, CancellationToken cancellationToken)
+    {
+        var calendar = await repository.GetCalendarByIdAsync(id, cancellationToken)
+            ?? throw new ResourceNotFoundException("Calendar", id);
+        if (calendar.OwnerId != CurrentUserId)
+        {
+            throw new InsufficientRightsException();
+        }
+
+        calendar.FeedToken = await repository.SetFeedTokenAsync(id, enabled: true, cancellationToken);
+        return ResourceMapper.MapCalendar(calendar, CurrentUserId);
+    }
+
+    [HttpDelete("{id:guid}/feed")]
+    public async Task<IActionResult> DisableFeed(Guid id, CancellationToken cancellationToken)
+    {
+        var calendar = await repository.GetCalendarByIdAsync(id, cancellationToken)
+            ?? throw new ResourceNotFoundException("Calendar", id);
+        if (calendar.OwnerId != CurrentUserId)
+        {
+            throw new InsufficientRightsException();
+        }
+
+        await repository.SetFeedTokenAsync(id, enabled: false, cancellationToken);
+        return NoContent();
+    }
+
     [HttpPost]
     public async Task<ActionResult<CalendarResource>> Create(
         [FromBody] CalendarCreateRequest request, CancellationToken cancellationToken)

@@ -62,19 +62,17 @@ app password.
 - **Limitations:** classic desktop Outlook only (not new Outlook, Mac, mobile, or web); the user must
   install an add-in; some advanced iCal properties may round-trip imperfectly (track in the matrix).
 
-### 2. Read-only ICS subscription feed — **small, optional server addition**
+### 2. Read-only ICS subscription feed — **built (ADR 0069)**
 
-Let Outlook's built-in "Internet Calendars" subscribe to a calendar, giving a **read-only**, always-current
+Outlook's built-in "Internet Calendars" can subscribe to a calendar for a **read-only**, always-current
 view without any add-in — and it works on more Outlook variants (incl. web/Outlook.com).
 
-- **Server gap:** the existing `export` endpoint needs OIDC/Basic auth, which the ICS subscriber can't
-  provide cleanly. Add a **capability-token feed**: `GET /api/calendars/{id}/feed/{token}.ics`
-  (unguessable per-calendar token, revocable, no session), returning the calendar as `text/calendar`
-  with sensible caching. Consider `webcal://` link generation in the UI.
-- **Trade-offs:** one-way (Outlook can't edit); a bearer-in-URL token is a shareable secret (make it
-  revocable and per-calendar); polling interval is Outlook-controlled (often hours).
-- **Effort:** small — one endpoint reusing `IObjectImportExport.ExportAsync` + a token column, plus a
-  "Subscribe in Outlook/Apple/Google" affordance in the web UI.
+- **Built:** a revocable **capability-token feed** — `GET /api/calendars/{id}/feed/{token}.ics`
+  (`text/calendar`) and `.../address-books/{id}/feed/{token}.vcf` (`text/vcard`) — anonymous (the token
+  is the credential), reusing `IObjectImportExport.ExportAsync`. The owner enables/resets/disables it
+  from the calendar's Edit modal, which shows the copyable `https`/`webcal` URL (ADR 0069).
+- **Trade-offs:** one-way (Outlook can't edit); the URL is a shareable secret (per-collection,
+  rotatable, revocable); the poll interval is Outlook-controlled (often hours).
 
 ### 3. iMIP invitations — **already built, keep solid**
 
@@ -102,8 +100,8 @@ None fits SimplCalCon's scope, licensing (Apache-2.0), or effort budget. Explici
 
 1. **Document + verify the CalDav Synchronizer path** (no code) — the supported two-way answer for
    Windows desktop Outlook. Add it to the manual and the client matrix.
-2. **Add a revocable ICS subscription feed** (small) — a read-only calendar view that works across
-   Outlook variants and doubles as a generic "subscribe" feature for Apple/Google/Thunderbird.
+2. **Revocable ICS subscription feed** — **built** (ADR 0069): a read-only calendar view that works
+   across Outlook variants and doubles as a generic "subscribe" feature for Apple/Google/Thunderbird.
 3. **Keep iMIP deliverability healthy** — the zero-setup path for inviting Outlook users.
 4. **Do not** pursue EWS/ActiveSync/Graph.
 
@@ -112,6 +110,6 @@ None fits SimplCalCon's scope, licensing (Apache-2.0), or effort budget. Explici
 | Capability for Outlook | Mechanism | Status | Effort to close |
 |---|---|---|---|
 | Two-way calendar + contacts (Win desktop) | CalDav Synchronizer add-in | Works now; **undocumented/unverified** | Docs + acceptance test |
-| Read-only calendar (all variants) | ICS subscription feed | **Not implemented** (export is auth-gated) | Small (token feed endpoint) |
+| Read-only calendar (all variants) | ICS subscription feed | **Built** (ADR 0069) | — |
 | Meeting invitations (all variants) | iMIP email | **Built** (ADR 0047/0056) | Deliverability testing |
 | Native two-way without add-in | EWS / ActiveSync / Graph | **Not planned** | Very large / out of scope |

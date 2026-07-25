@@ -27,8 +27,9 @@ SQLite** (both are first-class production databases — every feature works on b
   photos, with **live updates** (SignalR) so changes and invitations appear without a reload.
 - **Multi-tenancy** with platform / tenant admins and **full ACL sharing**.
 - **Authentication** — OIDC (auth code + PKCE) for web/REST; per-device app passwords for DAV.
-- **Data portability** — per-collection import/export, account takeout, and direct **Google export
-  `.zip`** import (recreating the original calendars).
+- **Data portability** — per-collection import/export, account takeout, direct **Google export
+  `.zip`** import (recreating the original calendars), and revocable read-only **subscription feeds**
+  (`.ics`/`webcal`) that any client — including **Microsoft Outlook** — can subscribe to.
 - **Scheduling** — attendees, free/busy, and RFC 6638 iTIP with web **invitations** (accept / tentative / decline) and **email iMIP** to *and from* external attendees (per-tenant SMTP out; inbound via a REST endpoint or IMAP polling).
 
 See [`docs/spec.md`](docs/spec.md) for the full specification and
