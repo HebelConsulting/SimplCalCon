@@ -12,5 +12,6 @@
     <Project Path="tests/SimplCalCon.E2ETests/SimplCalCon.E2ETests.csproj" />
     <Project Path="tests/SimplCalCon.IntegrationTests/SimplCalCon.IntegrationTests.csproj" />
     <Project Path="tests/SimplCalCon.UnitTests/SimplCalCon.UnitTests.csproj" />
+    <Project Path="tests/SimplCalCon.WebTests/SimplCalCon.WebTests.csproj" />
   </Folder>
 </Solution>
