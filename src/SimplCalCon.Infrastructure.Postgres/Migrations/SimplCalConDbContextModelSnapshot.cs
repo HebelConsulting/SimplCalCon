@@ -353,6 +353,10 @@ namespace SimplCalCon.Infrastructure.Postgres.Migrations
                         .HasMaxLength(13)
                         .HasColumnType("character varying(13)");
 
+                    b.Property<string>("Color")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<Guid>("ConcurrencyToken")
                         .IsConcurrencyToken()
                         .HasColumnType("uuid");
@@ -879,10 +883,6 @@ namespace SimplCalCon.Infrastructure.Postgres.Migrations
             modelBuilder.Entity("SimplCalCon.Domain.Collections.Calendar", b =>
                 {
                     b.HasBaseType("SimplCalCon.Domain.Collections.Collection");
-
-                    b.Property<string>("Color")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
 
                     b.Property<bool>("SupportsEvents")
                         .HasColumnType("boolean");

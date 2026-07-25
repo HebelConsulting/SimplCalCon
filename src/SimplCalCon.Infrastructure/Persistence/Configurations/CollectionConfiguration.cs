@@ -13,6 +13,9 @@ public class CollectionConfiguration : IEntityTypeConfiguration<Collection>
 
         builder.Property(c => c.Name).IsRequired().HasMaxLength(200);
         builder.Property(c => c.Description).HasMaxLength(1000);
+        // A hex colour (#RRGGBB / #RRGGBBAA). Column already exists on the Collections table (was
+        // mapped to Calendar only); kept at 32 so moving it to the base needs no AlterColumn (ADR 0062).
+        builder.Property(c => c.Color).HasMaxLength(32);
         builder.Property(c => c.ResourceName).IsRequired().HasMaxLength(200);
         builder.Property(c => c.CreatedAt).IsRequired();
 

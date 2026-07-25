@@ -67,5 +67,6 @@ rather than an edit.
 | [0059](0059-group-management.md) | Tenant-admin group + membership management |
 | [0060](0060-retention-purge-job.md) | Auto-retention trash purge (opt-in background sweep) |
 | [0061](0061-occurrence-window-index.md) | Occurrence-window index (materialized recurrence expansion) |
+| [0062](0062-collections-pane-and-colours.md) | Collections pane, per-collection colours, merged views |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

@@ -57,8 +57,8 @@ public sealed class AddressBooksController(
 
     [HttpPut("{id:guid}")]
     [RequireIfMatch]
-    public async Task<ActionResult<AddressBookResource>> Rename(
-        Guid id, [FromBody] CollectionRenameRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<AddressBookResource>> Update(
+        Guid id, [FromBody] CollectionUpdateRequest request, CancellationToken cancellationToken)
     {
         var addressBook = await repository.GetAddressBookByIdAsync(id, cancellationToken)
             ?? throw new ResourceNotFoundException("Address book", id);
@@ -69,7 +69,7 @@ public sealed class AddressBooksController(
         }
 
         EnsureIfMatch(addressBook.ConcurrencyToken);
-        var updated = (AddressBook)(await repository.RenameCollectionAsync(id, request.Name, cancellationToken))!;
+        var updated = (AddressBook)(await repository.UpdateCollectionAsync(id, request.Name, request.Color, cancellationToken))!;
         return ResourceMapper.MapAddressBook(updated, CurrentUserId);
     }
 

@@ -305,8 +305,8 @@ public sealed class ApiClient(HttpClient http)
 
     // Collection management (ADR 0041) + entry move (ADR 0042). `kind` is "calendars" or "address-books".
     // If-Match:* — the UI operates on the current version.
-    public async Task<string?> RenameCollectionAsync(string kind, Guid id, string name) =>
-        await SendWithIfMatchAsync(HttpMethod.Put, $"api/{kind}/{id}", new { name });
+    public async Task<string?> UpdateCollectionAsync(string kind, Guid id, string name, string? color) =>
+        await SendWithIfMatchAsync(HttpMethod.Put, $"api/{kind}/{id}", new { name, color });
 
     public Task DeleteCollectionAsync(string kind, Guid id)
     {

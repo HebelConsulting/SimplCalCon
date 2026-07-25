@@ -27,8 +27,8 @@ public interface IDavRepository
 
     Task<bool> DeleteAddressBookAsync(Guid ownerId, string resourceName, CancellationToken cancellationToken);
 
-    /// <summary>Renames a collection's display name (ADR 0041); returns the updated collection or null if absent.</summary>
-    Task<Collection?> RenameCollectionAsync(Guid collectionId, string newName, CancellationToken cancellationToken);
+    /// <summary>Updates a collection's display name and colour (ADR 0041/0062); returns the updated collection or null if absent.</summary>
+    Task<Collection?> UpdateCollectionAsync(Guid collectionId, string newName, string? color, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ContactObject>> ListObjectsAsync(Guid collectionId, CancellationToken cancellationToken);
 

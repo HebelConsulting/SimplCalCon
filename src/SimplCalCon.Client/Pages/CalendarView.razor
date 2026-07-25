@@ -11,17 +11,11 @@
 @if (calendars is { Count: > 0 })
 {
     <SectionContent SectionName="RibbonSection">
-        <select value="@EffectiveId" @onchange="OnSwitch">
-            @foreach (var c in calendars)
-            {
-                <option value="@c.Id">@c.Name@(c.Shared ? " (shared)" : "")</option>
-            }
-        </select>
         <button class="ribbon-btn @(viewMode == View.List ? "active" : "")" @onclick="() => viewMode = View.List">List</button>
         <button class="ribbon-btn @(viewMode == View.Calendar ? "active" : "")" @onclick="() => SetViewAsync(View.Calendar)">Calendar</button>
-        <button @onclick="OpenNew">New event</button>
-        <button @onclick="OpenImport">Import</button>
-        <button @onclick="ExportAsync">Export .ics</button>
+        <button @onclick="OpenNew" disabled="@(EffectiveId is null)">New event</button>
+        <button @onclick="OpenImport" disabled="@(EffectiveId is null)">Import</button>
+        <button @onclick="ExportAsync" disabled="@(EffectiveId is null)">Export .ics</button>
         @if (EffectiveId is { } id)
         {
             <button @onclick="OpenRename">Rename</button>
@@ -33,7 +27,7 @@
     </SectionContent>
 }
 
-@if (calendars is null || (calendars.Count > 0 && events is null))
+@if (calendars is null)
 {
     <p>Loading…</p>
 }
@@ -43,106 +37,132 @@ else if (calendars.Count == 0)
 }
 else
 {
-    <div class="cal-list @(viewMode == View.List ? "" : "hidden")">
-        @if (selectedIds.Count > 0)
-        {
-            <div class="bulk-bar">
-                <span>@selectedIds.Count selected</span>
-                @if (calendars is { Count: > 1 })
-                {
-                    <select @bind="bulkTarget">
-                        <option value="">Move to…</option>
-                        @foreach (var c in calendars.Where(c => c.Id != EffectiveId))
-                        {
-                            <option value="@c.Id">@c.Name</option>
-                        }
-                    </select>
-                    <button @onclick="BulkMoveAsync" disabled="@(string.IsNullOrEmpty(bulkTarget) || bulkBusy)">Move</button>
-                }
-                <button class="danger" @onclick="BulkDeleteAsync" disabled="@bulkBusy">Delete</button>
-                <button @onclick="ClearSelection">Clear</button>
-                @if (bulkMessage is not null)
-                {
-                    <span class="bulk-message">@bulkMessage</span>
-                }
-            </div>
-        }
-        <table @ref="eventTable" class="event-table">
-            <thead>
-                <tr>
-                    <th class="sel-col"><input type="checkbox" checked="@AllSelected" @onchange="ToggleSelectAll" /></th>
-                    <th @onclick='() => Sort("start")'>Start <span class="sort">@Indicator("start")</span></th>
-                    <th @onclick='() => Sort("title")'>Title <span class="sort">@Indicator("title")</span></th>
-                    <th @onclick='() => Sort("location")'>Location <span class="sort">@Indicator("location")</span></th>
-                    <th class="repeats-col" @onclick='() => Sort("repeats")'>Repeats <span class="sort">@Indicator("repeats")</span></th>
-                </tr>
-                <tr class="filter-row">
-                    <th class="sel-col"></th>
-                    <th><FilterInput @bind-Value="fStart" /></th>
-                    <th><FilterInput @bind-Value="fTitle" /></th>
-                    <th><FilterInput @bind-Value="fLocation" /></th>
-                    <th class="repeats-col">
-                        <label title="Show only recurring events"><input type="checkbox" @bind="fRepeatsOnly" /> only</label>
-                    </th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var e in FilteredSorted())
-                {
-                    <tr @key="e.Id" class="@(selected?.Id == e.Id ? "sel" : "")" @onclick="() => Select(e)">
-                        <td class="sel-col" @onclick:stopPropagation>
-                            <input type="checkbox" checked="@selectedIds.Contains(e.Id)" @onchange="() => ToggleSelected(e.Id)" />
-                        </td>
-                        <td>@FormatStart(e)</td>
-                        <td>@e.Summary</td>
-                        <td>@e.Location</td>
-                        <td class="repeats-col">@(e.IsRecurring ? "↻" : "")</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-        @if (events!.Count == 0)
-        {
-            <p>No events.</p>
-        }
-    </div>
+    <div class="cal-layout">
+        <CollectionsPane Heading="Calendars"
+                         EmptyText="No calendars."
+                         Collections="PaneItems()"
+                         Checked="checkedIds"
+                         ActiveId="activeId"
+                         OnFilterChanged="OnFilterChangedAsync"
+                         OnActiveChanged="OnActiveChangedAsync"
+                         OnColorChanged="OnColorChangedAsync" />
 
-    @if (viewMode == View.Calendar)
-    {
-        <div class="cal-grid-wrap">
-            <div class="grid-controls">
-                <button @onclick="Prev" title="Previous">‹</button>
-                <button @onclick="Today">Today</button>
-                <button @onclick="Next" title="Next">›</button>
-                <span class="period-label">@PeriodLabel</span>
-                <span class="grid-spacer"></span>
-                <button class="@(gridMode == Grid.Month ? "active" : "")" @onclick="() => SetGridAsync(Grid.Month)">Month</button>
-                <button class="@(gridMode == Grid.Week ? "active" : "")" @onclick="() => SetGridAsync(Grid.Week)">Week</button>
-            </div>
+        <div class="cal-main">
+            @if (entries is null)
+            {
+                <p>Loading…</p>
+            }
+            else
+            {
+                <div class="cal-list @(viewMode == View.List ? "" : "hidden")">
+                    @if (selectedIds.Count > 0)
+                    {
+                        <div class="bulk-bar">
+                            <span>@selectedIds.Count selected</span>
+                            @if (calendars is { Count: > 1 })
+                            {
+                                <select @bind="bulkTarget">
+                                    <option value="">Move to…</option>
+                                    @foreach (var c in calendars)
+                                    {
+                                        <option value="@c.Id">@c.Name</option>
+                                    }
+                                </select>
+                                <button @onclick="BulkMoveAsync" disabled="@(string.IsNullOrEmpty(bulkTarget) || bulkBusy)">Move</button>
+                            }
+                            <button class="danger" @onclick="BulkDeleteAsync" disabled="@bulkBusy">Delete</button>
+                            <button @onclick="ClearSelection">Clear</button>
+                            @if (bulkMessage is not null)
+                            {
+                                <span class="bulk-message">@bulkMessage</span>
+                            }
+                        </div>
+                    }
+                    <table @ref="eventTable" class="event-table">
+                        <thead>
+                            <tr>
+                                <th class="sel-col"><input type="checkbox" checked="@AllSelected" @onchange="ToggleSelectAll" /></th>
+                                <th class="color-col">•</th>
+                                <th @onclick='() => Sort("collection")'>Calendar <span class="sort">@Indicator("collection")</span></th>
+                                <th @onclick='() => Sort("start")'>Start <span class="sort">@Indicator("start")</span></th>
+                                <th @onclick='() => Sort("title")'>Title <span class="sort">@Indicator("title")</span></th>
+                                <th @onclick='() => Sort("location")'>Location <span class="sort">@Indicator("location")</span></th>
+                                <th class="repeats-col" @onclick='() => Sort("repeats")'>Repeats <span class="sort">@Indicator("repeats")</span></th>
+                            </tr>
+                            <tr class="filter-row">
+                                <th class="sel-col"></th>
+                                <th class="color-col"></th>
+                                <th><FilterInput @bind-Value="fCollection" /></th>
+                                <th><FilterInput @bind-Value="fStart" /></th>
+                                <th><FilterInput @bind-Value="fTitle" /></th>
+                                <th><FilterInput @bind-Value="fLocation" /></th>
+                                <th class="repeats-col">
+                                    <label title="Show only recurring events"><input type="checkbox" @bind="fRepeatsOnly" /> only</label>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var e in FilteredSorted())
+                            {
+                                <tr @key="e.Event.Id" class="@(selected?.Id == e.Event.Id ? "sel" : "")" @onclick="() => Select(e)">
+                                    <td class="sel-col" @onclick:stopPropagation>
+                                        <input type="checkbox" checked="@selectedIds.Contains(e.Event.Id)" @onchange="() => ToggleSelected(e.Event.Id)" />
+                                    </td>
+                                    <td class="color-col"><span class="swatch" style="background:@e.Color"></span></td>
+                                    <td>@e.CalName</td>
+                                    <td>@FormatStart(e.Event)</td>
+                                    <td>@e.Event.Summary</td>
+                                    <td>@e.Event.Location</td>
+                                    <td class="repeats-col">@(e.Event.IsRecurring ? "↻" : "")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    @if (entries.Count == 0)
+                    {
+                        <p>No events in the shown calendars.</p>
+                    }
+                </div>
 
-            <div class="grid-weekdays">
-                @foreach (var name in WeekdayNames)
+                @if (viewMode == View.Calendar)
                 {
-                    <div class="weekday">@name</div>
-                }
-            </div>
+                    <div class="cal-grid-wrap">
+                        <div class="grid-controls">
+                            <button @onclick="Prev" title="Previous">‹</button>
+                            <button @onclick="Today">Today</button>
+                            <button @onclick="Next" title="Next">›</button>
+                            <span class="period-label">@PeriodLabel</span>
+                            <span class="grid-spacer"></span>
+                            <button class="@(gridMode == Grid.Month ? "active" : "")" @onclick="() => SetGridAsync(Grid.Month)">Month</button>
+                            <button class="@(gridMode == Grid.Week ? "active" : "")" @onclick="() => SetGridAsync(Grid.Week)">Week</button>
+                        </div>
 
-            <div class="@(gridMode == Grid.Month ? "month-grid" : "week-grid")">
-                @foreach (var day in VisibleDays())
-                {
-                    <div class="day-cell @(day.Month != cursor.Month && gridMode == Grid.Month ? "other-month" : "") @(day == DateTime.Today ? "today" : "")">
-                        <div class="day-number">@day.Day</div>
-                        @foreach (var e in EventsOn(day))
-                        {
-                            <button class="event-chip" title="@e.Summary" @onclick="() => Select(e)">
-                                <span class="chip-time">@(e.IsAllDay ? "—" : LocalStart(e)?.ToString("HH:mm"))</span> @e.Summary
-                            </button>
-                        }
+                        <div class="grid-weekdays">
+                            @foreach (var name in WeekdayNames)
+                            {
+                                <div class="weekday">@name</div>
+                            }
+                        </div>
+
+                        <div class="@(gridMode == Grid.Month ? "month-grid" : "week-grid")">
+                            @foreach (var day in VisibleDays())
+                            {
+                                <div class="day-cell @(day.Month != cursor.Month && gridMode == Grid.Month ? "other-month" : "") @(day == DateTime.Today ? "today" : "")">
+                                    <div class="day-number">@day.Day</div>
+                                    @foreach (var e in EventsOn(day))
+                                    {
+                                        <button class="event-chip" style="border-left:4px solid @e.Color" title="@($"{e.Event.Summary} · {e.CalName}")" @onclick="() => Select(e)">
+                                            <span class="chip-time">@(e.Event.IsAllDay ? "—" : LocalStart(e.Event)?.ToString("HH:mm"))</span> @e.Event.Summary
+                                        </button>
+                                    }
+                                </div>
+                            }
+                        </div>
                     </div>
                 }
-            </div>
+            }
         </div>
-    }
+    </div>
 }
 
 <Modal Visible="showEditor" Title="@(editingId is null ? "New event" : "Edit event")" OnClose="CloseEditor">
@@ -303,6 +323,8 @@ else
     @if (selected is { } ev)
     {
         <dl class="detail">
+            <dt>Calendar</dt>
+            <dd><span class="swatch" style="background:@selectedColor"></span> @selectedCalName</dd>
             <dt>When</dt>
             <dd>@FormatRange(ev)</dd>
             @if (ev.IsRecurring)
@@ -324,7 +346,10 @@ else
         <div class="form-actions">
             <button @onclick="() => EditClickedAsync(ev)">Edit</button>
             <button class="danger" @onclick="() => DeleteClickedAsync(ev)">Delete</button>
-            <a class="ribbon-btn" href="history/calendars/@EffectiveId/@ev.Id">History</a>
+            @if (selectedCalId is { } scid)
+            {
+                <a class="ribbon-btn" href="history/calendars/@scid/@ev.Id">History</a>
+            }
             @if (CanSplit(ev))
             {
                 @if (splittingId == ev.Id)
@@ -345,7 +370,7 @@ else
                 <label>Move to</label>
                 <select @bind="moveTarget">
                     <option value="">— choose calendar —</option>
-                    @foreach (var c in calendars.Where(c => c.Id != EffectiveId))
+                    @foreach (var c in calendars.Where(c => c.Id != selectedCalId))
                     {
                         <option value="@c.Id">@c.Name</option>
                     }
@@ -390,7 +415,7 @@ else
 </Modal>
 
 <Modal Visible="showDelete" Title="Delete calendar" OnClose="() => showDelete = false">
-    <p>Delete calendar “<strong>@SelectedCalendarName</strong>”? Its events will no longer appear. This can be undone by an administrator.</p>
+    <p>Delete calendar “<strong>@ActiveCalendarName</strong>”? Its events will no longer appear. This can be undone by an administrator.</p>
     <div class="form-actions">
         <button class="danger" @onclick="DeleteAsync">Delete</button>
         <button @onclick="() => showDelete = false">Cancel</button>
@@ -404,8 +429,16 @@ else
     [Parameter]
     public Guid? CalendarId { get; set; }
 
+    // One shown event tagged with its owning calendar (ADR 0062).
+    private sealed record CalEntry(EventDto Event, Guid CalId, string CalName, string Color);
+
     private IReadOnlyList<CalendarDto>? calendars;
-    private IReadOnlyList<EventDto>? events;
+    private readonly HashSet<Guid> checkedIds = [];   // visible collections (the filter)
+    private Guid? activeId;                            // action target (New/Import/Share/…)
+    private bool stateLoaded;
+
+    private List<CalEntry>? entries;      // list masters merged across checked calendars
+    private List<CalEntry>? occEntries;   // grid occurrences merged across checked calendars
 
     private View viewMode = View.List;
     private Grid gridMode = Grid.Month;
@@ -413,7 +446,7 @@ else
 
     private string sortColumn = "start";
     private bool sortAscending = true;
-    private string fStart = string.Empty, fTitle = string.Empty, fLocation = string.Empty;
+    private string fCollection = string.Empty, fStart = string.Empty, fTitle = string.Empty, fLocation = string.Empty;
     private bool fRepeatsOnly;
 
     // Bulk move/delete (ADR 0055)
@@ -422,14 +455,16 @@ else
     private bool bulkBusy;
     private string? bulkMessage;
 
-    private IReadOnlyList<EventDto>? occurrences;
-
     private EventDto? selected;
+    private Guid? selectedCalId;
+    private string? selectedCalName;
+    private string? selectedColor;
     private bool showEditor;
     private bool showImport;
 
     // --- Event editor (create + edit), including recurrence (ADR 0050) ---
     private Guid? editingId;                  // null = create
+    private Guid? editorCalId;                // the calendar the editor writes to
     private string summary = string.Empty;
     private string attendees = string.Empty;
     private string location = string.Empty;
@@ -489,9 +524,23 @@ else
     private string moveTarget = string.Empty;
     private string? moveError;
 
+    private const string CheckedKey = "simplcal.calendar.checked";
+    private const string ActiveKey = "simplcal.calendar.active";
+
     private bool IsZipSelected => pendingImport?.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ?? false;
     private bool InputsLocked => importing || importDone;
-    private string? SelectedCalendarName => calendars?.FirstOrDefault(c => c.Id == EffectiveId)?.Name;
+
+    // The action target: the pane's active calendar, else the first accessible one.
+    private Guid? EffectiveId => activeId ?? calendars?.FirstOrDefault()?.Id;
+    private CalendarDto? ActiveCalendar => calendars?.FirstOrDefault(c => c.Id == EffectiveId);
+    private string? ActiveCalendarName => ActiveCalendar?.Name;
+
+    private List<CollectionsPane.Item> PaneItems() =>
+        (calendars ?? []).Select(c => new CollectionsPane.Item(c.Id, c.Name, c.Color, c.Shared)).ToList();
+
+    private static readonly string[] WeekdayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+    private readonly HashSet<Guid> subscribedIds = [];
 
     private void OpenImport()
     {
@@ -509,50 +558,190 @@ else
     private IJSObjectReference? columnResizer;
     private bool resizerReady;
 
-    private static readonly string[] WeekdayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-    private Guid? EffectiveId => CalendarId ?? calendars?.FirstOrDefault()?.Id;
-
-    private Guid? subscribedId;
-
     protected override void OnInitialized() => Live.CollectionChanged += OnCollectionChanged;
 
     protected override async Task OnParametersSetAsync()
     {
-        calendars ??= await Api.GetCalendarsAsync();
-        events = EffectiveId is { } id ? await Api.GetEventsAsync(id) : null;
-        await LoadOccurrencesAsync();
-
-        // Subscribe to live changes for the calendar being shown (ADR 0049).
-        if (EffectiveId is { } shown && shown != subscribedId)
+        if (calendars is null)
         {
-            subscribedId = shown;
-            await Live.SubscribeAsync(shown);
+            calendars = await Api.GetCalendarsAsync();
+            await LoadStateAsync();
+        }
+
+        // Deep-link: /calendars/{id} activates (and shows) that calendar.
+        if (CalendarId is { } cid && calendars.Any(c => c.Id == cid))
+        {
+            activeId = cid;
+            checkedIds.Add(cid);
+        }
+
+        await ReloadAllAsync();
+        await SubscribeCheckedAsync();
+    }
+
+    private async Task LoadStateAsync()
+    {
+        if (stateLoaded)
+        {
+            return;
+        }
+
+        stateLoaded = true;
+        var ids = calendars!.Select(c => c.Id).ToHashSet();
+
+        checkedIds.Clear();
+        foreach (var g in await ReadGuidsAsync(CheckedKey))
+        {
+            if (ids.Contains(g))
+            {
+                checkedIds.Add(g);
+            }
+        }
+
+        if (checkedIds.Count == 0)
+        {
+            foreach (var g in ids) // default: show all
+            {
+                checkedIds.Add(g);
+            }
+        }
+
+        var active = await ReadGuidAsync(ActiveKey);
+        activeId = active is { } a && ids.Contains(a) ? a : calendars!.FirstOrDefault()?.Id;
+    }
+
+    private async Task<IReadOnlyList<Guid>> ReadGuidsAsync(string key)
+    {
+        try
+        {
+            var raw = await JS.InvokeAsync<string?>("localStorage.getItem", key);
+            return raw is { Length: > 0 }
+                ? raw.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => Guid.TryParse(s, out var g) ? g : (Guid?)null)
+                    .Where(g => g is not null).Select(g => g!.Value).ToList()
+                : [];
+        }
+        catch
+        {
+            return [];
         }
     }
 
-    // A live change to the shown calendar → reload its events (both list masters and grid occurrences).
+    private async Task<Guid?> ReadGuidAsync(string key)
+    {
+        var list = await ReadGuidsAsync(key);
+        return list.Count == 1 ? list[0] : null;
+    }
+
+    private async Task SaveStateAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", CheckedKey, string.Join(",", checkedIds));
+            await JS.InvokeVoidAsync("localStorage.setItem", ActiveKey, activeId?.ToString() ?? "");
+        }
+        catch
+        {
+            // localStorage unavailable — filter simply won't persist.
+        }
+    }
+
+    private async Task OnFilterChangedAsync()
+    {
+        await SaveStateAsync();
+        await ReloadAllAsync();
+        await SubscribeCheckedAsync();
+    }
+
+    private async Task OnActiveChangedAsync(Guid id)
+    {
+        activeId = id;
+        await SaveStateAsync();
+    }
+
+    private async Task OnColorChangedAsync((Guid Id, string Color) change)
+    {
+        var cal = calendars?.FirstOrDefault(c => c.Id == change.Id);
+        if (cal is null)
+        {
+            return;
+        }
+
+        var error = await Api.UpdateCollectionAsync("calendars", change.Id, cal.Name, change.Color);
+        if (error is null)
+        {
+            calendars = await Api.GetCalendarsAsync();
+            await ReloadAllAsync(); // re-tag entries with the new colour
+        }
+    }
+
+    // A live change to a shown calendar → reload the merged view.
     private void OnCollectionChanged(Guid collectionId)
     {
-        if (collectionId == EffectiveId)
+        if (checkedIds.Contains(collectionId))
         {
             _ = InvokeAsync(async () =>
             {
-                await ReloadEventsAsync();
+                await ReloadAllAsync();
                 StateHasChanged();
             });
         }
     }
 
-    // Grid occurrences for the visible window (ADR 0050): recurring events show on every date.
+    private IEnumerable<CalendarDto> Visible() => (calendars ?? []).Where(c => checkedIds.Contains(c.Id));
+
+    private async Task ReloadAllAsync()
+    {
+        if (calendars is null)
+        {
+            return;
+        }
+
+        var list = new List<CalEntry>();
+        foreach (var c in Visible())
+        {
+            var color = CollectionColors.For(c.Id, c.Color);
+            foreach (var e in await Api.GetEventsAsync(c.Id))
+            {
+                list.Add(new CalEntry(e, c.Id, c.Name, color));
+            }
+        }
+
+        entries = list;
+        await LoadOccurrencesAsync();
+    }
+
+    // Grid occurrences for the visible window (ADR 0050), merged across checked calendars.
     private async Task LoadOccurrencesAsync()
     {
-        if (EffectiveId is { } id && viewMode == View.Calendar)
+        if (calendars is null || viewMode != View.Calendar)
         {
-            var days = VisibleDays().ToList();
-            var fromUtc = days.First().ToUniversalTime();
-            var toUtc = days.Last().AddDays(1).ToUniversalTime();
-            occurrences = await Api.GetEventOccurrencesAsync(id, fromUtc, toUtc);
+            return;
+        }
+
+        var days = VisibleDays().ToList();
+        var fromUtc = days.First().ToUniversalTime();
+        var toUtc = days.Last().AddDays(1).ToUniversalTime();
+
+        var occ = new List<CalEntry>();
+        foreach (var c in Visible())
+        {
+            var color = CollectionColors.For(c.Id, c.Color);
+            foreach (var e in await Api.GetEventOccurrencesAsync(c.Id, fromUtc, toUtc))
+            {
+                occ.Add(new CalEntry(e, c.Id, c.Name, color));
+            }
+        }
+
+        occEntries = occ;
+    }
+
+    private async Task SubscribeCheckedAsync()
+    {
+        foreach (var id in checkedIds.Where(id => !subscribedIds.Contains(id)).ToList())
+        {
+            subscribedIds.Add(id);
+            await Live.SubscribeAsync(id);
         }
     }
 
@@ -572,19 +761,11 @@ else
     {
         // The list table is always in the DOM (hidden via CSS in calendar mode), so the resizer
         // initialises once and keeps its column widths across view switches.
-        if (!resizerReady && events is not null)
+        if (!resizerReady && entries is not null)
         {
             resizerReady = true;
             columnModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/columnResize.js");
             columnResizer = await columnModule.InvokeAsync<IJSObjectReference>("init", eventTable);
-        }
-    }
-
-    private void OnSwitch(ChangeEventArgs e)
-    {
-        if (Guid.TryParse(e.Value?.ToString(), out var id))
-        {
-            Navigation.NavigateTo($"calendars/{id}");
         }
     }
 
@@ -604,26 +785,28 @@ else
 
     private string Indicator(string column) => sortColumn == column ? (sortAscending ? "▲" : "▼") : "";
 
-    private IEnumerable<EventDto> FilteredSorted()
+    private IEnumerable<CalEntry> FilteredSorted()
     {
-        var filtered = events!.Where(e =>
-            FormatStart(e).Contains(fStart, StringComparison.OrdinalIgnoreCase)
-            && (e.Summary ?? "").Contains(fTitle, StringComparison.OrdinalIgnoreCase)
-            && (e.Location ?? "").Contains(fLocation, StringComparison.OrdinalIgnoreCase)
-            && (!fRepeatsOnly || e.IsRecurring));
+        var filtered = entries!.Where(e =>
+            e.CalName.Contains(fCollection, StringComparison.OrdinalIgnoreCase)
+            && FormatStart(e.Event).Contains(fStart, StringComparison.OrdinalIgnoreCase)
+            && (e.Event.Summary ?? "").Contains(fTitle, StringComparison.OrdinalIgnoreCase)
+            && (e.Event.Location ?? "").Contains(fLocation, StringComparison.OrdinalIgnoreCase)
+            && (!fRepeatsOnly || e.Event.IsRecurring));
 
-        IEnumerable<EventDto> ordered = sortColumn switch
+        IEnumerable<CalEntry> ordered = sortColumn switch
         {
-            "title" => filtered.OrderBy(e => e.Summary ?? "", StringComparer.OrdinalIgnoreCase),
-            "location" => filtered.OrderBy(e => e.Location ?? "", StringComparer.OrdinalIgnoreCase),
-            "repeats" => filtered.OrderBy(e => e.IsRecurring),
-            _ => filtered.OrderBy(e => e.StartUtc ?? DateTime.MaxValue),
+            "collection" => filtered.OrderBy(e => e.CalName, StringComparer.OrdinalIgnoreCase),
+            "title" => filtered.OrderBy(e => e.Event.Summary ?? "", StringComparer.OrdinalIgnoreCase),
+            "location" => filtered.OrderBy(e => e.Event.Location ?? "", StringComparer.OrdinalIgnoreCase),
+            "repeats" => filtered.OrderBy(e => e.Event.IsRecurring),
+            _ => filtered.OrderBy(e => e.Event.StartUtc ?? DateTime.MaxValue),
         };
         return sortAscending ? ordered : ordered.Reverse();
     }
 
     // --- Bulk selection (ADR 0055) ---
-    private bool AllSelected => FilteredSorted().Any() && FilteredSorted().All(e => selectedIds.Contains(e.Id));
+    private bool AllSelected => FilteredSorted().Any() && FilteredSorted().All(e => selectedIds.Contains(e.Event.Id));
 
     private void ToggleSelected(Guid id)
     {
@@ -637,7 +820,7 @@ else
 
     private void ToggleSelectAll(ChangeEventArgs e)
     {
-        var all = FilteredSorted().Select(x => x.Id).ToList();
+        var all = FilteredSorted().Select(x => x.Event.Id).ToList();
         if (e.Value is true && !all.All(selectedIds.Contains))
         {
             foreach (var id in all)
@@ -661,9 +844,16 @@ else
         bulkMessage = null;
     }
 
+    // Selected events may span calendars; group by their source calendar for the per-collection bulk API.
+    private Dictionary<Guid, List<Guid>> SelectedByCalendar() =>
+        (entries ?? [])
+            .Where(e => selectedIds.Contains(e.Event.Id))
+            .GroupBy(e => e.CalId)
+            .ToDictionary(g => g.Key, g => g.Select(e => e.Event.Id).ToList());
+
     private async Task BulkDeleteAsync()
     {
-        if (EffectiveId is not { } id || selectedIds.Count == 0)
+        if (selectedIds.Count == 0)
         {
             return;
         }
@@ -671,10 +861,17 @@ else
         bulkBusy = true;
         try
         {
-            var result = await Api.BulkDeleteAsync("calendars", id, selectedIds.ToList());
-            bulkMessage = Summarize(result, "Deleted");
+            int ok = 0, failed = 0;
+            foreach (var (calId, ids) in SelectedByCalendar())
+            {
+                var result = await Api.BulkDeleteAsync("calendars", calId, ids);
+                ok += result?.Succeeded ?? 0;
+                failed += result?.Failed ?? ids.Count;
+            }
+
+            bulkMessage = $"Deleted {ok}{(failed > 0 ? $", {failed} failed" : "")}.";
             selectedIds.Clear();
-            await ReloadEventsAsync();
+            await ReloadAllAsync();
         }
         finally
         {
@@ -684,7 +881,7 @@ else
 
     private async Task BulkMoveAsync()
     {
-        if (EffectiveId is not { } id || selectedIds.Count == 0 || !Guid.TryParse(bulkTarget, out var target))
+        if (selectedIds.Count == 0 || !Guid.TryParse(bulkTarget, out var target))
         {
             return;
         }
@@ -692,20 +889,29 @@ else
         bulkBusy = true;
         try
         {
-            var result = await Api.BulkMoveAsync("calendars", id, selectedIds.ToList(), target);
-            bulkMessage = Summarize(result, "Moved");
+            int ok = 0, failed = 0;
+            foreach (var (calId, ids) in SelectedByCalendar())
+            {
+                if (calId == target)
+                {
+                    continue; // already there
+                }
+
+                var result = await Api.BulkMoveAsync("calendars", calId, ids, target);
+                ok += result?.Succeeded ?? 0;
+                failed += result?.Failed ?? ids.Count;
+            }
+
+            bulkMessage = $"Moved {ok}{(failed > 0 ? $", {failed} failed" : "")}.";
             selectedIds.Clear();
             bulkTarget = string.Empty;
-            await ReloadEventsAsync();
+            await ReloadAllAsync();
         }
         finally
         {
             bulkBusy = false;
         }
     }
-
-    private static string Summarize(BulkResultDto? result, string verb) =>
-        result is null ? "Failed." : $"{verb} {result.Succeeded}{(result.Failed > 0 ? $", {result.Failed} failed" : "")}.";
 
     private static DateTime? LocalStart(EventDto e) => e.StartUtc?.ToLocalTime();
 
@@ -730,9 +936,12 @@ else
             : s.ToString("ddd, d MMM yyyy HH:mm");
     }
 
-    private void Select(EventDto e)
+    private void Select(CalEntry e)
     {
-        selected = e;
+        selected = e.Event;
+        selectedCalId = e.CalId;
+        selectedCalName = e.CalName;
+        selectedColor = e.Color;
         splittingId = null;
         moveTarget = string.Empty;
         moveError = null;
@@ -741,6 +950,7 @@ else
     private void CloseDetail()
     {
         selected = null;
+        selectedCalId = null;
         splittingId = null;
         moveTarget = string.Empty;
         moveError = null;
@@ -749,7 +959,7 @@ else
     // --- Rename / delete / move (ADR 0041, 0042) ---
     private void OpenRename()
     {
-        renameName = SelectedCalendarName ?? string.Empty;
+        renameName = ActiveCalendarName ?? string.Empty;
         renameError = null;
         showRename = true;
     }
@@ -761,10 +971,11 @@ else
             return;
         }
 
-        renameError = await Api.RenameCollectionAsync("calendars", id, renameName.Trim());
+        renameError = await Api.UpdateCollectionAsync("calendars", id, renameName.Trim(), ActiveCalendar?.Color);
         if (renameError is null)
         {
             calendars = await Api.GetCalendarsAsync();
+            await ReloadAllAsync();
             showRename = false;
         }
     }
@@ -778,13 +989,21 @@ else
 
         await Api.DeleteCollectionAsync("calendars", id);
         showDelete = false;
+        checkedIds.Remove(id);
+        if (activeId == id)
+        {
+            activeId = null;
+        }
+
         calendars = await Api.GetCalendarsAsync();
-        Navigation.NavigateTo(calendars.FirstOrDefault()?.Id is { } first ? $"calendars/{first}" : "calendars");
+        activeId ??= calendars.FirstOrDefault()?.Id;
+        await SaveStateAsync();
+        await ReloadAllAsync();
     }
 
     private async Task MoveAsync(EventDto ev)
     {
-        if (EffectiveId is not { } id || !Guid.TryParse(moveTarget, out var targetId))
+        if (selectedCalId is not { } id || !Guid.TryParse(moveTarget, out var targetId))
         {
             return;
         }
@@ -793,7 +1012,7 @@ else
         if (moveError is null)
         {
             CloseDetail();
-            await ReloadEventsAsync();
+            await ReloadAllAsync();
         }
     }
 
@@ -813,8 +1032,8 @@ else
         return Enumerable.Range(0, 42).Select(i => gridStart.AddDays(i)); // 6 weeks
     }
 
-    private IEnumerable<EventDto> EventsOn(DateTime day) =>
-        (occurrences ?? []).Where(e => LocalStart(e)?.Date == day.Date).OrderBy(e => e.StartUtc);
+    private IEnumerable<CalEntry> EventsOn(DateTime day) =>
+        (occEntries ?? []).Where(e => LocalStart(e.Event)?.Date == day.Date).OrderBy(e => e.Event.StartUtc);
 
     private string PeriodLabel => gridMode == Grid.Week
         ? $"{WeekStart(cursor):d MMM} – {WeekStart(cursor).AddDays(6):d MMM yyyy}"
@@ -852,7 +1071,7 @@ else
 
     private async Task ConfirmSplitAsync(EventDto e)
     {
-        if (EffectiveId is not { } id)
+        if (selectedCalId is not { } id)
         {
             return;
         }
@@ -860,13 +1079,19 @@ else
         await Api.SplitEventAsync(id, e.Id, DateTime.SpecifyKind(splitAt.ToUniversalTime(), DateTimeKind.Utc));
         splittingId = null;
         CloseDetail();
-        await ReloadEventsAsync();
+        await ReloadAllAsync();
     }
 
     // --- Event editor (create + edit + per-instance), ADR 0050/0051 ---
     private void OpenNew()
     {
+        if (EffectiveId is not { } id)
+        {
+            return;
+        }
+
         editingId = null;
+        editorCalId = id;
         editScope = "series";
         editRecurrenceId = null;
         summary = attendees = location = string.Empty;
@@ -899,11 +1124,11 @@ else
             scopeEvent = ev;
             scopeAction = "delete";
         }
-        else if (EffectiveId is { } id)
+        else if (selectedCalId is { } id)
         {
             await Api.DeleteEventAsync(id, ev.Id);
             CloseDetail();
-            await ReloadEventsAsync();
+            await ReloadAllAsync();
         }
     }
 
@@ -927,7 +1152,7 @@ else
         {
             await OpenEditForScopeAsync(ev, scope);
         }
-        else if (EffectiveId is { } id)
+        else if (selectedCalId is { } id)
         {
             if (scope == "all")
             {
@@ -939,18 +1164,19 @@ else
             }
 
             CloseDetail();
-            await ReloadEventsAsync();
+            await ReloadAllAsync();
         }
     }
 
     private async Task OpenEditForScopeAsync(EventDto clicked, string scope)
     {
-        if (EffectiveId is not { } id)
+        if (selectedCalId is not { } id)
         {
             return;
         }
 
         editingId = clicked.Id;
+        editorCalId = id;
         editScope = scope == "all" ? "series" : scope; // "series" | "this" | "following"
         editRecurrenceId = clicked.RecurrenceId;
         ResetRecurrence();
@@ -1083,7 +1309,7 @@ else
 
     private async Task SaveAsync()
     {
-        if (string.IsNullOrWhiteSpace(summary) || EffectiveId is not { } id)
+        if (string.IsNullOrWhiteSpace(summary) || editorCalId is not { } id)
         {
             return;
         }
@@ -1138,7 +1364,7 @@ else
         }
 
         showEditor = false;
-        await ReloadEventsAsync();
+        await ReloadAllAsync();
     }
 
     private static string WeekdayCode(DateTime d) => d.DayOfWeek switch
@@ -1209,10 +1435,17 @@ else
             importDone = true; // lock the inputs; the user can now only Close
             if (result is { CreatedCollections: > 0 })
             {
-                calendars = await Api.GetCalendarsAsync(); // new calendars appear in the switcher
+                calendars = await Api.GetCalendarsAsync(); // new calendars appear in the pane
+                foreach (var c in calendars) // show the freshly created ones
+                {
+                    checkedIds.Add(c.Id);
+                }
+
+                await SaveStateAsync();
+                await SubscribeCheckedAsync();
             }
 
-            await ReloadEventsAsync();
+            await ReloadAllAsync();
         }
         finally
         {
@@ -1226,15 +1459,6 @@ else
         {
             var bytes = await Api.ExportCollectionAsync("calendars", id);
             await JS.InvokeVoidAsync("simplDownload", "calendar.ics", "text/calendar", Convert.ToBase64String(bytes));
-        }
-    }
-
-    private async Task ReloadEventsAsync()
-    {
-        if (EffectiveId is { } id)
-        {
-            events = await Api.GetEventsAsync(id);
-            await LoadOccurrencesAsync();
         }
     }
 

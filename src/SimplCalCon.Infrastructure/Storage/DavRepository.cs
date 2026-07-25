@@ -91,7 +91,8 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
         return true;
     }
 
-    public async Task<Collection?> RenameCollectionAsync(Guid collectionId, string newName, CancellationToken cancellationToken)
+    public async Task<Collection?> UpdateCollectionAsync(
+        Guid collectionId, string newName, string? color, CancellationToken cancellationToken)
     {
         var collection = await dbContext.Collections
             .FirstOrDefaultAsync(c => c.Id == collectionId && !c.IsDeleted, cancellationToken);
@@ -101,6 +102,7 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
         }
 
         collection.Name = newName;
+        collection.Color = color;
         await dbContext.SaveChangesAsync(cancellationToken); // bumps ConcurrencyToken (new ETag)
         return collection;
     }

@@ -208,6 +208,52 @@ public sealed class RestResourcesTests(AuthWebApplicationFactory factory) : ICla
         Assert.Equal("INSUFFICIENT_RIGHTS", doc.RootElement.GetProperty("errorCode").GetString());
     }
 
+    [Fact]
+    public async Task Collection_colour_and_name_update_round_trips_on_both_kinds()
+    {
+        var client = await AuthedClientAsync();
+
+        foreach (var kind in new[] { "calendars", "address-books" })
+        {
+            var created = await client.PostAsJsonAsync($"/api/{kind}", new { name = "Palette" });
+            Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+            var id = (await Body(created)).GetProperty("id").GetGuid();
+            var etag = created.Headers.ETag!.ToString();
+
+            // Newly created: no colour yet.
+            Assert.True((await Body(created)).GetProperty("color").ValueKind == JsonValueKind.Null);
+
+            using var put = new HttpRequestMessage(HttpMethod.Put, $"/api/{kind}/{id}")
+            {
+                Content = JsonContent.Create(new { name = "Palette", color = "#3B82F6" }),
+            };
+            put.Headers.TryAddWithoutValidation("If-Match", etag);
+            var updated = await client.SendAsync(put);
+            Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+            Assert.Equal("#3B82F6", (await Body(updated)).GetProperty("color").GetString());
+
+            // The colour is persisted and returned on a fresh GET.
+            var fetched = await client.GetFromJsonAsync<JsonElement>($"/api/{kind}/{id}");
+            Assert.Equal("#3B82F6", fetched.GetProperty("color").GetString());
+        }
+    }
+
+    [Fact]
+    public async Task Collection_update_rejects_a_malformed_colour()
+    {
+        var client = await AuthedClientAsync();
+        var created = await client.PostAsJsonAsync("/api/calendars", new { name = "BadColour" });
+        var id = (await Body(created)).GetProperty("id").GetGuid();
+        var etag = created.Headers.ETag!.ToString();
+
+        using var put = new HttpRequestMessage(HttpMethod.Put, $"/api/calendars/{id}")
+        {
+            Content = JsonContent.Create(new { name = "BadColour", color = "not-a-colour" }),
+        };
+        put.Headers.TryAddWithoutValidation("If-Match", etag);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.SendAsync(put)).StatusCode);
+    }
+
     private static async Task<JsonElement> Body(HttpResponseMessage response) =>
         JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone();
 

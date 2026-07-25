@@ -11,15 +11,6 @@
 @if (books is not null)
 {
     <SectionContent SectionName="RibbonSection">
-        @if (books.Count > 0)
-        {
-            <select value="@EffectiveId" @onchange="OnSwitch">
-                @foreach (var b in books)
-                {
-                    <option value="@b.Id">@b.Name@(b.Shared ? " (shared)" : "")</option>
-                }
-            </select>
-        }
         <button @onclick="() => showNewBook = true">New address book</button>
         @if (EffectiveId is { } rid)
         {
@@ -34,8 +25,6 @@
     </SectionContent>
 }
 
-<h1>Contacts</h1>
-
 @if (books is null)
 {
     <p>Loading…</p>
@@ -44,145 +33,170 @@ else if (books.Count == 0)
 {
     <p>No address books yet — use <strong>New address book</strong> in the ribbon above.</p>
 }
-else if (contacts is null)
-{
-    <p>Loading…</p>
-}
 else
 {
-    <div class="contacts-split">
-        <div class="contacts-list" @ref="listPane">
-            @if (selectedIds.Count > 0)
-            {
-                <div class="bulk-bar">
-                    <span>@selectedIds.Count selected</span>
-                    @if (books is { Count: > 1 })
-                    {
-                        <select @bind="bulkTarget">
-                            <option value="">Move to…</option>
-                            @foreach (var b in books.Where(b => b.Id != EffectiveId))
-                            {
-                                <option value="@b.Id">@b.Name</option>
-                            }
-                        </select>
-                        <button @onclick="BulkMoveAsync" disabled="@(string.IsNullOrEmpty(bulkTarget) || bulkBusy)">Move</button>
-                    }
-                    <button class="danger" @onclick="BulkDeleteAsync" disabled="@bulkBusy">Delete</button>
-                    <button @onclick="ClearBulk">Clear</button>
-                    @if (bulkMessage is not null)
-                    {
-                        <span class="bulk-message">@bulkMessage</span>
-                    }
-                </div>
-            }
-            <table @ref="contactTable">
-                <thead>
-                    <tr>
-                        <th class="sel-col"><input type="checkbox" checked="@AllSelected" @onchange="ToggleSelectAll" /></th>
-                        <th @onclick='() => Sort("name")'>Name <span class="sort">@Indicator("name")</span></th>
-                        <th @onclick='() => Sort("org")'>Organization <span class="sort">@Indicator("org")</span></th>
-                        <th @onclick='() => Sort("email")'>Email <span class="sort">@Indicator("email")</span></th>
-                        <th @onclick='() => Sort("phone")'>Phone <span class="sort">@Indicator("phone")</span></th>
-                        <th class="photo-col" @onclick='() => Sort("photo")'>Photo <span class="sort">@Indicator("photo")</span></th>
-                    </tr>
-                    <tr class="filter-row">
-                        <th class="sel-col"></th>
-                        <th><FilterInput @bind-Value="filterName" Placeholder="Filter…" /></th>
-                        <th><FilterInput @bind-Value="filterOrg" Placeholder="Filter…" /></th>
-                        <th><FilterInput @bind-Value="filterEmail" Placeholder="Filter…" /></th>
-                        <th><FilterInput @bind-Value="filterPhone" Placeholder="Filter…" /></th>
-                        <th class="photo-col">
-                            <label title="Show only contacts that have a photo">
-                                <input type="checkbox" @bind="filterPhotoOnly" /> only
-                            </label>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var c in View())
-                    {
-                        <tr class="@(selected?.Id == c.Id ? "selected" : null)" @onclick="() => SelectAsync(c)">
-                            <td class="sel-col" @onclick:stopPropagation>
-                                <input type="checkbox" checked="@selectedIds.Contains(c.Id)" @onchange="() => ToggleSelected(c.Id)" />
-                            </td>
-                            <td>@c.FormattedName</td>
-                            <td>@c.Organization</td>
-                            <td>@c.Emails.FirstOrDefault()</td>
-                            <td>@c.Phones.FirstOrDefault()</td>
-                            <td class="photo-col">@(c.HasPhoto ? "📷" : "")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-            @if (contacts.Count == 0)
-            {
-                <p class="empty">No contacts yet.</p>
-            }
-            else if (!View().Any())
-            {
-                <p class="empty">No contacts match the filter.</p>
-            }
-        </div>
+    <div class="cal-layout">
+        <CollectionsPane Heading="Address books"
+                         EmptyText="No address books."
+                         Collections="PaneItems()"
+                         Checked="checkedIds"
+                         ActiveId="activeId"
+                         OnFilterChanged="OnFilterChangedAsync"
+                         OnActiveChanged="OnActiveChangedAsync"
+                         OnColorChanged="OnColorChangedAsync" />
 
-        <div class="splitter" @ref="splitterHandle" title="Drag to resize"></div>
-
-        <div class="contacts-detail">
-            @if (selected is null)
+        <div class="cal-main">
+            @if (entries is null)
             {
-                <p class="detail-empty">Select a contact to view or edit it.</p>
+                <p>Loading…</p>
             }
             else
             {
-                <div class="detail-photo">
-                    @if (selectedPhoto is not null)
-                    {
-                        @* A server-served data URL (ADR 0037): no cross-origin fetch, so no referrer concerns. *@
-                        <img src="@selectedPhoto" alt="Contact photo" />
-                    }
-                    else
-                    {
-                        <div class="detail-photo-none">No photo in this card</div>
-                    }
-                </div>
-                <div class="detail-vcard">
-                    <div class="detail-vcard-head">
-                        <span>vCard @(editing ? "(editing)" : "(read-only)")</span>
-                        <span class="detail-vcard-actions">
-                            @if (!editing)
-                            {
-                                <button @onclick="StartEdit">Edit</button>
-                            }
-                            else
-                            {
-                                <button @onclick="SaveAsync" disabled="@busy">Save</button>
-                                <button @onclick="CancelEdit" disabled="@busy">Cancel</button>
-                            }
-                        </span>
+                <div class="contacts-split">
+                    <div class="contacts-list" @ref="listPane">
+                        @if (selectedIds.Count > 0)
+                        {
+                            <div class="bulk-bar">
+                                <span>@selectedIds.Count selected</span>
+                                @if (books is { Count: > 1 })
+                                {
+                                    <select @bind="bulkTarget">
+                                        <option value="">Move to…</option>
+                                        @foreach (var b in books)
+                                        {
+                                            <option value="@b.Id">@b.Name</option>
+                                        }
+                                    </select>
+                                    <button @onclick="BulkMoveAsync" disabled="@(string.IsNullOrEmpty(bulkTarget) || bulkBusy)">Move</button>
+                                }
+                                <button class="danger" @onclick="BulkDeleteAsync" disabled="@bulkBusy">Delete</button>
+                                <button @onclick="ClearBulk">Clear</button>
+                                @if (bulkMessage is not null)
+                                {
+                                    <span class="bulk-message">@bulkMessage</span>
+                                }
+                            </div>
+                        }
+                        <table @ref="contactTable" class="contact-table">
+                            <thead>
+                                <tr>
+                                    <th class="sel-col"><input type="checkbox" checked="@AllSelected" @onchange="ToggleSelectAll" /></th>
+                                    <th class="color-col">•</th>
+                                    <th @onclick='() => Sort("book")'>Address book <span class="sort">@Indicator("book")</span></th>
+                                    <th @onclick='() => Sort("name")'>Name <span class="sort">@Indicator("name")</span></th>
+                                    <th @onclick='() => Sort("org")'>Organization <span class="sort">@Indicator("org")</span></th>
+                                    <th @onclick='() => Sort("email")'>Email <span class="sort">@Indicator("email")</span></th>
+                                    <th @onclick='() => Sort("phone")'>Phone <span class="sort">@Indicator("phone")</span></th>
+                                    <th class="photo-col" @onclick='() => Sort("photo")'>Photo <span class="sort">@Indicator("photo")</span></th>
+                                </tr>
+                                <tr class="filter-row">
+                                    <th class="sel-col"></th>
+                                    <th class="color-col"></th>
+                                    <th><FilterInput @bind-Value="filterBook" Placeholder="Filter…" /></th>
+                                    <th><FilterInput @bind-Value="filterName" Placeholder="Filter…" /></th>
+                                    <th><FilterInput @bind-Value="filterOrg" Placeholder="Filter…" /></th>
+                                    <th><FilterInput @bind-Value="filterEmail" Placeholder="Filter…" /></th>
+                                    <th><FilterInput @bind-Value="filterPhone" Placeholder="Filter…" /></th>
+                                    <th class="photo-col">
+                                        <label title="Show only contacts that have a photo">
+                                            <input type="checkbox" @bind="filterPhotoOnly" /> only
+                                        </label>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var c in View())
+                                {
+                                    <tr class="@(selected?.Id == c.Contact.Id ? "selected" : null)" @onclick="() => SelectAsync(c)">
+                                        <td class="sel-col" @onclick:stopPropagation>
+                                            <input type="checkbox" checked="@selectedIds.Contains(c.Contact.Id)" @onchange="() => ToggleSelected(c.Contact.Id)" />
+                                        </td>
+                                        <td class="color-col"><span class="swatch" style="background:@c.Color"></span></td>
+                                        <td>@c.BookName</td>
+                                        <td>@c.Contact.FormattedName</td>
+                                        <td>@c.Contact.Organization</td>
+                                        <td>@c.Contact.Emails.FirstOrDefault()</td>
+                                        <td>@c.Contact.Phones.FirstOrDefault()</td>
+                                        <td class="photo-col">@(c.Contact.HasPhoto ? "📷" : "")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                        @if (entries.Count == 0)
+                        {
+                            <p class="empty">No contacts in the shown address books.</p>
+                        }
+                        else if (!View().Any())
+                        {
+                            <p class="empty">No contacts match the filter.</p>
+                        }
                     </div>
-                    <textarea class="vcard-text" readonly="@(!editing)" @bind="editBuffer" @bind:event="oninput"></textarea>
-                    @if (detailMessage is not null)
-                    {
-                        <p class="detail-msg">@detailMessage</p>
-                    }
-                </div>
-                @if (!editing && books is { Count: > 1 })
-                {
-                    <div class="detail-move">
-                        <label>Move to</label>
-                        <select @bind="moveTarget">
-                            <option value="">— choose address book —</option>
-                            @foreach (var b in books.Where(b => b.Id != EffectiveId))
+
+                    <div class="splitter" @ref="splitterHandle" title="Drag to resize"></div>
+
+                    <div class="contacts-detail">
+                        @if (selected is null)
+                        {
+                            <p class="detail-empty">Select a contact to view or edit it.</p>
+                        }
+                        else
+                        {
+                            <div class="detail-photo">
+                                @if (selectedPhoto is not null)
+                                {
+                                    @* A server-served data URL (ADR 0037): no cross-origin fetch, so no referrer concerns. *@
+                                    <img src="@selectedPhoto" alt="Contact photo" />
+                                }
+                                else
+                                {
+                                    <div class="detail-photo-none">No photo in this card</div>
+                                }
+                            </div>
+                            <div class="detail-book">
+                                <span class="swatch" style="background:@selectedColor"></span> @selectedBookName
+                            </div>
+                            <div class="detail-vcard">
+                                <div class="detail-vcard-head">
+                                    <span>vCard @(editing ? "(editing)" : "(read-only)")</span>
+                                    <span class="detail-vcard-actions">
+                                        @if (!editing)
+                                        {
+                                            <button @onclick="StartEdit">Edit</button>
+                                        }
+                                        else
+                                        {
+                                            <button @onclick="SaveAsync" disabled="@busy">Save</button>
+                                            <button @onclick="CancelEdit" disabled="@busy">Cancel</button>
+                                        }
+                                    </span>
+                                </div>
+                                <textarea class="vcard-text" readonly="@(!editing)" @bind="editBuffer" @bind:event="oninput"></textarea>
+                                @if (detailMessage is not null)
+                                {
+                                    <p class="detail-msg">@detailMessage</p>
+                                }
+                            </div>
+                            @if (!editing && books is { Count: > 1 })
                             {
-                                <option value="@b.Id">@b.Name</option>
+                                <div class="detail-move">
+                                    <label>Move to</label>
+                                    <select @bind="moveTarget">
+                                        <option value="">— choose address book —</option>
+                                        @foreach (var b in books.Where(b => b.Id != selectedBookId))
+                                        {
+                                            <option value="@b.Id">@b.Name</option>
+                                        }
+                                    </select>
+                                    <button @onclick="MoveContactAsync" disabled="@(string.IsNullOrEmpty(moveTarget) || busy)">Move</button>
+                                </div>
+                                @if (moveError is not null)
+                                {
+                                    <p class="detail-msg">@moveError</p>
+                                }
                             }
-                        </select>
-                        <button @onclick="MoveContactAsync" disabled="@(string.IsNullOrEmpty(moveTarget) || busy)">Move</button>
+                        }
                     </div>
-                    @if (moveError is not null)
-                    {
-                        <p class="detail-msg">@moveError</p>
-                    }
-                }
+                </div>
             }
         </div>
     </div>
@@ -245,7 +259,7 @@ else
 </Modal>
 
 <Modal Visible="showDelete" Title="Delete address book" OnClose="() => showDelete = false">
-    <p>Delete address book “<strong>@SelectedBookName</strong>”? Its contacts will no longer appear. This can be undone by an administrator.</p>
+    <p>Delete address book “<strong>@ActiveBookName</strong>”? Its contacts will no longer appear. This can be undone by an administrator.</p>
     <div class="form-actions">
         <button class="danger" @onclick="DeleteAsync">Delete</button>
         <button @onclick="() => showDelete = false">Cancel</button>
@@ -262,9 +276,20 @@ else
 @code {
     [Parameter] public Guid? AddressBookId { get; set; }
 
+    // One shown contact tagged with its owning address book (ADR 0062).
+    private sealed record ContactEntry(ContactDto Contact, Guid BookId, string BookName, string Color);
+
     private IReadOnlyList<AddressBookDto>? books;
-    private List<ContactDto>? contacts;
+    private readonly HashSet<Guid> checkedIds = [];
+    private Guid? activeId;
+    private bool stateLoaded;
+
+    private List<ContactEntry>? entries;
+
     private ContactDto? selected;
+    private Guid? selectedBookId;
+    private string? selectedBookName;
+    private string? selectedColor;
     private string? selectedRaw;
     private string? selectedEtag;
     private string? selectedPhoto;
@@ -276,6 +301,7 @@ else
     private string sortColumn = "name";
     private bool sortAscending = true;
 
+    private string filterBook = string.Empty;
     private string filterName = string.Empty;
     private string filterOrg = string.Empty;
     private string filterEmail = string.Empty;
@@ -315,118 +341,184 @@ else
     private string moveTarget = string.Empty;
     private string? moveError;
 
+    private const string CheckedKey = "simplcal.contacts.checked";
+    private const string ActiveKey = "simplcal.contacts.active";
+
     private bool IsZipSelected => pendingImport?.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ?? false;
     private bool InputsLocked => busy || importDone;
-    private string? SelectedBookName => books?.FirstOrDefault(b => b.Id == EffectiveId)?.Name;
 
-    private void OpenImport()
-    {
-        pendingImport = null;
-        importSeparate = true;
-        mergeByName = true;
-        importMessage = null;
-        importDone = false;
-        showImport = true;
-    }
+    private Guid? EffectiveId => activeId ?? books?.FirstOrDefault()?.Id;
+    private AddressBookDto? ActiveBook => books?.FirstOrDefault(b => b.Id == EffectiveId);
+    private string? ActiveBookName => ActiveBook?.Name;
 
-    private void OpenRename()
-    {
-        renameName = SelectedBookName ?? string.Empty;
-        renameError = null;
-        showRename = true;
-    }
+    private List<CollectionsPane.Item> PaneItems() =>
+        (books ?? []).Select(b => new CollectionsPane.Item(b.Id, b.Name, b.Color, b.Shared)).ToList();
 
-    private async Task RenameAsync()
-    {
-        if (EffectiveId is not { } id || string.IsNullOrWhiteSpace(renameName))
-        {
-            return;
-        }
-
-        renameError = await Api.RenameCollectionAsync("address-books", id, renameName.Trim());
-        if (renameError is null)
-        {
-            books = await Api.GetAddressBooksAsync();
-            showRename = false;
-        }
-    }
-
-    private async Task DeleteAsync()
-    {
-        if (EffectiveId is not { } id)
-        {
-            return;
-        }
-
-        await Api.DeleteCollectionAsync("address-books", id);
-        showDelete = false;
-        books = await Api.GetAddressBooksAsync();
-        Navigation.NavigateTo(books.FirstOrDefault()?.Id is { } first ? $"address-books/{first}" : "address-books");
-    }
-
-    private async Task MoveContactAsync()
-    {
-        if (EffectiveId is not { } id || selected is null || !Guid.TryParse(moveTarget, out var targetId))
-        {
-            return;
-        }
-
-        moveError = await Api.MoveEntryAsync("address-books", id, selected.Id, targetId);
-        if (moveError is null)
-        {
-            moveTarget = string.Empty;
-            selected = null;
-            selectedRaw = selectedEtag = selectedPhoto = null;
-            contacts = (await Api.GetContactsAsync(id)).ToList();
-        }
-    }
-
-    private Guid? EffectiveId => AddressBookId ?? books?.FirstOrDefault()?.Id;
-
-    private Guid? subscribedId;
+    private readonly HashSet<Guid> subscribedIds = [];
 
     protected override void OnInitialized() => Live.CollectionChanged += OnCollectionChanged;
 
     protected override async Task OnParametersSetAsync()
     {
-        books ??= await Api.GetAddressBooksAsync();
-        if (EffectiveId is { } id)
+        if (books is null)
         {
-            contacts = (await Api.GetContactsAsync(id)).ToList();
-            if (selected is not null && contacts.All(c => c.Id != selected.Id))
-            {
-                ClearSelection();
-            }
-        }
-        else
-        {
-            contacts = null;
+            books = await Api.GetAddressBooksAsync();
+            await LoadStateAsync();
         }
 
-        // Subscribe to live changes for the address book being shown (ADR 0049).
-        if (EffectiveId is { } shown && shown != subscribedId)
+        // Deep-link: /address-books/{id} activates (and shows) that book.
+        if (AddressBookId is { } bid && books.Any(b => b.Id == bid))
         {
-            subscribedId = shown;
-            await Live.SubscribeAsync(shown);
+            activeId = bid;
+            checkedIds.Add(bid);
+        }
+
+        await ReloadAsync();
+        await SubscribeCheckedAsync();
+    }
+
+    private async Task LoadStateAsync()
+    {
+        if (stateLoaded)
+        {
+            return;
+        }
+
+        stateLoaded = true;
+        var ids = books!.Select(b => b.Id).ToHashSet();
+
+        checkedIds.Clear();
+        foreach (var g in await ReadGuidsAsync(CheckedKey))
+        {
+            if (ids.Contains(g))
+            {
+                checkedIds.Add(g);
+            }
+        }
+
+        if (checkedIds.Count == 0)
+        {
+            foreach (var g in ids)
+            {
+                checkedIds.Add(g);
+            }
+        }
+
+        var active = await ReadGuidAsync(ActiveKey);
+        activeId = active is { } a && ids.Contains(a) ? a : books!.FirstOrDefault()?.Id;
+    }
+
+    private async Task<IReadOnlyList<Guid>> ReadGuidsAsync(string key)
+    {
+        try
+        {
+            var raw = await JS.InvokeAsync<string?>("localStorage.getItem", key);
+            return raw is { Length: > 0 }
+                ? raw.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => Guid.TryParse(s, out var g) ? g : (Guid?)null)
+                    .Where(g => g is not null).Select(g => g!.Value).ToList()
+                : [];
+        }
+        catch
+        {
+            return [];
         }
     }
 
-    // A live change to the shown address book → reload its contacts (keeping the selection if it survives).
+    private async Task<Guid?> ReadGuidAsync(string key)
+    {
+        var list = await ReadGuidsAsync(key);
+        return list.Count == 1 ? list[0] : null;
+    }
+
+    private async Task SaveStateAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", CheckedKey, string.Join(",", checkedIds));
+            await JS.InvokeVoidAsync("localStorage.setItem", ActiveKey, activeId?.ToString() ?? "");
+        }
+        catch
+        {
+            // localStorage unavailable — filter simply won't persist.
+        }
+    }
+
+    private async Task OnFilterChangedAsync()
+    {
+        await SaveStateAsync();
+        await ReloadAsync();
+        await SubscribeCheckedAsync();
+    }
+
+    private async Task OnActiveChangedAsync(Guid id)
+    {
+        activeId = id;
+        await SaveStateAsync();
+    }
+
+    private async Task OnColorChangedAsync((Guid Id, string Color) change)
+    {
+        var book = books?.FirstOrDefault(b => b.Id == change.Id);
+        if (book is null)
+        {
+            return;
+        }
+
+        var error = await Api.UpdateCollectionAsync("address-books", change.Id, book.Name, change.Color);
+        if (error is null)
+        {
+            books = await Api.GetAddressBooksAsync();
+            await ReloadAsync();
+        }
+    }
+
+    private IEnumerable<AddressBookDto> Visible() => (books ?? []).Where(b => checkedIds.Contains(b.Id));
+
+    private async Task ReloadAsync()
+    {
+        if (books is null)
+        {
+            return;
+        }
+
+        var list = new List<ContactEntry>();
+        foreach (var b in Visible())
+        {
+            var color = CollectionColors.For(b.Id, b.Color);
+            foreach (var c in await Api.GetContactsAsync(b.Id))
+            {
+                list.Add(new ContactEntry(c, b.Id, b.Name, color));
+            }
+        }
+
+        entries = list;
+        if (selected is not null && entries.All(e => e.Contact.Id != selected.Id))
+        {
+            ClearSelection();
+        }
+    }
+
+    private async Task SubscribeCheckedAsync()
+    {
+        foreach (var id in checkedIds.Where(id => !subscribedIds.Contains(id)).ToList())
+        {
+            subscribedIds.Add(id);
+            await Live.SubscribeAsync(id);
+        }
+    }
+
+    // A live change to a shown address book → reload the merged view.
     private void OnCollectionChanged(Guid collectionId)
     {
-        if (collectionId != EffectiveId)
+        if (!checkedIds.Contains(collectionId))
         {
             return;
         }
 
         _ = InvokeAsync(async () =>
         {
-            contacts = (await Api.GetContactsAsync(collectionId)).ToList();
-            if (selected is not null && contacts.All(c => c.Id != selected.Id))
-            {
-                ClearSelection();
-            }
-
+            await ReloadAsync();
             StateHasChanged();
         });
     }
@@ -434,22 +526,13 @@ else
     // Wire the draggable divider once the list/detail panes have rendered.
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!splitterReady && books is { Count: > 0 } && contacts is not null)
+        if (!splitterReady && entries is not null)
         {
             splitterReady = true;
             splitterModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/splitter.js");
             splitter = await splitterModule.InvokeAsync<IJSObjectReference>("init", splitterHandle, listPane);
             columnModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/columnResize.js");
             columnResizer = await columnModule.InvokeAsync<IJSObjectReference>("init", contactTable);
-        }
-    }
-
-    private void OnSwitch(ChangeEventArgs e)
-    {
-        if (Guid.TryParse(e.Value?.ToString(), out var id))
-        {
-            ClearSelection();
-            Navigation.NavigateTo($"address-books/{id}");
         }
     }
 
@@ -470,29 +553,31 @@ else
     private string Indicator(string column) => sortColumn == column ? (sortAscending ? "▲" : "▼") : "";
 
     // Per-column filters + the photo checkbox, then the active sort.
-    private IEnumerable<ContactDto> View()
+    private IEnumerable<ContactEntry> View()
     {
-        Func<ContactDto, string> key = sortColumn switch
+        Func<ContactEntry, string> key = sortColumn switch
         {
-            "org" => c => c.Organization ?? "",
-            "email" => c => c.Emails.FirstOrDefault() ?? "",
-            "phone" => c => c.Phones.FirstOrDefault() ?? "",
-            "photo" => c => c.HasPhoto ? "1" : "0",
-            _ => c => c.FormattedName ?? "",
+            "book" => e => e.BookName,
+            "org" => e => e.Contact.Organization ?? "",
+            "email" => e => e.Contact.Emails.FirstOrDefault() ?? "",
+            "phone" => e => e.Contact.Phones.FirstOrDefault() ?? "",
+            "photo" => e => e.Contact.HasPhoto ? "1" : "0",
+            _ => e => e.Contact.FormattedName ?? "",
         };
-        var ordered = contacts!.Where(Matches).OrderBy(key, StringComparer.OrdinalIgnoreCase);
+        var ordered = entries!.Where(Matches).OrderBy(key, StringComparer.OrdinalIgnoreCase);
         return sortAscending ? ordered : ordered.Reverse();
     }
 
-    private bool Matches(ContactDto c) =>
-        Contains(c.FormattedName, filterName)
-        && Contains(c.Organization, filterOrg)
-        && Contains(string.Join(" ", c.Emails), filterEmail)
-        && Contains(string.Join(" ", c.Phones), filterPhone)
-        && (!filterPhotoOnly || c.HasPhoto);
+    private bool Matches(ContactEntry e) =>
+        Contains(e.BookName, filterBook)
+        && Contains(e.Contact.FormattedName, filterName)
+        && Contains(e.Contact.Organization, filterOrg)
+        && Contains(string.Join(" ", e.Contact.Emails), filterEmail)
+        && Contains(string.Join(" ", e.Contact.Phones), filterPhone)
+        && (!filterPhotoOnly || e.Contact.HasPhoto);
 
     // --- Bulk selection (ADR 0055) ---
-    private bool AllSelected => View().Any() && View().All(c => selectedIds.Contains(c.Id));
+    private bool AllSelected => View().Any() && View().All(c => selectedIds.Contains(c.Contact.Id));
 
     private void ToggleSelected(Guid id)
     {
@@ -506,7 +591,7 @@ else
 
     private void ToggleSelectAll(ChangeEventArgs e)
     {
-        var all = View().Select(c => c.Id).ToList();
+        var all = View().Select(c => c.Contact.Id).ToList();
         if (e.Value is true && !all.All(selectedIds.Contains))
         {
             foreach (var id in all)
@@ -530,9 +615,16 @@ else
         bulkMessage = null;
     }
 
+    // Selected contacts may span address books; group by source for the per-collection bulk API.
+    private Dictionary<Guid, List<Guid>> SelectedByBook() =>
+        (entries ?? [])
+            .Where(e => selectedIds.Contains(e.Contact.Id))
+            .GroupBy(e => e.BookId)
+            .ToDictionary(g => g.Key, g => g.Select(e => e.Contact.Id).ToList());
+
     private async Task BulkDeleteAsync()
     {
-        if (EffectiveId is not { } id || selectedIds.Count == 0)
+        if (selectedIds.Count == 0)
         {
             return;
         }
@@ -540,8 +632,15 @@ else
         bulkBusy = true;
         try
         {
-            var result = await Api.BulkDeleteAsync("address-books", id, selectedIds.ToList());
-            await AfterBulkAsync(id, result, "Deleted");
+            int ok = 0, failed = 0;
+            foreach (var (bookId, ids) in SelectedByBook())
+            {
+                var result = await Api.BulkDeleteAsync("address-books", bookId, ids);
+                ok += result?.Succeeded ?? 0;
+                failed += result?.Failed ?? ids.Count;
+            }
+
+            await AfterBulkAsync($"Deleted {ok}{(failed > 0 ? $", {failed} failed" : "")}.");
         }
         finally
         {
@@ -551,7 +650,7 @@ else
 
     private async Task BulkMoveAsync()
     {
-        if (EffectiveId is not { } id || selectedIds.Count == 0 || !Guid.TryParse(bulkTarget, out var target))
+        if (selectedIds.Count == 0 || !Guid.TryParse(bulkTarget, out var target))
         {
             return;
         }
@@ -559,8 +658,20 @@ else
         bulkBusy = true;
         try
         {
-            var result = await Api.BulkMoveAsync("address-books", id, selectedIds.ToList(), target);
-            await AfterBulkAsync(id, result, "Moved");
+            int ok = 0, failed = 0;
+            foreach (var (bookId, ids) in SelectedByBook())
+            {
+                if (bookId == target)
+                {
+                    continue;
+                }
+
+                var result = await Api.BulkMoveAsync("address-books", bookId, ids, target);
+                ok += result?.Succeeded ?? 0;
+                failed += result?.Failed ?? ids.Count;
+            }
+
+            await AfterBulkAsync($"Moved {ok}{(failed > 0 ? $", {failed} failed" : "")}.");
         }
         finally
         {
@@ -568,9 +679,9 @@ else
         }
     }
 
-    private async Task AfterBulkAsync(Guid id, BulkResultDto? result, string verb)
+    private async Task AfterBulkAsync(string message)
     {
-        bulkMessage = result is null ? "Failed." : $"{verb} {result.Succeeded}{(result.Failed > 0 ? $", {result.Failed} failed" : "")}.";
+        bulkMessage = message;
         if (selected is not null && selectedIds.Contains(selected.Id))
         {
             ClearSelection();
@@ -578,26 +689,29 @@ else
 
         selectedIds.Clear();
         bulkTarget = string.Empty;
-        contacts = (await Api.GetContactsAsync(id)).ToList();
+        await ReloadAsync();
     }
 
     private static bool Contains(string? value, string filter) =>
         string.IsNullOrWhiteSpace(filter) || (value ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase);
 
     // --- Selection + raw view/edit ---
-    private async Task SelectAsync(ContactDto contact)
+    private async Task SelectAsync(ContactEntry entry)
     {
-        selected = contact;
+        selected = entry.Contact;
+        selectedBookId = entry.BookId;
+        selectedBookName = entry.BookName;
+        selectedColor = entry.Color;
         editing = false;
         detailMessage = null;
         moveTarget = string.Empty;
         moveError = null;
-        var (vcard, etag) = await Api.GetContactRawAsync(EffectiveId!.Value, contact.Id);
+        var (vcard, etag) = await Api.GetContactRawAsync(entry.BookId, entry.Contact.Id);
         selectedRaw = vcard;
         selectedEtag = etag;
         editBuffer = vcard;
         // The server resolves + caches the photo (inline or external URL), so we just fetch bytes (ADR 0037).
-        selectedPhoto = await Api.GetContactPhotoDataUrlAsync(EffectiveId!.Value, contact.Id);
+        selectedPhoto = await Api.GetContactPhotoDataUrlAsync(entry.BookId, entry.Contact.Id);
     }
 
     private void StartEdit()
@@ -614,7 +728,7 @@ else
 
     private async Task SaveAsync()
     {
-        if (selected is null || EffectiveId is not { } id)
+        if (selected is null || selectedBookId is not { } id)
         {
             return;
         }
@@ -641,8 +755,9 @@ else
         }
 
         editing = false;
-        contacts = (await Api.GetContactsAsync(id)).ToList();
-        var again = contacts.FirstOrDefault(c => c.Id == selected.Id);
+        var contactId = selected.Id;
+        await ReloadAsync();
+        var again = entries!.FirstOrDefault(e => e.Contact.Id == contactId);
         if (again is not null)
         {
             await SelectAsync(again);
@@ -655,10 +770,27 @@ else
     private void ClearSelection()
     {
         selected = null;
+        selectedBookId = null;
         selectedRaw = selectedEtag = selectedPhoto = null;
         editBuffer = string.Empty;
         editing = false;
         detailMessage = null;
+    }
+
+    private async Task MoveContactAsync()
+    {
+        if (selectedBookId is not { } id || selected is null || !Guid.TryParse(moveTarget, out var targetId))
+        {
+            return;
+        }
+
+        moveError = await Api.MoveEntryAsync("address-books", id, selected.Id, targetId);
+        if (moveError is null)
+        {
+            moveTarget = string.Empty;
+            ClearSelection();
+            await ReloadAsync();
+        }
     }
 
     // --- Ribbon actions ---
@@ -670,8 +802,8 @@ else
         }
 
         var created = await Api.CreateContactAsync(id, "New Contact", []);
-        contacts = (await Api.GetContactsAsync(id)).ToList();
-        var fresh = contacts.FirstOrDefault(c => c.Id == created?.Id);
+        await ReloadAsync();
+        var fresh = entries!.FirstOrDefault(e => e.Contact.Id == created?.Id);
         if (fresh is not null)
         {
             await SelectAsync(fresh);
@@ -692,8 +824,11 @@ else
         books = await Api.GetAddressBooksAsync();
         if (created is not null)
         {
-            ClearSelection();
-            Navigation.NavigateTo($"address-books/{created.Id}");
+            checkedIds.Add(created.Id);
+            activeId = created.Id;
+            await SaveStateAsync();
+            await ReloadAsync();
+            await SubscribeCheckedAsync();
         }
     }
 
@@ -706,6 +841,60 @@ else
         importSeparate = true;
         importMessage = null;
         importDone = false;
+    }
+
+    private void OpenImport()
+    {
+        pendingImport = null;
+        importSeparate = true;
+        mergeByName = true;
+        importMessage = null;
+        importDone = false;
+        showImport = true;
+    }
+
+    private void OpenRename()
+    {
+        renameName = ActiveBookName ?? string.Empty;
+        renameError = null;
+        showRename = true;
+    }
+
+    private async Task RenameAsync()
+    {
+        if (EffectiveId is not { } id || string.IsNullOrWhiteSpace(renameName))
+        {
+            return;
+        }
+
+        renameError = await Api.UpdateCollectionAsync("address-books", id, renameName.Trim(), ActiveBook?.Color);
+        if (renameError is null)
+        {
+            books = await Api.GetAddressBooksAsync();
+            await ReloadAsync();
+            showRename = false;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (EffectiveId is not { } id)
+        {
+            return;
+        }
+
+        await Api.DeleteCollectionAsync("address-books", id);
+        showDelete = false;
+        checkedIds.Remove(id);
+        if (activeId == id)
+        {
+            activeId = null;
+        }
+
+        books = await Api.GetAddressBooksAsync();
+        activeId ??= books.FirstOrDefault()?.Id;
+        await SaveStateAsync();
+        await ReloadAsync();
     }
 
     private async Task ImportAsync()
@@ -727,10 +916,17 @@ else
             importDone = true; // lock the inputs; the user can now only Close
             if (result is { CreatedCollections: > 0 })
             {
-                books = await Api.GetAddressBooksAsync(); // new books appear in the switcher
+                books = await Api.GetAddressBooksAsync(); // new books appear in the pane
+                foreach (var b in books)
+                {
+                    checkedIds.Add(b.Id);
+                }
+
+                await SaveStateAsync();
+                await SubscribeCheckedAsync();
             }
 
-            contacts = (await Api.GetContactsAsync(id)).ToList();
+            await ReloadAsync();
         }
         finally
         {

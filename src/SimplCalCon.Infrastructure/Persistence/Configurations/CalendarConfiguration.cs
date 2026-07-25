@@ -8,7 +8,6 @@ public class CalendarConfiguration : IEntityTypeConfiguration<Calendar>
 {
     public void Configure(EntityTypeBuilder<Calendar> builder)
     {
-        builder.Property(c => c.Color).HasMaxLength(32);
         builder.Property(c => c.TimeZoneId).HasMaxLength(100);
     }
 }
