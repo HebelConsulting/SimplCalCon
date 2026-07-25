@@ -46,7 +46,7 @@ internal static class CardDavResources
     }
 
     public static DavResource AddressBookCollection(
-        string collectionHref, string principalHref, AddressBook book, AclRight callerRights)
+        string collectionHref, string principalHref, AddressBook book, AclRight callerRights, string? vapidPublicKey = null)
     {
         var resource = new DavResource(collectionHref);
         resource.Set(DavNames.ResourceType, new object[]
@@ -66,6 +66,7 @@ internal static class CardDavResources
             AddressDataType("3.0"),
             AddressDataType("4.0"),
         });
+        DavPushAdvertisement.Apply(resource, book.Id, vapidPublicKey);
         return resource;
     }
 

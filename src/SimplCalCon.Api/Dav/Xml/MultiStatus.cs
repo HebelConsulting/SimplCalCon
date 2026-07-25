@@ -11,7 +11,8 @@ public static class MultiStatus
             DavNames.Multistatus,
             new XAttribute(XNamespace.Xmlns + "d", DavNames.Dav.NamespaceName),
             new XAttribute(XNamespace.Xmlns + "card", DavNames.CardDav.NamespaceName),
-            new XAttribute(XNamespace.Xmlns + "cs", DavNames.CalendarServer.NamespaceName));
+            new XAttribute(XNamespace.Xmlns + "cs", DavNames.CalendarServer.NamespaceName),
+            new XAttribute(XNamespace.Xmlns + "P", DavNames.Push.NamespaceName));
 
         foreach (var resource in resources)
         {

@@ -3,12 +3,14 @@ using Microsoft.AspNetCore.Mvc;
 using SimplCalCon.Api.Dav.Http;
 using SimplCalCon.Api.Dav.Xml;
 using SimplCalCon.Application.Abstractions.Acl;
+using SimplCalCon.Application.Abstractions.Push;
 using SimplCalCon.Application.Abstractions.Storage;
 
 namespace SimplCalCon.Api.Dav.Controllers;
 
 /// <summary>The calendar-home-set: lists the user's calendars (auto-provisioning a default).</summary>
-public sealed class CalDavHomeController(IDavRepository repository, IAclService acl) : DavControllerBase
+public sealed class CalDavHomeController(
+    IDavRepository repository, IAclService acl, IWebPushConfiguration webPush) : DavControllerBase
 {
     [AllowAnonymous]
     [HttpGet("~/.well-known/caldav")]
@@ -44,7 +46,8 @@ public sealed class CalDavHomeController(IDavRepository repository, IAclService 
             {
                 var rights = await EffectiveRightsAsync(calendar, acl, cancellationToken);
                 resources.Add(CalDavResources.CalendarCollection(
-                    CalendarHref(calendar.OwnerId, calendar.ResourceName), PrincipalHref(calendar.OwnerId), calendar, rights));
+                    CalendarHref(calendar.OwnerId, calendar.ResourceName), PrincipalHref(calendar.OwnerId), calendar, rights,
+                    webPush.VapidPublicKey));
             }
         }
 

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using SimplCalCon.Api.Dav.Http;
 using SimplCalCon.Api.Dav.Xml;
 using SimplCalCon.Application.Abstractions.Acl;
+using SimplCalCon.Application.Abstractions.Push;
 using SimplCalCon.Application.Abstractions.Storage;
 using SimplCalCon.Domain.Acl;
 using SimplCalCon.Domain.Collections;
@@ -10,7 +11,8 @@ using SimplCalCon.Domain.Collections;
 namespace SimplCalCon.Api.Dav.Controllers;
 
 /// <summary>An address-book collection: PROPFIND listing, REPORT (multiget/query/sync-collection), MKCOL, DELETE.</summary>
-public sealed class CardDavCollectionController(IDavRepository repository, IAclService acl) : DavControllerBase
+public sealed class CardDavCollectionController(
+    IDavRepository repository, IAclService acl, IWebPushConfiguration webPush) : DavControllerBase
 {
     [HttpPropfind("~/dav/addressbooks/{userId:guid}/{book}")]
     public async Task<IActionResult> Propfind(Guid userId, string book, CancellationToken cancellationToken)
@@ -30,7 +32,7 @@ public sealed class CardDavCollectionController(IDavRepository repository, IAclS
         var rights = await EffectiveRightsAsync(addressBook, acl, cancellationToken);
         var resources = new List<DavResource>
         {
-            CardDavResources.AddressBookCollection(CollectionHref(userId, book), PrincipalHref(userId), addressBook, rights),
+            CardDavResources.AddressBookCollection(CollectionHref(userId, book), PrincipalHref(userId), addressBook, rights, webPush.VapidPublicKey),
         };
 
         if (Depth() >= 1)

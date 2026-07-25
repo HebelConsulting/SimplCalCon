@@ -16,6 +16,7 @@ using SimplCalCon.Api.Health;
 using SimplCalCon.Api.Http;
 using SimplCalCon.Api.Realtime;
 using SimplCalCon.Application.Abstractions;
+using SimplCalCon.Infrastructure.Push;
 using SimplCalCon.Infrastructure;
 using SimplCalCon.Infrastructure.Configuration;
 using SimplCalCon.Infrastructure.Postgres;
@@ -96,7 +97,11 @@ try
         }
     });
 
-    builder.Services.AddSingleton<IChangeNotifier, SignalRChangeNotifier>();
+    // Compose the change transports: SignalR (web client, ADR 0049) + WebDAV-Push (native clients, ADR 0052).
+    builder.Services.AddSingleton<SignalRChangeNotifier>();
+    builder.Services.AddSingleton<IChangeNotifier>(sp => new CompositeChangeNotifier(
+        [sp.GetRequiredService<SignalRChangeNotifier>(), sp.GetRequiredService<WebPushChangeNotifier>()],
+        sp.GetRequiredService<ILogger<CompositeChangeNotifier>>()));
 
     builder.Services.AddAuthentication(options =>
         {

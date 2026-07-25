@@ -19,7 +19,8 @@ SQLite** (both are first-class production databases — every feature works on b
 ## Features
 
 - **CalDAV & CardDAV** (in-house protocol layer) — syncs with Apple Calendar/Contacts, Thunderbird,
-  iOS, DAVx5, and other standard clients.
+  iOS, DAVx5, and other standard clients, with **WebDAV-Push** so DAVx5 gets pushed changes
+  instead of polling.
 - **REST API** — HATEOAS envelopes, RFC 7807 problem details, ETag/`If-Match` concurrency, JSON.
 - **Blazor WebAssembly web UI** — calendars (list + month/week grid with **recurring events**),
   contacts (master-detail), import/export, sharing, trash & version history, profile & contact

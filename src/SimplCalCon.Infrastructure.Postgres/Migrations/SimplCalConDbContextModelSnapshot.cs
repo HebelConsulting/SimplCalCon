@@ -655,6 +655,44 @@ namespace SimplCalCon.Infrastructure.Postgres.Migrations
                     b.ToTable("UserProfilePhotos", (string)null);
                 });
 
+            modelBuilder.Entity("SimplCalCon.Domain.Push.PushSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Auth")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Endpoint")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("P256dh")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId", "Endpoint")
+                        .IsUnique();
+
+                    b.ToTable("PushSubscriptions", (string)null);
+                });
+
             modelBuilder.Entity("SimplCalCon.Domain.Scheduling.ScheduleMessage", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1123,6 +1161,17 @@ namespace SimplCalCon.Infrastructure.Postgres.Migrations
                     b.Navigation("Tenant");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Push.PushSubscription", b =>
+                {
+                    b.HasOne("SimplCalCon.Domain.Collections.Collection", "Collection")
+                        .WithMany()
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Collection");
                 });
 
             modelBuilder.Entity("SimplCalCon.Domain.Scheduling.ScheduleMessage", b =>

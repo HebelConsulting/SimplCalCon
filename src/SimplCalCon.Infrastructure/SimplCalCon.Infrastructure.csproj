@@ -12,6 +12,7 @@
     <PackageReference Include="OpenIddict.EntityFrameworkCore" />
     <PackageReference Include="Ical.Net" />
     <PackageReference Include="FolkerKinzel.VCards" />
+    <PackageReference Include="WebPush" />
   </ItemGroup>
 
   <!--
