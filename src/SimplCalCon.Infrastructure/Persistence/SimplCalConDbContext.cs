@@ -22,6 +22,7 @@ public class SimplCalConDbContext(DbContextOptions<SimplCalConDbContext> options
         read => read == null ? null : DateTime.SpecifyKind(read.Value, DateTimeKind.Utc));
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<TenantEmailSettings> TenantEmailSettings => Set<TenantEmailSettings>();
     public DbSet<Principal> Principals => Set<Principal>();
     public DbSet<User> Users => Set<User>();
     public DbSet<Group> Groups => Set<Group>();

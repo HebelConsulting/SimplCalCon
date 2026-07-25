@@ -69,6 +69,32 @@ else
             }
         </div>
     }
+
+    <h2>Email (SMTP) — invitations to external attendees</h2>
+    @if (email is null)
+    {
+        <p>Loading…</p>
+    }
+    else
+    {
+        <div class="smtp-form">
+            <label class="form-check"><input type="checkbox" @bind="email.Enabled" /> <span>Send invitation emails to attendees outside this tenant</span></label>
+            <div class="form-row"><label>Host</label><input @bind="email.Host" placeholder="smtp.example.com" /></div>
+            <div class="form-row"><label>Port</label><input type="number" @bind="email.Port" /></div>
+            <label class="form-check"><input type="checkbox" @bind="email.UseStartTls" /> <span>Use STARTTLS</span></label>
+            <div class="form-row"><label>Username</label><input @bind="email.Username" placeholder="(optional)" /></div>
+            <div class="form-row"><label>Password</label><input type="password" @bind="newPassword" placeholder="@(email.HasPassword ? "•••••• — leave blank to keep" : "(optional)")" /></div>
+            <div class="form-row"><label>From address</label><input @bind="email.FromAddress" placeholder="calendar@example.com" /></div>
+            <div class="form-row"><label>From name</label><input @bind="email.FromName" placeholder="(optional)" /></div>
+            <div class="form-actions">
+                <button @onclick="SaveEmailAsync" disabled="@savingEmail">Save</button>
+                @if (emailMessage is not null)
+                {
+                    <span class="smtp-message">@emailMessage</span>
+                }
+            </div>
+        </div>
+    }
 }
 
 @code {
@@ -76,6 +102,11 @@ else
     private IReadOnlyList<TenantDto>? tenants;
     private IReadOnlyList<AdminUserDto>? users;
     private AdminUserDto? selected;
+
+    private EmailForm? email;
+    private string newPassword = string.Empty;
+    private bool savingEmail;
+    private string? emailMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -92,7 +123,71 @@ else
         else
         {
             users = await Api.GetTenantUsersAsync();
+            var settings = await Api.GetTenantEmailSettingsAsync();
+            email = new EmailForm
+            {
+                Enabled = settings?.Enabled ?? false,
+                Host = settings?.Host ?? string.Empty,
+                Port = settings?.Port ?? 587,
+                UseStartTls = settings?.UseStartTls ?? true,
+                Username = settings?.Username,
+                HasPassword = settings?.HasPassword ?? false,
+                FromAddress = settings?.FromAddress ?? string.Empty,
+                FromName = settings?.FromName,
+            };
         }
+    }
+
+    private async Task SaveEmailAsync()
+    {
+        if (email is null)
+        {
+            return;
+        }
+
+        savingEmail = true;
+        emailMessage = null;
+        try
+        {
+            await Api.SaveTenantEmailSettingsAsync(new
+            {
+                enabled = email.Enabled,
+                host = email.Host,
+                port = email.Port,
+                useStartTls = email.UseStartTls,
+                username = email.Username,
+                newPassword = string.IsNullOrEmpty(newPassword) ? null : newPassword,
+                fromAddress = email.FromAddress,
+                fromName = email.FromName,
+            });
+            if (!string.IsNullOrEmpty(newPassword))
+            {
+                email.HasPassword = true;
+                newPassword = string.Empty;
+            }
+
+            emailMessage = "Saved.";
+        }
+        catch
+        {
+            emailMessage = "Save failed — check the host and From address.";
+        }
+        finally
+        {
+            savingEmail = false;
+        }
+    }
+
+    private sealed class EmailForm
+    {
+        public bool Enabled { get; set; }
+        public string Host { get; set; } = string.Empty;
+        public int Port { get; set; } = 587;
+        public bool UseStartTls { get; set; } = true;
+        public string? Username { get; set; }
+        public bool HasPassword { get; set; }
+        public string FromAddress { get; set; } = string.Empty;
+        public string? FromName { get; set; }
     }
 
     private static string Initials(AdminUserDto user)

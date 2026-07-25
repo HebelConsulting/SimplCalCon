@@ -268,6 +268,53 @@ public sealed class SchedulingTests(AuthWebApplicationFactory factory) : IClassF
         END:VCALENDAR
         """;
 
+    [Fact]
+    public async Task Tenant_email_settings_round_trip_and_never_return_the_password()
+    {
+        var client = await BearerClientAsync();
+
+        var put = await client.PutAsJsonAsync("/api/admin/email-settings", new
+        {
+            enabled = true, host = "smtp.example.test", port = 587, useStartTls = true,
+            username = "mailer", newPassword = "s3cret", fromAddress = "cal@example.test", fromName = "Calendar",
+        });
+        Assert.Equal(HttpStatusCode.NoContent, put.StatusCode);
+
+        var got = await client.GetFromJsonAsync<JsonElement>("/api/admin/email-settings");
+        Assert.True(got.GetProperty("enabled").GetBoolean());
+        Assert.Equal("smtp.example.test", got.GetProperty("host").GetString());
+        Assert.True(got.GetProperty("hasPassword").GetBoolean());
+        Assert.False(got.TryGetProperty("password", out _)); // the password value is never returned
+    }
+
+    [Fact]
+    public async Task External_attendee_receives_an_imip_request_email()
+    {
+        var client = await BearerClientAsync();
+        await client.PutAsJsonAsync("/api/admin/email-settings", new
+        {
+            enabled = true, host = "smtp.example.test", port = 25, useStartTls = false,
+            username = (string?)null, newPassword = (string?)null, fromAddress = "cal@example.test", fromName = "Calendar",
+        });
+
+        var calendarId = await CreateCalendarAsync(client);
+        var summary = $"Ext-{Guid.NewGuid():N}";
+        await client.PostAsJsonAsync($"/api/calendars/{calendarId}/events", new
+        {
+            summary,
+            startUtc = new DateTime(2026, 9, 1, 9, 0, 0, DateTimeKind.Utc),
+            endUtc = new DateTime(2026, 9, 1, 10, 0, 0, DateTimeKind.Utc),
+            isAllDay = false,
+            organizer = AuthWebApplicationFactory.DemoAdminEmail,
+            attendees = new[] { new { address = "outsider@external.example", commonName = "Outsider" } },
+        });
+
+        var sent = factory.EmailSender.Sent.SingleOrDefault(m => m.Mail.CalendarBody.Contains(summary));
+        Assert.NotNull(sent.Mail);
+        Assert.Equal("REQUEST", sent.Mail.Method);
+        Assert.Equal("outsider@external.example", sent.Mail.To);
+    }
+
     private static async Task<Guid> CreateCalendarAsync(HttpClient client) =>
         (await Body(await client.PostAsJsonAsync("/api/calendars", new { name = $"Cal {Guid.NewGuid():N}" }))).GetProperty("id").GetGuid();
 

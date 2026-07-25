@@ -1,9 +1,27 @@
+using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using SimplCalCon.Application.Abstractions.Email;
 
 namespace SimplCalCon.IntegrationTests;
+
+/// <summary>Captures iMIP sends in tests instead of hitting a real SMTP server (ADR 0047).</summary>
+public sealed class CapturingEmailSender : IEmailSender
+{
+    private readonly ConcurrentQueue<(TenantSmtpConfig Config, ItipMail Mail)> _sent = new();
+
+    public IReadOnlyCollection<(TenantSmtpConfig Config, ItipMail Mail)> Sent => _sent;
+
+    public Task SendItipAsync(TenantSmtpConfig config, ItipMail mail, CancellationToken cancellationToken)
+    {
+        _sent.Enqueue((config, mail));
+        return Task.CompletedTask;
+    }
+}
 
 /// <summary>
 /// Boots the real Api host against a throwaway SQLite file in the Development
@@ -30,9 +48,18 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
     private readonly string _databasePath =
         Path.Combine(Path.GetTempPath(), $"simplcalcon-it-{Guid.NewGuid():N}.db");
 
+    public CapturingEmailSender EmailSender { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(Environments.Development);
+
+        // Capture iMIP email instead of sending via real SMTP.
+        builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(EmailSender);
+        });
 
         builder.ConfigureAppConfiguration((_, configuration) =>
         {

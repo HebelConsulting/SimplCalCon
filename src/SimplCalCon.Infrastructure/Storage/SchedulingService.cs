@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SimplCalCon.Application.Abstractions.Email;
 using SimplCalCon.Application.Abstractions.Scheduling;
 using SimplCalCon.Application.Abstractions.Storage;
 using SimplCalCon.Domain.Principals;
@@ -7,11 +8,16 @@ using SimplCalCon.Infrastructure.Persistence;
 
 namespace SimplCalCon.Infrastructure.Storage;
 
-/// <summary>RFC 6638 server-side automatic scheduling (ADR 0031), tenant-internal, over the DAV write/delete path.</summary>
+/// <summary>
+/// RFC 6638 server-side automatic scheduling (ADR 0031). Local recipients get an inbox delivery;
+/// external recipients get an iMIP email when the tenant has SMTP configured (ADR 0047).
+/// </summary>
 internal sealed class SchedulingService(
     SimplCalConDbContext dbContext,
     IScheduleInboxRepository inboxes,
     IObjectStore objectStore,
+    ITenantEmailSettingsService emailSettings,
+    IEmailSender emailSender,
     ILogger<SchedulingService> logger) : ISchedulingService
 {
     public async Task ProcessWriteAsync(
@@ -59,7 +65,7 @@ internal sealed class SchedulingService(
             info.Uid, actor.Email, recipients.Count);
         foreach (var attendee in recipients)
         {
-            await DeliverToLocalAsync(attendee.Email, actor.TenantId, cancel, "CANCEL", cancellationToken);
+            await DeliverAsync(attendee.Email, actor.TenantId, cancel, "CANCEL", actor.Email, cancellationToken);
         }
     }
 
@@ -77,20 +83,16 @@ internal sealed class SchedulingService(
             return;
         }
 
-        if (await ResolveAsync(info.OrganizerEmail, actor.TenantId, cancellationToken) is not { } organizer)
-        {
-            return; // organizer not local — no iMIP yet
-        }
-
         logger.LogInformation(
             "Scheduling REPLY for {Uid} from {Attendee} ({PartStat}) to organizer {Organizer} (REST).",
             info.Uid, actor.Email, participationStatus, info.OrganizerEmail);
 
         var reply = ItipCalendar.Reply(info.Uid, info.Organizer, mine.Address, participationStatus, mine.CommonName);
-        var inbox = await inboxes.EnsureInboxAsync(organizer, actor.TenantId, cancellationToken);
-        await inboxes.DeliverAsync(inbox.Id, reply, "REPLY", cancellationToken);
-
-        await AutoApplyAsync(organizer, info.Uid, actor.Email, participationStatus, cancellationToken);
+        var organizer = await DeliverAsync(info.OrganizerEmail, actor.TenantId, reply, "REPLY", actor.Email, cancellationToken);
+        if (organizer is { } organizerUserId)
+        {
+            await AutoApplyAsync(organizerUserId, info.Uid, actor.Email, participationStatus, cancellationToken);
+        }
     }
 
     private async Task OrganizerWriteAsync(
@@ -104,7 +106,7 @@ internal sealed class SchedulingService(
             info.Uid, info.OrganizerEmail, recipients.Count);
         foreach (var attendee in recipients)
         {
-            await DeliverToLocalAsync(attendee.Email, tenantId, request, "REQUEST", cancellationToken);
+            await DeliverAsync(attendee.Email, tenantId, request, "REQUEST", info.OrganizerEmail, cancellationToken);
         }
 
         // CANCEL to attendees present before but removed now.
@@ -115,7 +117,7 @@ internal sealed class SchedulingService(
             foreach (var removed in previous.Attendees
                 .Where(a => a.Email != info.OrganizerEmail && !current.Contains(a.Email)))
             {
-                await DeliverToLocalAsync(removed.Email, tenantId, cancel, "CANCEL", cancellationToken);
+                await DeliverAsync(removed.Email, tenantId, cancel, "CANCEL", info.OrganizerEmail, cancellationToken);
             }
         }
     }
@@ -132,21 +134,16 @@ internal sealed class SchedulingService(
             return;
         }
 
-        var organizerUserId = await ResolveAsync(info.OrganizerEmail, actor.TenantId, cancellationToken);
-        if (organizerUserId is not { } organizer)
-        {
-            return;
-        }
-
         logger.LogInformation(
             "Scheduling REPLY for {Uid} from {Attendee} ({PartStat}) to organizer {Organizer}.",
             info.Uid, actor.Email, mine.ParticipationStatus, info.OrganizerEmail);
 
         var reply = ItipCalendar.Reply(info.Uid, info.Organizer, mine.Address, mine.ParticipationStatus, mine.CommonName);
-        var inbox = await inboxes.EnsureInboxAsync(organizer, actor.TenantId, cancellationToken);
-        await inboxes.DeliverAsync(inbox.Id, reply, "REPLY", cancellationToken);
-
-        await AutoApplyAsync(organizer, info.Uid, actor.Email, mine.ParticipationStatus, cancellationToken);
+        var organizer = await DeliverAsync(info.OrganizerEmail, actor.TenantId, reply, "REPLY", actor.Email, cancellationToken);
+        if (organizer is { } organizerUserId)
+        {
+            await AutoApplyAsync(organizerUserId, info.Uid, actor.Email, mine.ParticipationStatus, cancellationToken);
+        }
     }
 
     // Update the organizer's own copy of the event so its ATTENDEE PARTSTAT reflects the reply (ADR 0031: auto-apply).
@@ -178,20 +175,44 @@ internal sealed class SchedulingService(
         }
     }
 
-    private async Task DeliverToLocalAsync(
-        string email, Guid tenantId, string blob, string method, CancellationToken cancellationToken)
+    // Local recipient → schedule-inbox (returns their id so a REPLY can auto-apply); external
+    // recipient → iMIP email when the tenant has SMTP configured (ADR 0047), else logged/dropped.
+    private async Task<Guid?> DeliverAsync(
+        string recipientEmail, Guid tenantId, string blob, string method, string replyToEmail, CancellationToken cancellationToken)
     {
-        if (await ResolveAsync(email, tenantId, cancellationToken) is { } recipient)
+        if (await ResolveAsync(recipientEmail, tenantId, cancellationToken) is { } recipient)
         {
             var inbox = await inboxes.EnsureInboxAsync(recipient, tenantId, cancellationToken);
             await inboxes.DeliverAsync(inbox.Id, blob, method, cancellationToken);
-            logger.LogDebug("Delivered {Method} to the schedule inbox of {Email}.", method, email);
+            logger.LogDebug("Delivered {Method} to the schedule inbox of {Email}.", method, recipientEmail);
+            return recipient;
+        }
+
+        if (await emailSettings.GetSendConfigAsync(tenantId, cancellationToken) is { } smtp)
+        {
+            await emailSender.SendItipAsync(smtp, BuildItipMail(recipientEmail, replyToEmail, blob, method), cancellationToken);
+            logger.LogInformation("Sent iMIP {Method} email to external {Email}.", method, recipientEmail);
         }
         else
         {
-            // Internal-first slice (ADR 0031): external attendees have no local inbox yet.
-            logger.LogDebug("No local recipient for {Email}; {Method} not delivered.", email, method);
+            logger.LogDebug("No local recipient or tenant SMTP for {Email}; {Method} not delivered.", recipientEmail, method);
         }
+
+        return null;
+    }
+
+    private static ItipMail BuildItipMail(string to, string replyTo, string blob, string method)
+    {
+        var summary = ItipCalendar.Inspect(blob)?.Summary ?? "(event)";
+        var (subject, text) = method switch
+        {
+            "REQUEST" => ($"Invitation: {summary}", $"You have been invited to \"{summary}\". Open the attached calendar item to respond."),
+            "CANCEL" => ($"Cancelled: {summary}", $"\"{summary}\" has been cancelled."),
+            "REPLY" => ($"Response: {summary}", $"An attendee has responded to \"{summary}\"."),
+            _ => ($"Scheduling: {summary}", summary),
+        };
+
+        return new ItipMail(to, replyTo, subject, text, blob, method);
     }
 
     private async Task<Guid?> ResolveAsync(string email, Guid tenantId, CancellationToken cancellationToken) =>

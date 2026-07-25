@@ -37,6 +37,13 @@ public sealed class ApiClient(HttpClient http)
     public async Task<IReadOnlyList<AdminUserDto>> GetTenantUsersAsync() =>
         (await http.GetFromJsonAsync<Collection<AdminUserDto>>("api/admin/users"))?.Items ?? [];
 
+    // Tenant SMTP / iMIP settings (ADR 0047).
+    public Task<TenantEmailSettingsDto?> GetTenantEmailSettingsAsync() =>
+        http.GetFromJsonAsync<TenantEmailSettingsDto>("api/admin/email-settings");
+
+    public Task SaveTenantEmailSettingsAsync(object body) =>
+        http.PutAsJsonAsync("api/admin/email-settings", body);
+
     public async Task<IReadOnlyList<CalendarDto>> GetCalendarsAsync() =>
         (await http.GetFromJsonAsync<Collection<CalendarDto>>("api/calendars"))?.Items ?? [];
 

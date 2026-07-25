@@ -52,6 +52,8 @@ public sealed record ShareDto(Guid PrincipalId, string Kind, string DisplayName,
 public sealed record SharedCollectionDto(Guid Id, string Kind, string Name, string OwnerName, IReadOnlyList<string> Rights);
 
 public sealed record PrincipalDto(Guid Id, string Kind, string DisplayName, string? Email);
+public sealed record TenantEmailSettingsDto(
+    bool Enabled, string Host, int Port, bool UseStartTls, string? Username, bool HasPassword, string FromAddress, string? FromName);
 
 public sealed record TrashItemDto(Guid Id, string? Summary, string? FormattedName, DateTime? DeletedAt)
 {

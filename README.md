@@ -27,7 +27,7 @@ SQLite** (both are first-class production databases — every feature works on b
 - **Authentication** — OIDC (auth code + PKCE) for web/REST; per-device app passwords for DAV.
 - **Data portability** — per-collection import/export, account takeout, and direct **Google export
   `.zip`** import (recreating the original calendars).
-- **Scheduling** — attendees, free/busy, and RFC 6638 iTIP (tenant-internal), with web **invitations** (accept / tentative / decline).
+- **Scheduling** — attendees, free/busy, and RFC 6638 iTIP with web **invitations** (accept / tentative / decline) and **email iMIP** to external attendees (per-tenant SMTP).
 
 See [`docs/spec.md`](docs/spec.md) for the full specification and
 [`docs/adr/`](docs/adr/README.md) for the decision records.
