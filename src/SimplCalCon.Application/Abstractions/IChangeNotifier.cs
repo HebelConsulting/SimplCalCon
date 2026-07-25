@@ -14,4 +14,11 @@ public interface IChangeNotifier
 
     /// <summary>A user's schedule-inbox changed (an invitation arrived or was drained).</summary>
     Task InvitationsChangedAsync(Guid userId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A sharing grant changed for these users (ADR 0064): the collections shared with — or by — them
+    /// may have changed, so their "shared with me" / "shared by me" views should reload. Fired on
+    /// grant/revoke (owner + affected principals) and on group-membership changes (the affected member).
+    /// </summary>
+    Task SharesChangedAsync(IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken);
 }

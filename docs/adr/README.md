@@ -69,5 +69,6 @@ rather than an edit.
 | [0061](0061-occurrence-window-index.md) | Occurrence-window index (materialized recurrence expansion) |
 | [0062](0062-collections-pane-and-colours.md) | Collections pane, per-collection colours, merged views |
 | [0063](0063-bunit-ui-test-guards.md) | bUnit UI test guards (Blazor component regression net) |
+| [0064](0064-shares-live-refresh.md) | Live refresh for sharing (SharesChanged over SignalR) |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

@@ -17,4 +17,10 @@ internal sealed class SignalRChangeNotifier(IHubContext<NotificationHub> hub) : 
     public Task InvitationsChangedAsync(Guid userId, CancellationToken cancellationToken) =>
         hub.Clients.Group(NotificationHub.UserGroup(userId))
             .SendAsync("InvitationsChanged", cancellationToken);
+
+    public Task SharesChangedAsync(IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken) =>
+        userIds.Count == 0
+            ? Task.CompletedTask
+            : hub.Clients.Groups(userIds.Select(NotificationHub.UserGroup).ToList())
+                .SendAsync("SharesChanged", cancellationToken);
 }

@@ -25,6 +25,9 @@ public sealed class LiveUpdates(NavigationManager navigation, IAccessTokenProvid
     /// <summary>The user's schedule-inbox changed (invitation arrived or was drained).</summary>
     public event Action? InvitationsChanged;
 
+    /// <summary>A sharing grant affecting the user changed (ADR 0064) — reload "shared with/by me".</summary>
+    public event Action? SharesChanged;
+
     public async Task StartAsync()
     {
         if (connection is not null)
@@ -44,6 +47,7 @@ public sealed class LiveUpdates(NavigationManager navigation, IAccessTokenProvid
 
         connection.On<Guid>("CollectionChanged", DebounceCollectionChanged);
         connection.On("InvitationsChanged", () => InvitationsChanged?.Invoke());
+        connection.On("SharesChanged", () => SharesChanged?.Invoke());
 
         // Group membership is per-connection, so re-join every subscribed collection on reconnect.
         connection.Reconnected += async _ =>

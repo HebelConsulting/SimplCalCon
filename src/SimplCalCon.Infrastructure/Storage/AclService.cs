@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SimplCalCon.Application.Abstractions;
 using SimplCalCon.Application.Abstractions.Acl;
 using SimplCalCon.Domain.Acl;
@@ -8,7 +9,8 @@ using SimplCalCon.Infrastructure.Persistence;
 
 namespace SimplCalCon.Infrastructure.Storage;
 
-internal sealed class AclService(SimplCalConDbContext dbContext, IClock clock) : IAclService
+internal sealed class AclService(
+    SimplCalConDbContext dbContext, IClock clock, IChangeNotifier changeNotifier, ILogger<AclService> logger) : IAclService
 {
     private const AclRight AllRights =
         AclRight.Read | AclRight.WriteContent | AclRight.Create | AclRight.Delete | AclRight.Share | AclRight.Admin;
@@ -45,6 +47,7 @@ internal sealed class AclService(SimplCalConDbContext dbContext, IClock clock) :
 
         entry.Rights = rights;
         await dbContext.SaveChangesAsync(cancellationToken);
+        await NotifySharesChangedAsync(collectionId, principalId, cancellationToken);
     }
 
     public async Task RevokeAsync(Guid collectionId, Guid principalId, CancellationToken cancellationToken)
@@ -56,6 +59,39 @@ internal sealed class AclService(SimplCalConDbContext dbContext, IClock clock) :
         {
             dbContext.AclEntries.Remove(entry);
             await dbContext.SaveChangesAsync(cancellationToken);
+            await NotifySharesChangedAsync(collectionId, principalId, cancellationToken);
+        }
+    }
+
+    // Post-commit live-refresh signal (ADR 0064): the owner's "shared by me" and the affected
+    // principals' "shared with me" may have changed. Best-effort — a push failure must not fail the grant.
+    private async Task NotifySharesChangedAsync(Guid collectionId, Guid principalId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var affected = new HashSet<Guid>();
+            var ownerId = await dbContext.Collections
+                .Where(c => c.Id == collectionId)
+                .Select(c => (Guid?)c.OwnerId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (ownerId is { } owner)
+            {
+                affected.Add(owner);
+            }
+
+            foreach (var userId in await PrincipalGraph.GetMemberUserIdsAsync(dbContext, principalId, cancellationToken))
+            {
+                affected.Add(userId);
+            }
+
+            if (affected.Count > 0)
+            {
+                await changeNotifier.SharesChangedAsync(affected, cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to push shares-changed notification for collection {CollectionId}.", collectionId);
         }
     }
 
