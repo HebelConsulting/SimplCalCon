@@ -1,15 +1,19 @@
 name: Publish image
 
 # Builds the container image and pushes it to GitHub Container Registry on pushes to
-# main and on version tags (ADR 0024). Multi-arch (amd64 + arm64).
+# main and on version tags (ADR 0024). Release tags are full multi-arch (amd64 + arm64);
+# main/sha builds are amd64-only to stay fast (see the platforms + concurrency notes below).
 on:
   push:
     branches: [main]
     tags: ['v*']
 
+# Serialize per-ref but do NOT cancel: rapid merges to main should each publish their :main / :sha
+# image (a cancelled build published nothing). Same-ref runs queue and run in order, so :main ends
+# on the newest commit. Tags each have their own ref, so releases never queue behind main.
 concurrency:
   group: publish-image-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -47,7 +51,9 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          # Full multi-arch for releases; amd64-only for main/sha so branch builds stay fast and the
+          # non-cancelling queue doesn't back up on the slow arm64 (QEMU) leg (ADR 0024).
+          platforms: ${{ startsWith(github.ref, 'refs/tags/') && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

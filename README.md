@@ -65,8 +65,22 @@ optional pgAdmin — is in the **[user & operator manual](docs/manual.md)**.
 
 The demo Compose file is for local/demo use. For a real deployment:
 
-- **Container image:** published to `ghcr.io/HebelConsulting/SimplCalCon` (multi-arch amd64/arm64) on
-  every push to `main` and on `v*` tags. The app listens on **port 9080**.
+- **Container image:** published to `ghcr.io/hebelconsulting/simplcalcon` on GitHub Container
+  Registry — full multi-arch (amd64 + arm64) on `v*` release tags, amd64 for `main`. The app listens
+  on **port 9080**. Pull and run a release:
+
+  ```bash
+  docker pull ghcr.io/hebelconsulting/simplcalcon:0.1.0
+  docker run -p 9080:9080 \
+    -e ASPNETCORE_ENVIRONMENT=Production \
+    -e SimplCalCon__Database__Provider=Sqlite \
+    -e SimplCalCon__Database__ConnectionString="Data Source=/data/simplcalcon.db" \
+    -v simplcalcon-data:/data \
+    ghcr.io/hebelconsulting/simplcalcon:0.1.0
+  ```
+
+  Tags: `0.1.0` (exact), `0.1` (minor), `main` (latest `main`), and `sha-<commit>`. Production also
+  needs the OIDC certificates and `SimplCalCon:SpaClient:BaseUrl` below.
 - **Kubernetes (Helm):** a chart lives at [`deploy/helm/simplcalcon`](deploy/helm/simplcalcon) —
   Deployment with startup/liveness/readiness probes and a non-root security context, a Service on
   9080, a config Secret, an optional Ingress, and a mount hook for the OIDC certificates.
