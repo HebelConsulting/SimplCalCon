@@ -43,7 +43,8 @@ else
                          ActiveId="activeId"
                          OnFilterChanged="OnFilterChangedAsync"
                          OnActiveChanged="OnActiveChangedAsync"
-                         OnColorChanged="OnColorChangedAsync" />
+                         OnColorChanged="OnColorChangedAsync"
+                         OnColorReset="OnColorResetAsync" />
 
         <div class="cal-main">
             @if (entries is null)
@@ -246,8 +247,13 @@ else
     }
 </Modal>
 
-<Modal Visible="showRename" Title="Rename address book" OnClose="() => showRename = false">
-    <div><input @bind="renameName" placeholder="Address book name" /></div>
+<Modal Visible="showRename" Title="Edit address book" OnClose="() => showRename = false">
+    <div class="form-row"><label>Name</label><input @bind="renameName" placeholder="Address book name" /></div>
+    <div class="form-row">
+        <label>Default colour</label>
+        <input type="color" @bind="renameColor" />
+        <span class="hint">Shared with everyone; each person can still pick their own.</span>
+    </div>
     <div class="form-actions">
         <button @onclick="RenameAsync" disabled="@string.IsNullOrWhiteSpace(renameName)">Save</button>
         <button @onclick="() => showRename = false">Cancel</button>
@@ -336,6 +342,7 @@ else
     private bool showShare;
     private bool showRename;
     private string renameName = string.Empty;
+    private string renameColor = "#3B82F6";
     private string? renameError;
     private bool showDelete;
     private string moveTarget = string.Empty;
@@ -352,7 +359,8 @@ else
     private string? ActiveBookName => ActiveBook?.Name;
 
     private List<CollectionsPane.Item> PaneItems() =>
-        (books ?? []).Select(b => new CollectionsPane.Item(b.Id, b.Name, b.Color, b.Shared)).ToList();
+        (books ?? []).Select(b => new CollectionsPane.Item(
+            b.Id, b.Name, CollectionColors.Effective(b.Id, b.MyColor, b.Color), b.MyColor is not null, b.Shared)).ToList();
 
     private readonly HashSet<Guid> subscribedIds = [];
 
@@ -457,20 +465,23 @@ else
         await SaveStateAsync();
     }
 
+    // The pane picker sets the caller's personal colour (ADR 0066) for everyone; reset clears it.
     private async Task OnColorChangedAsync((Guid Id, string Color) change)
     {
-        var book = books?.FirstOrDefault(b => b.Id == change.Id);
-        if (book is null)
-        {
-            return;
-        }
+        await Api.SetMyColorAsync("address-books", change.Id, change.Color);
+        await RefreshColorsAsync();
+    }
 
-        var error = await Api.UpdateCollectionAsync("address-books", change.Id, book.Name, change.Color);
-        if (error is null)
-        {
-            books = await Api.GetAddressBooksAsync();
-            await ReloadAsync();
-        }
+    private async Task OnColorResetAsync(Guid id)
+    {
+        await Api.ClearMyColorAsync("address-books", id);
+        await RefreshColorsAsync();
+    }
+
+    private async Task RefreshColorsAsync()
+    {
+        books = await Api.GetAddressBooksAsync();
+        await ReloadAsync();
     }
 
     private IEnumerable<AddressBookDto> Visible() => (books ?? []).Where(b => checkedIds.Contains(b.Id));
@@ -485,7 +496,7 @@ else
         var list = new List<ContactEntry>();
         foreach (var b in Visible())
         {
-            var color = CollectionColors.For(b.Id, b.Color);
+            var color = CollectionColors.Effective(b.Id, b.MyColor, b.Color);
             foreach (var c in await Api.GetContactsAsync(b.Id))
             {
                 list.Add(new ContactEntry(c, b.Id, b.Name, color));
@@ -856,6 +867,7 @@ else
     private void OpenRename()
     {
         renameName = ActiveBookName ?? string.Empty;
+        renameColor = ActiveBook is { } b ? CollectionColors.For(b.Id, b.Color) : "#3B82F6";
         renameError = null;
         showRename = true;
     }
@@ -867,7 +879,7 @@ else
             return;
         }
 
-        renameError = await Api.UpdateCollectionAsync("address-books", id, renameName.Trim(), ActiveBook?.Color);
+        renameError = await Api.UpdateCollectionAsync("address-books", id, renameName.Trim(), renameColor);
         if (renameError is null)
         {
             books = await Api.GetAddressBooksAsync();

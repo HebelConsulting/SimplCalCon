@@ -399,6 +399,33 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
                     b.UseTphMappingStrategy();
                 });
 
+            modelBuilder.Entity("SimplCalCon.Domain.Collections.UserCollectionColor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId");
+
+                    b.HasIndex("UserId", "CollectionId")
+                        .IsUnique();
+
+                    b.ToTable("UserCollectionColors", (string)null);
+                });
+
             modelBuilder.Entity("SimplCalCon.Domain.Objects.CollectionObject", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1120,6 +1147,21 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
                     b.Navigation("Owner");
 
                     b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("SimplCalCon.Domain.Collections.UserCollectionColor", b =>
+                {
+                    b.HasOne("SimplCalCon.Domain.Collections.Collection", null)
+                        .WithMany()
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SimplCalCon.Domain.Principals.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("SimplCalCon.Domain.Objects.CollectionObject", b =>

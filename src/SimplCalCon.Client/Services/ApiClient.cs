@@ -308,6 +308,13 @@ public sealed class ApiClient(HttpClient http)
     public async Task<string?> UpdateCollectionAsync(string kind, Guid id, string name, string? color) =>
         await SendWithIfMatchAsync(HttpMethod.Put, $"api/{kind}/{id}", new { name, color });
 
+    // The caller's personal colour override (ADR 0066): set or clear (revert to the collection default).
+    public Task SetMyColorAsync(string kind, Guid id, string color) =>
+        http.PutAsJsonAsync($"api/{kind}/{id}/color", new { color });
+
+    public Task ClearMyColorAsync(string kind, Guid id) =>
+        http.DeleteAsync($"api/{kind}/{id}/color");
+
     public Task DeleteCollectionAsync(string kind, Guid id)
     {
         using var request = new HttpRequestMessage(HttpMethod.Delete, $"api/{kind}/{id}");

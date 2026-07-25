@@ -13,7 +13,11 @@ public sealed class CalendarResource : HypermediaResource, IETaggedResource
 
     public required string Name { get; init; }
 
+    /// <summary>The owner-set shared default colour (ADR 0062).</summary>
     public string? Color { get; init; }
+
+    /// <summary>The caller's personal colour override (ADR 0066), if any.</summary>
+    public string? MyColor { get; init; }
 
     public bool SupportsEvents { get; init; }
 
@@ -35,7 +39,11 @@ public sealed class AddressBookResource : HypermediaResource, IETaggedResource
 
     public required string Name { get; init; }
 
+    /// <summary>The owner-set shared default colour (ADR 0062).</summary>
     public string? Color { get; init; }
+
+    /// <summary>The caller's personal colour override (ADR 0066), if any.</summary>
+    public string? MyColor { get; init; }
 
     public bool Shared { get; init; }
 

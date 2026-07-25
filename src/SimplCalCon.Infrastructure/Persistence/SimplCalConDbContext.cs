@@ -43,6 +43,7 @@ public class SimplCalConDbContext(DbContextOptions<SimplCalConDbContext> options
     public DbSet<EventAttendee> EventAttendees => Set<EventAttendee>();
     public DbSet<EventOccurrence> EventOccurrences => Set<EventOccurrence>();
     public DbSet<AclEntry> AclEntries => Set<AclEntry>();
+    public DbSet<UserCollectionColor> UserCollectionColors => Set<UserCollectionColor>();
     public DbSet<Domain.Push.PushSubscription> PushSubscriptions => Set<Domain.Push.PushSubscription>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -11,14 +11,15 @@
                    @onchange="() => ToggleChecked(c.Id)" @onclick:stopPropagation
                    title="Show this collection's entries" />
 
-            <label class="coll-swatch" style="background:@CollectionColors.For(c.Id, c.Color)"
-                   title="@(c.Shared ? "Only the owner can change the colour" : "Change colour")">
-                @if (!c.Shared)
-                {
-                    <input type="color" value="@CollectionColors.For(c.Id, c.Color)"
-                           @onchange="e => OnColorAsync(c, e)" @onclick:stopPropagation />
-                }
+            <label class="coll-swatch" style="background:@c.Color" title="Set my colour">
+                <input type="color" value="@c.Color" @onchange="e => OnColorAsync(c, e)" @onclick:stopPropagation />
             </label>
+
+            @if (c.HasOwnColor)
+            {
+                <button type="button" class="coll-reset" title="Reset to the default colour"
+                        @onclick="() => OnResetAsync(c)" @onclick:stopPropagation>↺</button>
+            }
 
             <button type="button" class="coll-name" @onclick="() => SetActiveAsync(c.Id)" title="@c.Name">
                 <span class="coll-name-text">@c.Name</span>
@@ -36,8 +37,8 @@
 </div>
 
 @code {
-    /// <summary>A collection to list (calendar or address book).</summary>
-    public sealed record Item(Guid Id, string Name, string? Color, bool Shared);
+    /// <summary>A collection to list. <c>Color</c> is the effective (personal-or-default) colour; <c>HasOwnColor</c> shows the reset.</summary>
+    public sealed record Item(Guid Id, string Name, string Color, bool HasOwnColor, bool Shared);
 
     [Parameter] public IReadOnlyList<Item> Collections { get; set; } = [];
     [Parameter] public HashSet<Guid> Checked { get; set; } = [];
@@ -51,8 +52,11 @@
     /// <summary>Raised when the active collection changes.</summary>
     [Parameter] public EventCallback<Guid> OnActiveChanged { get; set; }
 
-    /// <summary>Raised when a colour is picked (id, hex).</summary>
+    /// <summary>Raised when a colour is picked — sets the caller's personal colour (id, hex).</summary>
     [Parameter] public EventCallback<(Guid Id, string Color)> OnColorChanged { get; set; }
+
+    /// <summary>Raised when the reset is clicked — clears the caller's personal colour.</summary>
+    [Parameter] public EventCallback<Guid> OnColorReset { get; set; }
 
     private async Task ToggleChecked(Guid id)
     {
@@ -73,4 +77,6 @@
             await OnColorChanged.InvokeAsync((c.Id, hex));
         }
     }
+
+    private Task OnResetAsync(Item c) => OnColorReset.InvokeAsync(c.Id);
 }

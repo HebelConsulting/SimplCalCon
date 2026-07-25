@@ -113,6 +113,7 @@ public static class DependencyInjection
         services.AddScoped<IDavRepository, DavRepository>();
         services.AddScoped<Application.Abstractions.Acl.IGroupService, Identity.GroupService>();
         services.AddScoped<IAclService, AclService>();
+        services.AddScoped<IUserCollectionColorService, UserCollectionColorService>();
         services.AddScoped<IPrincipalDirectory, PrincipalDirectory>();
 
         services.AddHostedService<BootstrapHostedService>();
