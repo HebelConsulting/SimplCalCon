@@ -70,14 +70,15 @@ internal static class CardDavResources
         return resource;
     }
 
-    public static DavResource ContactObjectResource(string href, ContactObject contact)
+    // addressData overrides the returned address-data (a property subset, ADR 0054); null = full blob.
+    public static DavResource ContactObjectResource(string href, ContactObject contact, string? addressData = null)
     {
         var resource = new DavResource(href);
         resource.SetEmpty(DavNames.ResourceType);
         resource.Set(DavNames.GetEtag, ETag.Format(contact.ConcurrencyToken));
         resource.Set(DavNames.GetContentType, "text/vcard; charset=utf-8");
         resource.Set(DavNames.GetContentLength, Encoding.UTF8.GetByteCount(contact.Blob).ToString());
-        resource.Set(DavNames.AddressData, contact.Blob);
+        resource.Set(DavNames.AddressData, addressData ?? contact.Blob);
         return resource;
     }
 

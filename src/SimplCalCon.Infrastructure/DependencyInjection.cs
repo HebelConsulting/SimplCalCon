@@ -97,6 +97,7 @@ public static class DependencyInjection
         services.AddScoped<IObjectComposer, ObjectComposer>();
         services.AddScoped<IEventSplitter, EventSplitter>();
         services.AddScoped<IRecurrenceEditor, RecurrenceEditor>();
+        services.AddSingleton<IDavDataFormatter, DavDataFormatter>();
         services.AddScoped<IDavRepository, DavRepository>();
         services.AddScoped<IAclService, AclService>();
         services.AddScoped<IPrincipalDirectory, PrincipalDirectory>();

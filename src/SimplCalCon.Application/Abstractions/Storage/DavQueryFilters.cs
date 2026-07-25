@@ -21,9 +21,14 @@ public sealed record DavTextMatch(string Value, TextMatchType MatchType, bool Ne
 
 /// <summary>
 /// A <c>prop-filter</c>: the property must be absent (<see cref="IsNotDefined"/>), present (no
-/// <see cref="TextMatch"/>), or present with a value that text-matches.
+/// <see cref="TextMatch"/>), or present with a value that text-matches. Any <see cref="Params"/>
+/// (param-filters, RFC 4791/6352) must additionally all match on the same property occurrence.
 /// </summary>
-public sealed record DavPropFilter(string Name, bool IsNotDefined, DavTextMatch? TextMatch);
+public sealed record DavPropFilter(
+    string Name, bool IsNotDefined, DavTextMatch? TextMatch, IReadOnlyList<DavParamFilter>? Params = null);
+
+/// <summary>A <c>param-filter</c>: a named property parameter must be absent (<see cref="IsNotDefined"/>), present, or text-match.</summary>
+public sealed record DavParamFilter(string Name, bool IsNotDefined, DavTextMatch? TextMatch);
 
 /// <summary>A CardDAV addressbook-query filter over vCard properties.</summary>
 public sealed record ContactQueryFilter(FilterTest Test, IReadOnlyList<DavPropFilter> Props)

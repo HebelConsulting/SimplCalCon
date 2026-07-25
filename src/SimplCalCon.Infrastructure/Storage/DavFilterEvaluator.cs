@@ -31,15 +31,43 @@ internal static class DavFilterEvaluator
 
     private static bool Matches(string blob, DavPropFilter prop)
     {
-        var values = PropertyValues(blob, prop.Name).ToList();
+        var occurrences = PropertyOccurrences(blob, prop.Name).ToList();
         if (prop.IsNotDefined)
+        {
+            return occurrences.Count == 0;
+        }
+
+        // No param-filters: keep the value-only (collection-level negate) behaviour.
+        if (prop.Params is not { Count: > 0 })
+        {
+            if (prop.TextMatch is not { } match)
+            {
+                return occurrences.Count > 0; // the property must merely be present
+            }
+
+            var any = occurrences.Any(o => TextMatches(o.Value, match));
+            return match.Negate ? !any : any;
+        }
+
+        // With param-filters (RFC 4791/6352): some occurrence must satisfy the text-match AND every param-filter.
+        return occurrences.Any(o =>
+            ValueOk(o.Value, prop.TextMatch) && prop.Params.All(param => ParamMatches(o.Parameters, param)));
+    }
+
+    private static bool ValueOk(string value, DavTextMatch? match) =>
+        match is null || (match.Negate ? !TextMatches(value, match) : TextMatches(value, match));
+
+    private static bool ParamMatches(ILookup<string, string> parameters, DavParamFilter param)
+    {
+        var values = parameters[param.Name].ToList();
+        if (param.IsNotDefined)
         {
             return values.Count == 0;
         }
 
-        if (prop.TextMatch is not { } match)
+        if (param.TextMatch is not { } match)
         {
-            return values.Count > 0; // the property must merely be present
+            return values.Count > 0; // the parameter must merely be present
         }
 
         var any = values.Any(value => TextMatches(value, match));
@@ -58,36 +86,88 @@ internal static class DavFilterEvaluator
         };
     }
 
-    // Values of a property in the unfolded blob, ignoring a group prefix ("item1.EMAIL") and parameters.
-    private static IEnumerable<string> PropertyValues(string blob, string propertyName)
+    // Occurrences of a property in the unfolded blob (value + parameters), ignoring a group prefix ("item1.EMAIL").
+    private static IEnumerable<(string Value, ILookup<string, string> Parameters)> PropertyOccurrences(
+        string blob, string propertyName)
     {
         foreach (var line in Unfold(blob))
         {
-            var colon = line.IndexOf(':');
+            var colon = FindValueColon(line);
             if (colon <= 0)
             {
                 continue;
             }
 
             var nameField = line[..colon];
-            var semicolon = nameField.IndexOf(';');
-            if (semicolon >= 0)
-            {
-                nameField = nameField[..semicolon];
-            }
-
-            var dot = nameField.LastIndexOf('.');
+            var parts = SplitParams(nameField);
+            var rawName = parts[0];
+            var dot = rawName.LastIndexOf('.');
             if (dot >= 0)
             {
-                nameField = nameField[(dot + 1)..];
+                rawName = rawName[(dot + 1)..];
             }
 
-            if (nameField.Equals(propertyName, StringComparison.OrdinalIgnoreCase))
+            if (!rawName.Equals(propertyName, StringComparison.OrdinalIgnoreCase))
             {
-                yield return Unescape(line[(colon + 1)..].Trim());
+                continue;
             }
+
+            var parameters = parts.Skip(1)
+                .Select(p => p.Split('=', 2))
+                .Where(kv => kv.Length == 2)
+                .SelectMany(kv => SplitValues(kv[1]).Select(v => (Key: kv[0], Value: v)))
+                .ToLookup(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
+
+            yield return (Unescape(line[(colon + 1)..].Trim()), parameters);
         }
     }
+
+    // The colon that starts the value — parameters may contain a quoted ':' which must be skipped.
+    private static int FindValueColon(string line)
+    {
+        var inQuotes = false;
+        for (var i = 0; i < line.Length; i++)
+        {
+            if (line[i] == '"')
+            {
+                inQuotes = !inQuotes;
+            }
+            else if (line[i] == ':' && !inQuotes)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    // Split the name field on ';' outside quotes: "ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=\"a;b\"".
+    private static List<string> SplitParams(string nameField)
+    {
+        var parts = new List<string>();
+        var inQuotes = false;
+        var start = 0;
+        for (var i = 0; i < nameField.Length; i++)
+        {
+            if (nameField[i] == '"')
+            {
+                inQuotes = !inQuotes;
+            }
+            else if (nameField[i] == ';' && !inQuotes)
+            {
+                parts.Add(nameField[start..i]);
+                start = i + 1;
+            }
+        }
+
+        parts.Add(nameField[start..]);
+        return parts;
+    }
+
+    // A parameter value may be a comma-separated list; quotes are stripped.
+    private static IEnumerable<string> SplitValues(string value) =>
+        value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(v => v.Trim('"'));
 
     private static string Unescape(string value) => value
         .Replace("\\n", "\n").Replace("\\N", "\n").Replace("\\,", ",").Replace("\\;", ";");

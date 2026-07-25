@@ -59,5 +59,6 @@ rather than an edit.
 | [0051](0051-per-instance-recurrence-edits.md) | Per-instance recurrence edits + monthly Nth-weekday |
 | [0052](0052-webdav-push.md) | WebDAV-Push (Web Push notifications to native DAV clients) |
 | [0053](0053-itip-on-per-instance-edits.md) | iTIP scheduling on per-instance recurrence edits |
+| [0054](0054-dav-depth-partial-data-param-filter-expand.md) | DAV depth: partial calendar/address-data, param-filter, expand |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

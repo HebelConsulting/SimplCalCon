@@ -79,12 +79,21 @@ public static class DavNames
     public static readonly XName CalPropFilter = CalDav + "prop-filter";
     public static readonly XName CalTextMatch = CalDav + "text-match";
     public static readonly XName CalIsNotDefined = CalDav + "is-not-defined";
+    public static readonly XName CalParamFilter = CalDav + "param-filter";
+    public static readonly XName CalComp = CalDav + "comp";
+    public static readonly XName CalProp = CalDav + "prop";
+    public static readonly XName CalExpand = CalDav + "expand";
+    public static readonly XName CalAllComp = CalDav + "allcomp";
+    public static readonly XName CalAllProp = CalDav + "allprop";
 
     // CardDAV addressbook-query filter grammar (RFC 6352).
     public static readonly XName CardFilter = CardDav + "filter";
     public static readonly XName CardPropFilter = CardDav + "prop-filter";
     public static readonly XName CardTextMatch = CardDav + "text-match";
     public static readonly XName CardIsNotDefined = CardDav + "is-not-defined";
+    public static readonly XName CardParamFilter = CardDav + "param-filter";
+    public static readonly XName CardProp = CardDav + "prop";
+    public static readonly XName CardAllProp = CardDav + "allprop";
     public static readonly XName CalendarTimeZone = CalDav + "calendar-timezone";
 
     // CalDAV scheduling (RFC 6638) + free-busy (RFC 4791)

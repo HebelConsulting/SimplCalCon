@@ -44,14 +44,15 @@ internal static class CalDavResources
         return resource;
     }
 
-    public static DavResource CalendarObjectResource(string href, CalendarObject calendarObject)
+    // calendarData overrides the returned calendar-data (a subset/expanded form, ADR 0054); null = full blob.
+    public static DavResource CalendarObjectResource(string href, CalendarObject calendarObject, string? calendarData = null)
     {
         var resource = new DavResource(href);
         resource.SetEmpty(DavNames.ResourceType);
         resource.Set(DavNames.GetEtag, ETag.Format(calendarObject.ConcurrencyToken));
         resource.Set(DavNames.GetContentType, "text/calendar; charset=utf-8");
         resource.Set(DavNames.GetContentLength, Encoding.UTF8.GetByteCount(calendarObject.Blob).ToString());
-        resource.Set(DavNames.CalendarData, calendarObject.Blob);
+        resource.Set(DavNames.CalendarData, calendarData ?? calendarObject.Blob);
         return resource;
     }
 
