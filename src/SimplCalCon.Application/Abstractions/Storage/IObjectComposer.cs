@@ -20,8 +20,11 @@ public sealed record EventInput(
     DateTime StartUtc,
     DateTime? EndUtc,
     bool IsAllDay,
+    string? Location = null,
     string? Organizer = null,
-    IReadOnlyList<AttendeeInput>? Attendees = null);
+    IReadOnlyList<AttendeeInput>? Attendees = null,
+    Recurrence? Recurrence = null,
+    string? RawRecurrenceRule = null);
 
 public sealed record AttendeeInput(string Address, string? CommonName);
 

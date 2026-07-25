@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SimplCalCon.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using SimplCalCon.Infrastructure.Persistence;
 namespace SimplCalCon.Infrastructure.Postgres.Migrations
 {
     [DbContext(typeof(SimplCalConDbContext))]
-    partial class SimplCalConDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260725094326_AddRecurrenceRule")]
+    partial class AddRecurrenceRule
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

@@ -29,7 +29,12 @@ public sealed record AddressBookDto(Guid Id, string Name, bool Shared);
 
 public sealed record EventDto(
     Guid Id, string? Summary, DateTime? StartUtc, DateTime? EndUtc, bool IsAllDay, bool IsRecurring,
-    IReadOnlyList<AttendeeDto>? Attendees = null, string? Location = null);
+    IReadOnlyList<AttendeeDto>? Attendees = null, string? Location = null,
+    RecurrenceDto? Recurrence = null, string? RecurrenceRule = null, bool RecurrenceSupported = false);
+
+/// <summary>A structured repeat rule the editor can model (ADR 0050).</summary>
+public sealed record RecurrenceDto(
+    string Frequency, int Interval, IReadOnlyList<string> ByDay, int? Count, DateTime? UntilUtc);
 
 public sealed record AttendeeDto(string Address, string? CommonName, string Role, string ParticipationStatus, bool IsOrganizer);
 

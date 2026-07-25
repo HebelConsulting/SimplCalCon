@@ -835,6 +835,10 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
                         .HasMaxLength(1024)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("RecurrenceRule")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Summary")
                         .HasMaxLength(1024)
                         .HasColumnType("TEXT");

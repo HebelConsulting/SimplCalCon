@@ -86,6 +86,14 @@ public interface IDavRepository
     Task<IReadOnlyList<CalendarObject>> QueryCalendarObjectsAsync(
         Guid collectionId, DateTime? startUtc, DateTime? endUtc, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Expands calendar objects into their concrete occurrences starting within [startUtc, endUtc)
+    /// for the web grid (ADR 0050): recurring masters are recurrence-expanded, non-recurring events
+    /// pass through once. Reads the blob for recurring candidates (the on-demand-query exception, ADR 0004/0043).
+    /// </summary>
+    Task<IReadOnlyList<CalendarObjectOccurrence>> QueryCalendarOccurrencesAsync(
+        Guid collectionId, DateTime startUtc, DateTime endUtc, CancellationToken cancellationToken);
+
     /// <summary>Evaluates a CalDAV calendar-query filter (component + time-range + prop-filters, ADR 0043).</summary>
     Task<IReadOnlyList<CalendarObject>> QueryCalendarObjectsAsync(
         Guid collectionId, CalendarQueryFilter filter, CancellationToken cancellationToken);
@@ -117,3 +125,6 @@ public sealed record DavSyncResult(
 
 public sealed record DavCalendarSyncResult(
     IReadOnlyList<CalendarObject> Changed, IReadOnlyList<string> RemovedResourceNames, long Token);
+
+/// <summary>One expanded occurrence of a calendar object within a queried window (ADR 0050).</summary>
+public sealed record CalendarObjectOccurrence(CalendarObject Object, DateTime StartUtc, DateTime EndUtc);

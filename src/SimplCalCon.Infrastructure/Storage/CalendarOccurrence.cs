@@ -38,4 +38,36 @@ internal static class CalendarOccurrence
             .TakeWhile(startTime => startTime is not null && startTime.Value < end)
             .Any();
     }
+
+    /// <summary>
+    /// Expands a component into its concrete occurrence windows starting within [fromUtc, toUtc)
+    /// (ADR 0050), for the web grid. Returns (start, end) UTC pairs; a malformed blob yields none.
+    /// </summary>
+    public static IReadOnlyList<(DateTime StartUtc, DateTime EndUtc)> Occurrences(
+        string blob, DateTime fromUtc, DateTime toUtc)
+    {
+        Ical.Net.Calendar? calendar;
+        try
+        {
+            calendar = Ical.Net.Calendar.Load(blob);
+        }
+        catch (Exception)
+        {
+            return [];
+        }
+
+        if (calendar is null)
+        {
+            return [];
+        }
+
+        var from = new CalDateTime(DateTime.SpecifyKind(fromUtc, DateTimeKind.Utc));
+        return calendar.GetOccurrences(from)
+            .TakeWhile(o => o.Period.StartTime?.AsUtc is { } s && s < toUtc)
+            .Where(o => o.Period.StartTime?.AsUtc is { } s && s >= fromUtc)
+            .Select(o => (
+                o.Period.StartTime!.AsUtc,
+                o.Period.EndTime?.AsUtc ?? o.Period.StartTime!.AsUtc))
+            .ToList();
+    }
 }

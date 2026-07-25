@@ -18,8 +18,8 @@
             }
         </select>
         <button class="ribbon-btn @(viewMode == View.List ? "active" : "")" @onclick="() => viewMode = View.List">List</button>
-        <button class="ribbon-btn @(viewMode == View.Calendar ? "active" : "")" @onclick="() => viewMode = View.Calendar">Calendar</button>
-        <button @onclick="() => showNew = true">New event</button>
+        <button class="ribbon-btn @(viewMode == View.Calendar ? "active" : "")" @onclick="() => SetViewAsync(View.Calendar)">Calendar</button>
+        <button @onclick="OpenNew">New event</button>
         <button @onclick="OpenImport">Import</button>
         <button @onclick="ExportAsync">Export .ics</button>
         @if (EffectiveId is { } id)
@@ -88,8 +88,8 @@ else
                 <button @onclick="Next" title="Next">›</button>
                 <span class="period-label">@PeriodLabel</span>
                 <span class="grid-spacer"></span>
-                <button class="@(gridMode == Grid.Month ? "active" : "")" @onclick="() => gridMode = Grid.Month">Month</button>
-                <button class="@(gridMode == Grid.Week ? "active" : "")" @onclick="() => gridMode = Grid.Week">Week</button>
+                <button class="@(gridMode == Grid.Month ? "active" : "")" @onclick="() => SetGridAsync(Grid.Month)">Month</button>
+                <button class="@(gridMode == Grid.Week ? "active" : "")" @onclick="() => SetGridAsync(Grid.Week)">Week</button>
             </div>
 
             <div class="grid-weekdays">
@@ -117,13 +117,79 @@ else
     }
 }
 
-<Modal Visible="showNew" Title="New event" OnClose="() => showNew = false">
+<Modal Visible="showEditor" Title="@(editingId is null ? "New event" : "Edit event")" OnClose="CloseEditor">
     <div class="form-row"><label>Summary</label><input @bind="summary" /></div>
+    <label class="form-check"><input type="checkbox" @bind="isAllDay" /> <span>All day</span></label>
     <div class="form-row"><label>Start</label><input type="datetime-local" @bind="start" /></div>
+    <div class="form-row"><label>End</label><input type="datetime-local" @bind="end" /></div>
+    <div class="form-row"><label>Location</label><input @bind="location" /></div>
     <div class="form-row"><label>Attendees</label><input placeholder="comma-separated emails" @bind="attendees" /></div>
+
+    @if (customRuleMode)
+    {
+        <div class="form-row">
+            <label>Repeats</label>
+            <span class="custom-rule" title="Edit this rule in a native calendar client">Custom rule (@customRule)</span>
+        </div>
+    }
+    else
+    {
+        <div class="form-row">
+            <label>Repeats</label>
+            <select @bind="repeatFreq">
+                <option value="">Does not repeat</option>
+                <option value="DAILY">Daily</option>
+                <option value="WEEKLY">Weekly</option>
+                <option value="MONTHLY">Monthly</option>
+                <option value="YEARLY">Yearly</option>
+            </select>
+        </div>
+        @if (repeatFreq.Length > 0)
+        {
+            <div class="form-row">
+                <label>Every</label>
+                <input type="number" min="1" class="interval" @bind="repeatInterval" />
+                <span>@FreqUnit</span>
+            </div>
+            @if (repeatFreq == "WEEKLY")
+            {
+                <div class="form-row">
+                    <label>On</label>
+                    <div class="weekday-toggles">
+                        @foreach (var (code, name) in Weekdays)
+                        {
+                            <button type="button" class="wd @(repeatDays.Contains(code) ? "on" : "")"
+                                    @onclick="() => ToggleDay(code)">@name</button>
+                        }
+                    </div>
+                </div>
+            }
+            <div class="form-row">
+                <label>Ends</label>
+                <select @bind="repeatEnd">
+                    <option value="never">Never</option>
+                    <option value="until">On date</option>
+                    <option value="count">After N times</option>
+                </select>
+                @if (repeatEnd == "until")
+                {
+                    <input type="date" @bind="repeatUntil" />
+                }
+                else if (repeatEnd == "count")
+                {
+                    <input type="number" min="1" class="interval" @bind="repeatCount" /> <span>times</span>
+                }
+            </div>
+        }
+    }
+
+    @if (editorError is not null)
+    {
+        <p class="import-message">@editorError</p>
+    }
     <div class="form-actions">
-        <button @onclick="AddAsync" disabled="@string.IsNullOrWhiteSpace(summary)">Add</button>
-        <button @onclick="() => showNew = false">Cancel</button>
+        <button @onclick="SaveAsync" disabled="@string.IsNullOrWhiteSpace(summary)">Save</button>
+        <button @onclick="CloseEditor">Cancel</button>
     </div>
 </Modal>
 
@@ -169,7 +235,12 @@ else
     {
         <dl class="detail">
             <dt>When</dt>
-            <dd>@FormatRange(ev)@(ev.IsRecurring ? " · recurring ↻" : "")</dd>
+            <dd>@FormatRange(ev)</dd>
+            @if (ev.IsRecurring)
+            {
+                <dt>Repeats</dt>
+                <dd>@RecurrenceText(ev)</dd>
+            }
             @if (!string.IsNullOrWhiteSpace(ev.Location))
             {
                 <dt>Location</dt>
@@ -182,6 +253,7 @@ else
             }
         </dl>
         <div class="form-actions">
+            <button @onclick="() => OpenEditAsync(ev)">Edit</button>
             <a class="ribbon-btn" href="history/calendars/@EffectiveId/@ev.Id">History</a>
             @if (CanSplit(ev))
             {
@@ -264,13 +336,43 @@ else
     private string fStart = string.Empty, fTitle = string.Empty, fLocation = string.Empty;
     private bool fRepeatsOnly;
 
+    private IReadOnlyList<EventDto>? occurrences;
+
     private EventDto? selected;
-    private bool showNew;
+    private bool showEditor;
     private bool showImport;
 
+    // --- Event editor (create + edit), including recurrence (ADR 0050) ---
+    private Guid? editingId;                  // null = create
     private string summary = string.Empty;
     private string attendees = string.Empty;
+    private string location = string.Empty;
     private DateTime start = DateTime.Now;
+    private DateTime? end;
+    private bool isAllDay;
+    private string? editorError;
+
+    private string repeatFreq = string.Empty; // "" | DAILY | WEEKLY | MONTHLY | YEARLY
+    private int repeatInterval = 1;
+    private readonly HashSet<string> repeatDays = [];
+    private string repeatEnd = "never";       // never | until | count
+    private DateTime? repeatUntil;
+    private int? repeatCount;
+    private bool customRuleMode;              // an imported rule the editor can't model — preserved verbatim
+    private string? customRule;
+
+    private static readonly (string Code, string Name)[] Weekdays =
+        [("MO", "Mon"), ("TU", "Tue"), ("WE", "Wed"), ("TH", "Thu"), ("FR", "Fri"), ("SA", "Sat"), ("SU", "Sun")];
+
+    private string FreqUnit => repeatFreq switch
+    {
+        "DAILY" => repeatInterval == 1 ? "day" : "days",
+        "WEEKLY" => repeatInterval == 1 ? "week" : "weeks",
+        "MONTHLY" => repeatInterval == 1 ? "month" : "months",
+        "YEARLY" => repeatInterval == 1 ? "year" : "years",
+        _ => "",
+    };
+
     private Guid? splittingId;
     private DateTime splitAt;
     private IBrowserFile? pendingImport;
@@ -321,6 +423,7 @@ else
     {
         calendars ??= await Api.GetCalendarsAsync();
         events = EffectiveId is { } id ? await Api.GetEventsAsync(id) : null;
+        await LoadOccurrencesAsync();
 
         // Subscribe to live changes for the calendar being shown (ADR 0049).
         if (EffectiveId is { } shown && shown != subscribedId)
@@ -330,17 +433,41 @@ else
         }
     }
 
-    // A live change to the shown calendar → reload its events.
+    // A live change to the shown calendar → reload its events (both list masters and grid occurrences).
     private void OnCollectionChanged(Guid collectionId)
     {
         if (collectionId == EffectiveId)
         {
             _ = InvokeAsync(async () =>
             {
-                events = await Api.GetEventsAsync(collectionId);
+                await ReloadEventsAsync();
                 StateHasChanged();
             });
         }
+    }
+
+    // Grid occurrences for the visible window (ADR 0050): recurring events show on every date.
+    private async Task LoadOccurrencesAsync()
+    {
+        if (EffectiveId is { } id && viewMode == View.Calendar)
+        {
+            var days = VisibleDays().ToList();
+            var fromUtc = days.First().ToUniversalTime();
+            var toUtc = days.Last().AddDays(1).ToUniversalTime();
+            occurrences = await Api.GetEventOccurrencesAsync(id, fromUtc, toUtc);
+        }
+    }
+
+    private async Task SetViewAsync(View view)
+    {
+        viewMode = view;
+        await LoadOccurrencesAsync();
+    }
+
+    private async Task SetGridAsync(Grid grid)
+    {
+        gridMode = grid;
+        await LoadOccurrencesAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -504,15 +631,29 @@ else
     }
 
     private IEnumerable<EventDto> EventsOn(DateTime day) =>
-        events!.Where(e => LocalStart(e)?.Date == day.Date).OrderBy(e => e.StartUtc);
+        (occurrences ?? []).Where(e => LocalStart(e)?.Date == day.Date).OrderBy(e => e.StartUtc);
 
     private string PeriodLabel => gridMode == Grid.Week
         ? $"{WeekStart(cursor):d MMM} – {WeekStart(cursor).AddDays(6):d MMM yyyy}"
         : cursor.ToString("MMMM yyyy");
 
-    private void Prev() => cursor = gridMode == Grid.Week ? cursor.AddDays(-7) : cursor.AddMonths(-1);
-    private void Next() => cursor = gridMode == Grid.Week ? cursor.AddDays(7) : cursor.AddMonths(1);
-    private void Today() => cursor = DateTime.Today;
+    private async Task Prev()
+    {
+        cursor = gridMode == Grid.Week ? cursor.AddDays(-7) : cursor.AddMonths(-1);
+        await LoadOccurrencesAsync();
+    }
+
+    private async Task Next()
+    {
+        cursor = gridMode == Grid.Week ? cursor.AddDays(7) : cursor.AddMonths(1);
+        await LoadOccurrencesAsync();
+    }
+
+    private async Task Today()
+    {
+        cursor = DateTime.Today;
+        await LoadOccurrencesAsync();
+    }
 
     // --- Split (ADR 0027): only timed, non-recurring events with a real window ---
     private static bool CanSplit(EventDto e) =>
@@ -539,19 +680,177 @@ else
         await ReloadEventsAsync();
     }
 
-    // --- New / import / export ---
-    private async Task AddAsync()
+    // --- Event editor (create + edit), ADR 0050 ---
+    private void OpenNew()
     {
-        if (!string.IsNullOrWhiteSpace(summary) && EffectiveId is { } id)
+        editingId = null;
+        summary = attendees = location = string.Empty;
+        start = DateTime.Now;
+        end = DateTime.Now.AddHours(1);
+        isAllDay = false;
+        ResetRecurrence();
+        editorError = null;
+        showEditor = true;
+    }
+
+    private async Task OpenEditAsync(EventDto clicked)
+    {
+        if (EffectiveId is not { } id)
         {
-            var invitees = attendees.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            await Api.CreateEventAsync(id, summary, DateTime.SpecifyKind(start.ToUniversalTime(), DateTimeKind.Utc), null, false, invitees);
-            summary = string.Empty;
-            attendees = string.Empty;
-            showNew = false;
-            await ReloadEventsAsync();
+            return;
+        }
+
+        // Always edit the series master (a clicked grid item may be an expanded occurrence).
+        var ev = await Api.GetEventAsync(id, clicked.Id) ?? clicked;
+        editingId = ev.Id;
+        summary = ev.Summary ?? string.Empty;
+        location = ev.Location ?? string.Empty;
+        isAllDay = ev.IsAllDay;
+        start = (ev.StartUtc ?? DateTime.UtcNow).ToLocalTime();
+        end = ev.EndUtc?.ToLocalTime();
+        attendees = string.Join(", ", (ev.Attendees ?? []).Where(a => !a.IsOrganizer).Select(a => a.Address.Replace("mailto:", "")));
+        ResetRecurrence();
+
+        if (ev is { RecurrenceSupported: true, Recurrence: { } r })
+        {
+            repeatFreq = r.Frequency;
+            repeatInterval = Math.Max(1, r.Interval);
+            foreach (var d in r.ByDay)
+            {
+                repeatDays.Add(d);
+            }
+
+            (repeatEnd, repeatUntil, repeatCount) = r switch
+            {
+                { Count: { } n } => ("count", (DateTime?)null, (int?)n),
+                { UntilUtc: { } u } => ("until", u.ToLocalTime(), null),
+                _ => ("never", null, null),
+            };
+        }
+        else if (!string.IsNullOrWhiteSpace(ev.RecurrenceRule))
+        {
+            customRuleMode = true;
+            customRule = ev.RecurrenceRule;
+        }
+
+        selected = null;
+        editorError = null;
+        showEditor = true;
+    }
+
+    private void CloseEditor() => showEditor = false;
+
+    private void ResetRecurrence()
+    {
+        repeatFreq = string.Empty;
+        repeatInterval = 1;
+        repeatDays.Clear();
+        repeatEnd = "never";
+        repeatUntil = null;
+        repeatCount = null;
+        customRuleMode = false;
+        customRule = null;
+    }
+
+    private void ToggleDay(string code)
+    {
+        if (!repeatDays.Remove(code))
+        {
+            repeatDays.Add(code);
         }
     }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(summary) || EffectiveId is not { } id)
+        {
+            return;
+        }
+
+        editorError = null;
+        var startUtc = DateTime.SpecifyKind(start.ToUniversalTime(), DateTimeKind.Utc);
+        var endUtc = end is { } e ? DateTime.SpecifyKind(e.ToUniversalTime(), DateTimeKind.Utc) : (DateTime?)null;
+        var invitees = attendees.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        var body = new Dictionary<string, object?>
+        {
+            ["summary"] = summary,
+            ["startUtc"] = startUtc,
+            ["endUtc"] = endUtc,
+            ["isAllDay"] = isAllDay,
+            ["location"] = string.IsNullOrWhiteSpace(location) ? null : location,
+            ["attendees"] = invitees.Select(a => new { address = a }).ToList(),
+        };
+
+        if (customRuleMode)
+        {
+            body["recurrenceRule"] = customRule; // preserve the imported rule verbatim
+        }
+        else if (repeatFreq.Length > 0)
+        {
+            body["recurrence"] = new
+            {
+                frequency = repeatFreq,
+                interval = Math.Max(1, repeatInterval),
+                byDay = repeatFreq == "WEEKLY" ? repeatDays.ToList() : new List<string>(),
+                count = repeatEnd == "count" ? repeatCount : null,
+                untilUtc = repeatEnd == "until" && repeatUntil is { } u
+                    ? DateTime.SpecifyKind(u.ToUniversalTime(), DateTimeKind.Utc)
+                    : (DateTime?)null,
+            };
+        }
+
+        try
+        {
+            if (editingId is { } existing)
+            {
+                await Api.UpdateEventAsync(id, existing, body);
+            }
+            else
+            {
+                await Api.CreateEventAsync(id, body);
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            editorError = $"Save failed: {ex.Message}";
+            return;
+        }
+
+        showEditor = false;
+        await ReloadEventsAsync();
+    }
+
+    private static string RecurrenceText(EventDto e)
+    {
+        if (e is { RecurrenceSupported: true, Recurrence: { } r })
+        {
+            var unit = r.Frequency switch
+            {
+                "DAILY" => "day", "WEEKLY" => "week", "MONTHLY" => "month", "YEARLY" => "year", _ => "time",
+            };
+            var text = r.Interval == 1 ? $"Every {unit}" : $"Every {r.Interval} {unit}s";
+            if (r.Frequency == "WEEKLY" && r.ByDay.Count > 0)
+            {
+                text += $" on {string.Join(", ", r.ByDay)}";
+            }
+
+            if (r.Count is { } n)
+            {
+                text += $", {n} times";
+            }
+            else if (r.UntilUtc is { } u)
+            {
+                text += $", until {u.ToLocalTime():d MMM yyyy}";
+            }
+
+            return text;
+        }
+
+        return e.RecurrenceRule is { } rule ? $"Custom rule ({rule})" : "Repeats";
+    }
+
+    // --- Import / export ---
 
     private void OnImportFile(InputFileChangeEventArgs e) => pendingImport = e.File;
 
@@ -599,6 +898,7 @@ else
         if (EffectiveId is { } id)
         {
             events = await Api.GetEventsAsync(id);
+            await LoadOccurrencesAsync();
         }
     }
 

@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using SimplCalCon.Api.Http;
 using SimplCalCon.Api.Hypermedia;
+using SimplCalCon.Application.Abstractions.Storage;
 
 namespace SimplCalCon.Api.Contracts;
 
@@ -22,6 +23,15 @@ public sealed class EventResource : HypermediaResource, IETaggedResource
     public bool IsAllDay { get; init; }
 
     public bool IsRecurring { get; init; }
+
+    /// <summary>Structured repeat rule when the editor can model it (ADR 0050); null for none or a custom rule.</summary>
+    public Recurrence? Recurrence { get; init; }
+
+    /// <summary>The raw RRULE value (any rule), null when not recurring.</summary>
+    public string? RecurrenceRule { get; init; }
+
+    /// <summary>True when <see cref="Recurrence"/> models the rule; false means it's shown read-only (custom).</summary>
+    public bool RecurrenceSupported { get; init; }
 
     /// <summary>Organizer + attendees (ADR 0030); the organizer is the entry with <c>isOrganizer</c>.</summary>
     public IReadOnlyList<AttendeeResource> Attendees { get; init; } = [];

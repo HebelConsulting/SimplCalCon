@@ -26,6 +26,9 @@ public class CalendarObject : CollectionObject
     /// <summary>True when the component carries an RRULE/RDATE.</summary>
     public bool IsRecurring { get; set; }
 
+    /// <summary>Extracted RRULE value (without the <c>RRULE:</c> prefix), for the web editor to load/round-trip (ADR 0050); null when not recurring.</summary>
+    public string? RecurrenceRule { get; set; }
+
     /// <summary>Indexed ORGANIZER/ATTENDEE rows, rebuilt from the blob on every write (ADR 0030).</summary>
     public ICollection<EventAttendee> Attendees { get; set; } = [];
 }

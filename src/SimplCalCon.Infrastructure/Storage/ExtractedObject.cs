@@ -14,6 +14,7 @@ internal sealed record ExtractedCalendarObject(
     DateTime? DtEndUtc,
     bool IsAllDay,
     bool IsRecurring,
+    string? RecurrenceRule,
     IReadOnlyList<ExtractedAttendee> Attendees) : ExtractedObject(Uid);
 
 internal sealed record ExtractedAttendee(
