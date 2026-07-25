@@ -284,6 +284,48 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
             .ToList();
     }
 
+    public async Task<IReadOnlyList<CalendarObject>> QueryCalendarObjectsAsync(
+        Guid collectionId, CalendarQueryFilter filter, CancellationToken cancellationToken)
+    {
+        var query = dbContext.CalendarObjects
+            .Include(o => o.Attendees)
+            .Where(o => o.CollectionId == collectionId && !o.IsDeleted);
+
+        if (filter.Component is { } component)
+        {
+            var type = component.Equals("VTODO", StringComparison.OrdinalIgnoreCase)
+                ? CalendarComponentType.Todo
+                : CalendarComponentType.Event;
+            query = query.Where(o => o.ComponentType == type);
+        }
+
+        var start = filter.StartUtc;
+        var end = filter.EndUtc;
+        if (start is not null || end is not null)
+        {
+            query = query.Where(o => o.IsRecurring || o.DtStartUtc == null
+                || ((end == null || o.DtStartUtc < end) && (start == null || (o.DtEndUtc ?? o.DtStartUtc) >= start)));
+        }
+
+        var candidates = await query.ToListAsync(cancellationToken);
+
+        return candidates
+            .Where(o => (start is null && end is null) || !o.IsRecurring || CalendarOccurrence.OverlapsRange(o.Blob, start, end))
+            .Where(o => DavFilterEvaluator.Matches(o.Blob, filter))
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<ContactObject>> QueryContactObjectsAsync(
+        Guid collectionId, ContactQueryFilter filter, CancellationToken cancellationToken)
+    {
+        var candidates = await dbContext.ContactObjects
+            .Where(o => o.CollectionId == collectionId && !o.IsDeleted)
+            .OrderBy(o => o.ResourceName)
+            .ToListAsync(cancellationToken);
+
+        return candidates.Where(o => DavFilterEvaluator.Matches(o.Blob, filter)).ToList();
+    }
+
     public async Task<DavCalendarSyncResult> SyncCalendarAsync(
         Guid collectionId, long? sinceToken, CancellationToken cancellationToken)
     {

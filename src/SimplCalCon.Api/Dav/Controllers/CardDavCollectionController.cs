@@ -201,9 +201,10 @@ public sealed class CardDavCollectionController(IDavRepository repository, IAclS
     private async Task<IActionResult> QueryAsync(
         Guid userId, string book, AddressBook addressBook, XElement body, CancellationToken cancellationToken)
     {
-        // v1: return all live objects with the requested props (filter honoured leniently).
+        // Evaluate the addressbook-query filter over vCard properties (ADR 0043).
         var request = PropRequest.FromProp(body.Element(DavNames.Prop));
-        var resources = (await repository.ListObjectsAsync(addressBook.Id, cancellationToken))
+        var filter = DavFilterParser.ParseAddressbookQuery(body);
+        var resources = (await repository.QueryContactObjectsAsync(addressBook.Id, filter, cancellationToken))
             .Select(o => CardDavResources.ContactObjectResource(ObjectHref(userId, book, o.ResourceName), o))
             .ToList();
 

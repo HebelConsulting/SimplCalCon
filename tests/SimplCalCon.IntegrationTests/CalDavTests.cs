@@ -85,6 +85,30 @@ public sealed class CalDavTests(AuthWebApplicationFactory factory) : IClassFixtu
     }
 
     [Fact]
+    public async Task Calendar_query_evaluates_a_summary_prop_filter()
+    {
+        var (client, userId) = await DavClientAsync();
+        var cal = await CreateCalendarAsync(client, userId);
+        var basePath = $"/dav/calendars/{userId}/{cal}";
+        await SendAsync(client, "PUT", $"{basePath}/meeting.ics", content: Event("m@t", "Team Meeting", "20260715T090000Z"), contentType: "text/calendar");
+        await SendAsync(client, "PUT", $"{basePath}/lunch.ics", content: Event("l@t", "Lunch", "20260715T120000Z"), contentType: "text/calendar");
+
+        var query = await SendAsync(client, "REPORT", $"{basePath}/", body: """
+            <c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+              <d:prop><d:getetag/></d:prop>
+              <c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT">
+                <c:prop-filter name="SUMMARY"><c:text-match>Meeting</c:text-match></c:prop-filter>
+              </c:comp-filter></c:comp-filter></c:filter>
+            </c:calendar-query>
+            """);
+
+        var hrefs = XDocument.Parse(await query.Content.ReadAsStringAsync())
+            .Descendants(Dav + "href").Select(h => h.Value).ToList();
+        Assert.Contains(hrefs, h => h.EndsWith("/meeting.ics"));
+        Assert.DoesNotContain(hrefs, h => h.EndsWith("/lunch.ics"));
+    }
+
+    [Fact]
     public async Task Sync_collection_reports_changes_and_removals()
     {
         var (client, userId) = await DavClientAsync();

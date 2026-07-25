@@ -86,6 +86,14 @@ public interface IDavRepository
     Task<IReadOnlyList<CalendarObject>> QueryCalendarObjectsAsync(
         Guid collectionId, DateTime? startUtc, DateTime? endUtc, CancellationToken cancellationToken);
 
+    /// <summary>Evaluates a CalDAV calendar-query filter (component + time-range + prop-filters, ADR 0043).</summary>
+    Task<IReadOnlyList<CalendarObject>> QueryCalendarObjectsAsync(
+        Guid collectionId, CalendarQueryFilter filter, CancellationToken cancellationToken);
+
+    /// <summary>Evaluates a CardDAV addressbook-query filter (prop-filters over vCard properties, ADR 0043).</summary>
+    Task<IReadOnlyList<ContactObject>> QueryContactObjectsAsync(
+        Guid collectionId, ContactQueryFilter filter, CancellationToken cancellationToken);
+
     Task<DavCalendarSyncResult> SyncCalendarAsync(Guid collectionId, long? sinceToken, CancellationToken cancellationToken);
 
     // --- Trash & version history (ADR 0028) ---
