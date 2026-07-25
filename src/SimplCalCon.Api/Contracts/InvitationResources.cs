@@ -19,3 +19,6 @@ public sealed class InvitationResource : HypermediaResource
 
     public string? OrganizerName { get; init; }
 }
+
+/// <summary>The count of pending invitations, for the shell badge (ADR 0045).</summary>
+public sealed record InvitationCountResource(int Count);

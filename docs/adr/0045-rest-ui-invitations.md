@@ -37,5 +37,8 @@ no way to *see* incoming invitations or *respond* to them, and an event created 
   puts the event on their calendar and tells the organizer.
 - **Import stays quiet** — scheduling is hooked into the interactive event endpoints, *not*
   `IObjectStore`, so bulk import of attended events does not spam REQUESTs.
-- **Deferred (still):** email iMIP for external/cross-tenant attendees; attendee-delete-as-decline;
-  recurring/delegation; an unread-invitation count badge in the shell.
+- An **unread-invitation badge** in the shell top-right — `GET /api/invitations/count` (counts
+  REQUEST messages without parsing blobs), rendered by `MainLayout` and refreshed on every
+  navigation (no live updates yet); clicking opens `/invitations`.
+- **Deferred (still):** recurring/delegation. *(Email iMIP → ADR 0047; attendee-delete-as-decline →
+  ADR 0048.)*

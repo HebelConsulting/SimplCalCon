@@ -68,6 +68,7 @@ public sealed record ImportResultDto(
 public sealed record InvitationDto(
     string ResourceName, string Uid, string? Summary, DateTime? StartUtc, DateTime? EndUtc,
     string OrganizerEmail, string? OrganizerName);
+public sealed record InvitationCountDto(int Count);
 
 public sealed record TakeoutImportResultDto(
     int CollectionsCreated, int Imported, int Skipped, int Failed, IReadOnlyList<string> Errors);

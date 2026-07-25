@@ -217,3 +217,32 @@
     border-top-color: #1b6ec2;
     background: #f7fafe;
 }
+
+/* Unread-invitation bell + badge in the shell top-right (ADR 0045). */
+.invite-bell {
+    position: relative;
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0.2rem 0.35rem;
+    line-height: 1;
+}
+
+.invite-badge {
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    background: #c0392b;
+    color: #fff;
+    font-size: 0.6rem;
+    font-weight: 700;
+    min-width: 1rem;
+    height: 1rem;
+    padding: 0 0.2rem;
+    border-radius: 0.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}

@@ -35,6 +35,19 @@ internal sealed class InvitationService(
         return invitations.OrderBy(i => i.StartUtc ?? DateTime.MaxValue).ToList();
     }
 
+    public async Task<int> CountAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var inbox = await inboxes.GetInboxAsync(userId, cancellationToken);
+        if (inbox is null)
+        {
+            return 0;
+        }
+
+        // Count REQUEST messages without parsing their blobs.
+        var messages = await inboxes.ListMessagesAsync(inbox.Id, cancellationToken);
+        return messages.Count(m => m.Method == "REQUEST");
+    }
+
     public async Task<bool> RespondAsync(
         Guid userId, string resourceName, InvitationResponse response, CancellationToken cancellationToken)
     {
