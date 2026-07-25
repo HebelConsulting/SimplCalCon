@@ -22,7 +22,8 @@ SQLite** (both are first-class production databases — every feature works on b
   iOS, DAVx5, and other standard clients.
 - **REST API** — HATEOAS envelopes, RFC 7807 problem details, ETag/`If-Match` concurrency, JSON.
 - **Blazor WebAssembly web UI** — calendars (list + month/week grid), contacts (master-detail),
-  import/export, sharing, trash & version history, profile & contact photos.
+  import/export, sharing, trash & version history, profile & contact photos, with **live updates**
+  (SignalR) so changes and invitations appear without a reload.
 - **Multi-tenancy** with platform / tenant admins and **full ACL sharing**.
 - **Authentication** — OIDC (auth code + PKCE) for web/REST; per-device app passwords for DAV.
 - **Data portability** — per-collection import/export, account takeout, and direct **Google export

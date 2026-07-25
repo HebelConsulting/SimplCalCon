@@ -8,7 +8,8 @@ using SimplCalCon.Infrastructure.Persistence;
 namespace SimplCalCon.Infrastructure.Storage;
 
 /// <summary>Schedule-inbox provisioning, iTIP delivery, and read/sync/delete (RFC 6638, ADR 0031).</summary>
-internal sealed class ScheduleInboxRepository(SimplCalConDbContext dbContext, IClock clock) : IScheduleInboxRepository
+internal sealed class ScheduleInboxRepository(
+    SimplCalConDbContext dbContext, IClock clock, IChangeNotifier changeNotifier) : IScheduleInboxRepository
 {
     public async Task<ScheduleInbox> EnsureInboxAsync(Guid ownerId, Guid tenantId, CancellationToken cancellationToken)
     {
@@ -56,6 +57,7 @@ internal sealed class ScheduleInboxRepository(SimplCalConDbContext dbContext, IC
 
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        await NotifyInvitationsChangedAsync(inbox.OwnerId, cancellationToken);
     }
 
     public async Task<IReadOnlyList<ScheduleMessage>> ListMessagesAsync(Guid inboxId, CancellationToken cancellationToken) =>
@@ -87,7 +89,21 @@ internal sealed class ScheduleInboxRepository(SimplCalConDbContext dbContext, IC
 
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        await NotifyInvitationsChangedAsync(inbox.OwnerId, cancellationToken);
         return true;
+    }
+
+    // Fire the live-update signal post-commit; a transport failure must never fail the delivery (ADR 0049).
+    private async Task NotifyInvitationsChangedAsync(Guid ownerId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await changeNotifier.InvitationsChangedAsync(ownerId, cancellationToken);
+        }
+        catch
+        {
+            // Best-effort — the inbox is already committed; the badge simply refreshes on next navigation.
+        }
     }
 
     public async Task<ScheduleInboxSyncResult> SyncAsync(Guid inboxId, long? sinceToken, CancellationToken cancellationToken)

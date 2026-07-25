@@ -16,7 +16,8 @@ namespace SimplCalCon.Infrastructure.Storage;
 /// keeping the change sequence strictly increasing.
 /// </summary>
 internal sealed class ObjectStore(
-    SimplCalConDbContext dbContext, IClock clock, ILogger<ObjectStore> logger) : IObjectStore
+    SimplCalConDbContext dbContext, IClock clock, ILogger<ObjectStore> logger,
+    IChangeNotifier changeNotifier) : IObjectStore
 {
     public async Task<StoredObjectResult> PutAsync(PutObjectRequest request, CancellationToken cancellationToken)
     {
@@ -40,6 +41,7 @@ internal sealed class ObjectStore(
         logger.LogDebug(
             "{Operation} object {ResourceName} in collection {CollectionId} (change {ChangeNumber}).",
             created ? "Created" : "Updated", request.ResourceName, request.CollectionId, collection.ChangeSequence);
+        await NotifyCollectionChangedAsync(request.CollectionId, cancellationToken);
         return result;
     }
 
@@ -78,6 +80,7 @@ internal sealed class ObjectStore(
         var result = await CommitObjectAsync(
             collection, stored, RevisionOperation.Restored, created, authorPrincipalId, now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        await NotifyCollectionChangedAsync(collectionId, cancellationToken);
         return result;
     }
 
@@ -251,8 +254,22 @@ internal sealed class ObjectStore(
         await dbContext.SaveChangesAsync(cancellationToken);
         await AppendRevisionAsync(stored, RevisionOperation.Deleted, authorPrincipalId, now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        await NotifyCollectionChangedAsync(collectionId, cancellationToken);
 
         return true;
+    }
+
+    // Fire the live-update signal post-commit; a transport failure must never fail the write (ADR 0049).
+    private async Task NotifyCollectionChangedAsync(Guid collectionId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await changeNotifier.CollectionChangedAsync(collectionId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to push change notification for collection {CollectionId}.", collectionId);
+        }
     }
 
     // Rebuild the indexed attendee rows from the parsed blob (ADR 0030); the blob stays the source of truth.

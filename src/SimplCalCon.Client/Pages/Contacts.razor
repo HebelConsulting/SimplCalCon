@@ -4,6 +4,7 @@
 @inject ApiClient Api
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
+@inject LiveUpdates Live
 
 <PageTitle>Contacts</PageTitle>
 
@@ -348,6 +349,10 @@ else
 
     private Guid? EffectiveId => AddressBookId ?? books?.FirstOrDefault()?.Id;
 
+    private Guid? subscribedId;
+
+    protected override void OnInitialized() => Live.CollectionChanged += OnCollectionChanged;
+
     protected override async Task OnParametersSetAsync()
     {
         books ??= await Api.GetAddressBooksAsync();
@@ -363,6 +368,33 @@ else
         {
             contacts = null;
         }
+
+        // Subscribe to live changes for the address book being shown (ADR 0049).
+        if (EffectiveId is { } shown && shown != subscribedId)
+        {
+            subscribedId = shown;
+            await Live.SubscribeAsync(shown);
+        }
+    }
+
+    // A live change to the shown address book → reload its contacts (keeping the selection if it survives).
+    private void OnCollectionChanged(Guid collectionId)
+    {
+        if (collectionId != EffectiveId)
+        {
+            return;
+        }
+
+        _ = InvokeAsync(async () =>
+        {
+            contacts = (await Api.GetContactsAsync(collectionId)).ToList();
+            if (selected is not null && contacts.All(c => c.Id != selected.Id))
+            {
+                ClearSelection();
+            }
+
+            StateHasChanged();
+        });
     }
 
     // Wire the draggable divider once the list/detail panes have rendered.
@@ -593,6 +625,7 @@ else
 
     public async ValueTask DisposeAsync()
     {
+        Live.CollectionChanged -= OnCollectionChanged;
         try
         {
             if (splitter is not null)

@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject ApiClient Api
 @inject NavigationManager Navigation
+@inject LiveUpdates Live
 
 <div class="app-shell">
     <header class="shell-ribbon">
@@ -114,7 +115,10 @@
                 if (me is not null)
                 {
                     await RefreshInvitesAsync();
-                    // The count is refreshed on every navigation (no live updates yet).
+                    // Live push keeps the badge current (ADR 0049); refresh-on-navigation is the
+                    // fallback if the SignalR connection can't be established.
+                    Live.InvitationsChanged += OnInvitationsChanged;
+                    await Live.StartAsync();
                     Navigation.LocationChanged += OnLocationChanged;
                 }
             }
@@ -133,7 +137,13 @@
 
     private async void OnLocationChanged(object? sender, LocationChangedEventArgs e) => await RefreshInvitesAsync();
 
-    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+    private void OnInvitationsChanged() => _ = InvokeAsync(RefreshInvitesAsync);
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        Live.InvitationsChanged -= OnInvitationsChanged;
+    }
 
     private void ToggleMenu() => menuOpen = !menuOpen;
 

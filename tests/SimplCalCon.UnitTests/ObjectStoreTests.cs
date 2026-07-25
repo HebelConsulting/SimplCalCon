@@ -66,7 +66,8 @@ public sealed class ObjectStoreTests
     private readonly TestDatabase _database = new();
     private readonly MutableClock _clock = new(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
 
-    private ObjectStore Store() => new(_database.CreateContext(), _clock, NullLogger<ObjectStore>.Instance);
+    private ObjectStore Store() =>
+        new(_database.CreateContext(), _clock, NullLogger<ObjectStore>.Instance, new NoOpChangeNotifier());
 
     [Fact]
     public async Task Put_event_extracts_fields_and_starts_history()
@@ -193,7 +194,8 @@ public sealed class ObjectStoreTests
         var bookId = await SeedAddressBookAsync();
         await using var context = _database.CreateContext();
         var import = new ObjectImportExport(
-            context, new ObjectStore(context, _clock, NullLogger<ObjectStore>.Instance), new DavRepository(context, _clock));
+            context, new ObjectStore(context, _clock, NullLogger<ObjectStore>.Instance, new NoOpChangeNotifier()),
+            new DavRepository(context, _clock));
 
         var vcf =
             "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:John Smith\r\nN:Smith;John;;;\r\n" +

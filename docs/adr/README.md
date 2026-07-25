@@ -54,5 +54,6 @@ rather than an edit.
 | [0046](0046-sharing-ui-and-shared-with-me.md) | Sharing UI modernization + "shared with me" |
 | [0047](0047-email-imip-per-tenant-smtp.md) | Email iMIP via per-tenant SMTP (external attendees) |
 | [0048](0048-attendee-delete-as-decline.md) | Attendee delete as decline (REPLY;PARTSTAT=DECLINED) |
+| [0049](0049-live-updates-signalr.md) | Live updates over SignalR (collections + invitation badge) |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).
