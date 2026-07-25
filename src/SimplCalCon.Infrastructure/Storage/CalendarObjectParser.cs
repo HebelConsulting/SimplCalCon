@@ -167,6 +167,61 @@ internal static class CalendarObjectParser
     private static string Serialize(Ical.Net.Calendar calendar) =>
         new CalendarSerializer().SerializeToString(calendar) ?? string.Empty;
 
+    /// <summary>
+    /// Expands recurring components into one VEVENT per occurrence starting within [startUtc, endUtc)
+    /// for a calendar-data <c>expand</c> REPORT (ADR 0054): each gets a RECURRENCE-ID + concrete
+    /// DTSTART/DTEND and loses its RRULE/EXDATE. A malformed blob is returned unchanged.
+    /// </summary>
+    public static string ExpandForData(string blob, DateTime startUtc, DateTime endUtc)
+    {
+        Ical.Net.Calendar calendar;
+        try
+        {
+            calendar = Load(blob);
+        }
+        catch (Exception)
+        {
+            return blob;
+        }
+
+        var from = new CalDateTime(DateTime.SpecifyKind(startUtc, DateTimeKind.Utc));
+        var expanded = new Ical.Net.Calendar { ProductId = calendar.ProductId, Version = calendar.Version };
+
+        foreach (var occurrence in calendar.GetOccurrences(from))
+        {
+            if (occurrence.Period.StartTime?.AsUtc is not { } start)
+            {
+                continue;
+            }
+
+            if (start >= endUtc)
+            {
+                break; // the stream is ordered by start
+            }
+
+            if (occurrence.Source is not Ical.Net.CalendarComponents.CalendarEvent source)
+            {
+                continue;
+            }
+
+            if (source.Copy<Ical.Net.CalendarComponents.CalendarEvent>() is not { } instance)
+            {
+                continue;
+            }
+
+            instance.RecurrenceRule = null;
+            instance.ExceptionDates.Clear();
+            instance.RecurrenceIdentifier = new RecurrenceIdentifier(new CalDateTime(DateTime.SpecifyKind(start, DateTimeKind.Utc)));
+            instance.DtStart = new CalDateTime(DateTime.SpecifyKind(start, DateTimeKind.Utc));
+            instance.DtEnd = occurrence.Period.EndTime?.AsUtc is { } end
+                ? new CalDateTime(DateTime.SpecifyKind(end, DateTimeKind.Utc))
+                : null;
+            expanded.Events.Add(instance);
+        }
+
+        return Serialize(expanded);
+    }
+
     /// <summary>Splits a multi-object calendar file into one self-contained blob per UID.</summary>
     public static IEnumerable<(string Uid, string Blob)> Split(string content)
     {

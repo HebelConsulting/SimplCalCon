@@ -46,12 +46,12 @@ Legend: ✅ verified · ⬜ not yet checked · ⚠️ works with caveat (note it
   succeeds. macOS Calendar does **not** make this root probe, so CalDAV worked without
   it. Served by `CardDavServiceController` (`~/` OPTIONS + PROPFIND). Verified end to
   end on macOS 15.7 via reverse-proxy body tracing (full sync incl. multiget).
-- `addressbook-query` / `calendar-query` filters are only partially evaluated
-  server-side: address-book returns all live objects; calendar applies the
-  `time-range` filter but not comp/prop/text filters — verify clients tolerate the
-  superset.
-- `address-data` / `calendar-data` return the full object (no partial retrieval or
-  response-side recurrence expansion).
+- `addressbook-query` / `calendar-query` filters are evaluated server-side, including
+  `text-match`, `is-not-defined`, and `param-filter` (ADR 0043/0054). Deep `allcomp`
+  nesting is approximated.
+- `address-data` / `calendar-data` honor a requested `<comp>`/`<prop>` subset, and
+  `calendar-data` supports `expand` (one VEVENT per occurrence) — ADR 0054.
+  `limit-recurrence-set` and partial data on `sync-collection` are not implemented.
 - Time-range expansion keys on occurrence start, so an event spanning into the window
   from before it can be missed (rare).
 

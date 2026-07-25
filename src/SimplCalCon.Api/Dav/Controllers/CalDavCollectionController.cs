@@ -14,7 +14,7 @@ namespace SimplCalCon.Api.Dav.Controllers;
 /// <summary>A calendar collection: PROPFIND, REPORT (calendar-query/multiget/sync-collection), MKCALENDAR/MKCOL, DELETE.</summary>
 public sealed class CalDavCollectionController(
     IDavRepository repository, IFreeBusyService freeBusy, IAclService acl,
-    IWebPushConfiguration webPush) : DavControllerBase
+    IWebPushConfiguration webPush, IDavDataFormatter dataFormatter) : DavControllerBase
 {
     private static readonly string[] IcalDateFormats =
         ["yyyyMMdd'T'HHmmss'Z'", "yyyyMMdd'T'HHmmss", "yyyyMMdd"];
@@ -191,6 +191,7 @@ public sealed class CalDavCollectionController(
         Guid userId, string cal, Calendar calendar, XElement body, CancellationToken cancellationToken)
     {
         var request = PropRequest.FromProp(body.Element(DavNames.Prop));
+        var calendarData = DavDataRequest.ParseCalendarData(body.Descendants(DavNames.CalendarData).FirstOrDefault());
         var names = body.Elements(DavNames.Href).Select(h => LastSegment(h.Value)).ToList();
         var found = (await repository.GetCalendarObjectsAsync(calendar.Id, names, cancellationToken))
             .ToDictionary(o => o.ResourceName);
@@ -201,7 +202,7 @@ public sealed class CalDavCollectionController(
             if (found.TryGetValue(name, out var o))
             {
                 var built = MultiStatus.Build(request, [
-                    CalDavResources.CalendarObjectResource(CalendarObjectHref(userId, cal, name), o)]);
+                    CalDavResources.CalendarObjectResource(CalendarObjectHref(userId, cal, name), o, FormatCalendar(o, calendarData))]);
                 document.Root!.Add(built.Root!.Elements(DavNames.Response));
             }
             else
@@ -221,14 +222,20 @@ public sealed class CalDavCollectionController(
     {
         var request = PropRequest.FromProp(body.Element(DavNames.Prop));
         var filter = DavFilterParser.ParseCalendarQuery(body);
+        var calendarData = DavDataRequest.ParseCalendarData(body.Descendants(DavNames.CalendarData).FirstOrDefault());
 
         var objects = await repository.QueryCalendarObjectsAsync(calendar.Id, filter, cancellationToken);
         var resources = objects
-            .Select(o => CalDavResources.CalendarObjectResource(CalendarObjectHref(userId, cal, o.ResourceName), o))
+            .Select(o => CalDavResources.CalendarObjectResource(
+                CalendarObjectHref(userId, cal, o.ResourceName), o, FormatCalendar(o, calendarData)))
             .ToList();
 
         return DavXml.MultiStatus(MultiStatus.Build(request, resources));
     }
+
+    // A subset/expanded calendar-data string when the request asked for one; null returns the full blob (ADR 0054).
+    private string? FormatCalendar(Domain.Objects.CalendarObject o, CalendarDataRequest calendarData) =>
+        calendarData.IsFull ? null : dataFormatter.FormatCalendar(o.Blob, calendarData);
 
     private IActionResult InvalidSyncToken()
     {

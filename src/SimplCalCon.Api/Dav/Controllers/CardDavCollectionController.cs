@@ -12,7 +12,8 @@ namespace SimplCalCon.Api.Dav.Controllers;
 
 /// <summary>An address-book collection: PROPFIND listing, REPORT (multiget/query/sync-collection), MKCOL, DELETE.</summary>
 public sealed class CardDavCollectionController(
-    IDavRepository repository, IAclService acl, IWebPushConfiguration webPush) : DavControllerBase
+    IDavRepository repository, IAclService acl, IWebPushConfiguration webPush,
+    IDavDataFormatter dataFormatter) : DavControllerBase
 {
     [HttpPropfind("~/dav/addressbooks/{userId:guid}/{book}")]
     public async Task<IActionResult> Propfind(Guid userId, string book, CancellationToken cancellationToken)
@@ -174,6 +175,7 @@ public sealed class CardDavCollectionController(
         Guid userId, string book, AddressBook addressBook, XElement body, CancellationToken cancellationToken)
     {
         var request = PropRequest.FromProp(body.Element(DavNames.Prop));
+        var addressData = DavDataRequest.ParseAddressData(body.Descendants(DavNames.AddressData).FirstOrDefault());
         var names = body.Elements(DavNames.Href).Select(h => LastSegment(h.Value)).ToList();
         var found = (await repository.GetObjectsAsync(addressBook.Id, names, cancellationToken))
             .ToDictionary(o => o.ResourceName);
@@ -185,7 +187,7 @@ public sealed class CardDavCollectionController(
             if (found.TryGetValue(name, out var contact))
             {
                 var built = MultiStatus.Build(request, [
-                    CardDavResources.ContactObjectResource(ObjectHref(userId, book, name), contact)]);
+                    CardDavResources.ContactObjectResource(ObjectHref(userId, book, name), contact, FormatContact(contact, addressData))]);
                 document.Root!.Add(built.Root!.Elements(DavNames.Response));
             }
             else
@@ -206,12 +208,17 @@ public sealed class CardDavCollectionController(
         // Evaluate the addressbook-query filter over vCard properties (ADR 0043).
         var request = PropRequest.FromProp(body.Element(DavNames.Prop));
         var filter = DavFilterParser.ParseAddressbookQuery(body);
+        var addressData = DavDataRequest.ParseAddressData(body.Descendants(DavNames.AddressData).FirstOrDefault());
         var resources = (await repository.QueryContactObjectsAsync(addressBook.Id, filter, cancellationToken))
-            .Select(o => CardDavResources.ContactObjectResource(ObjectHref(userId, book, o.ResourceName), o))
+            .Select(o => CardDavResources.ContactObjectResource(ObjectHref(userId, book, o.ResourceName), o, FormatContact(o, addressData)))
             .ToList();
 
         return DavXml.MultiStatus(MultiStatus.Build(request, resources));
     }
+
+    // A property-subset address-data string when the request asked for one; null returns the full blob (ADR 0054).
+    private string? FormatContact(Domain.Objects.ContactObject o, AddressDataRequest addressData) =>
+        addressData.IsFull ? null : dataFormatter.FormatContact(o.Blob, addressData);
 
     private IActionResult InvalidSyncToken()
     {

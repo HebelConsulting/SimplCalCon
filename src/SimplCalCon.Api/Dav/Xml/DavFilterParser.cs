@@ -23,7 +23,7 @@ internal static class DavFilterParser
         var end = ParseIcalUtc(timeRange?.Attribute("end")?.Value);
 
         var props = (scope?.Elements(DavNames.CalPropFilter) ?? Enumerable.Empty<XElement>())
-            .Select(pf => ParsePropFilter(pf, DavNames.CalTextMatch, DavNames.CalIsNotDefined, caldav: true))
+            .Select(pf => ParsePropFilter(pf, DavNames.CalTextMatch, DavNames.CalIsNotDefined, DavNames.CalParamFilter, caldav: true))
             .ToList();
 
         return new CalendarQueryFilter(component?.Attribute("name")?.Value, start, end, props);
@@ -43,13 +43,14 @@ internal static class DavFilterParser
             : FilterTest.AnyOf;
 
         var props = filter.Elements(DavNames.CardPropFilter)
-            .Select(pf => ParsePropFilter(pf, DavNames.CardTextMatch, DavNames.CardIsNotDefined, caldav: false))
+            .Select(pf => ParsePropFilter(pf, DavNames.CardTextMatch, DavNames.CardIsNotDefined, DavNames.CardParamFilter, caldav: false))
             .ToList();
 
         return new ContactQueryFilter(test, props);
     }
 
-    private static DavPropFilter ParsePropFilter(XElement pf, XName textMatchName, XName isNotDefinedName, bool caldav)
+    private static DavPropFilter ParsePropFilter(
+        XElement pf, XName textMatchName, XName isNotDefinedName, XName paramFilterName, bool caldav)
     {
         var name = pf.Attribute("name")?.Value ?? string.Empty;
         if (pf.Element(isNotDefinedName) is not null)
@@ -57,16 +58,36 @@ internal static class DavFilterParser
             return new DavPropFilter(name, IsNotDefined: true, TextMatch: null);
         }
 
-        var textMatch = pf.Element(textMatchName);
+        var textMatch = ParseTextMatch(pf.Element(textMatchName), caldav);
+        var paramFilters = pf.Elements(paramFilterName)
+            .Select(param => ParseParamFilter(param, textMatchName, isNotDefinedName, caldav))
+            .ToList();
+
+        return new DavPropFilter(name, IsNotDefined: false, textMatch, paramFilters.Count > 0 ? paramFilters : null);
+    }
+
+    private static DavParamFilter ParseParamFilter(XElement param, XName textMatchName, XName isNotDefinedName, bool caldav)
+    {
+        var name = param.Attribute("name")?.Value ?? string.Empty;
+        if (param.Element(isNotDefinedName) is not null)
+        {
+            return new DavParamFilter(name, IsNotDefined: true, TextMatch: null);
+        }
+
+        return new DavParamFilter(name, IsNotDefined: false, ParseTextMatch(param.Element(textMatchName), caldav));
+    }
+
+    private static DavTextMatch? ParseTextMatch(XElement? textMatch, bool caldav)
+    {
         if (textMatch is null)
         {
-            return new DavPropFilter(name, IsNotDefined: false, TextMatch: null);
+            return null;
         }
 
         var negate = string.Equals(textMatch.Attribute("negate-condition")?.Value, "yes", StringComparison.OrdinalIgnoreCase);
         // CalDAV text-match is always a substring match; CardDAV carries an explicit match-type.
         var matchType = caldav ? TextMatchType.Contains : ParseMatchType(textMatch.Attribute("match-type")?.Value);
-        return new DavPropFilter(name, IsNotDefined: false, new DavTextMatch(textMatch.Value, matchType, negate));
+        return new DavTextMatch(textMatch.Value, matchType, negate);
     }
 
     private static TextMatchType ParseMatchType(string? value) => value?.ToLowerInvariant() switch
