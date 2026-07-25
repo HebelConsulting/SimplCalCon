@@ -86,6 +86,20 @@ public sealed class AttendeeWriteRequest
     public string? CommonName { get; init; }
 }
 
+/// <summary>Soft-delete several objects in one call (ADR 0055). If-Match-exempt (operates on current versions).</summary>
+public sealed class BulkDeleteRequest
+{
+    public IReadOnlyList<Guid> Ids { get; init; } = [];
+}
+
+/// <summary>Move several objects to another collection in one call (ADR 0055).</summary>
+public sealed class BulkMoveRequest
+{
+    public IReadOnlyList<Guid> Ids { get; init; } = [];
+
+    public Guid TargetId { get; init; }
+}
+
 public sealed class SplitEventRequest
 {
     /// <summary>The instant (UTC) at which to split: the original ends here, the copy starts here.</summary>

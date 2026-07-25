@@ -60,6 +60,9 @@ public sealed class AttendeeResource
     public bool IsOrganizer { get; init; }
 }
 
+/// <summary>The aggregate outcome of a bulk move/delete (ADR 0055).</summary>
+public sealed record BulkResultResource(int Succeeded, int Failed, IReadOnlyList<string> Failures);
+
 /// <summary>The result of splitting an event: the truncated original and the newly created tail copy (ADR 0027).</summary>
 public sealed class SplitEventResource : HypermediaResource
 {

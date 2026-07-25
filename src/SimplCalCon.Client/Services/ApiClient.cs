@@ -298,6 +298,15 @@ public sealed class ApiClient(HttpClient http)
         await SendWithIfMatchAsync(
             HttpMethod.Post, $"api/{kind}/{collectionId}/{Child(kind)}/{entryId}/move", new { targetId });
 
+    // Bulk move/delete (ADR 0055). If-Match-exempt; returns an aggregate result.
+    public async Task<BulkResultDto?> BulkDeleteAsync(string kind, Guid collectionId, IReadOnlyList<Guid> ids) =>
+        await (await http.PostAsJsonAsync($"api/{kind}/{collectionId}/{Child(kind)}/bulk-delete", new { ids }))
+            .Content.ReadFromJsonAsync<BulkResultDto>();
+
+    public async Task<BulkResultDto?> BulkMoveAsync(string kind, Guid collectionId, IReadOnlyList<Guid> ids, Guid targetId) =>
+        await (await http.PostAsJsonAsync($"api/{kind}/{collectionId}/{Child(kind)}/bulk-move", new { ids, targetId }))
+            .Content.ReadFromJsonAsync<BulkResultDto>();
+
     /// <summary>Sends a body with If-Match:*; returns null on success or the server's problem detail.</summary>
     private async Task<string?> SendWithIfMatchAsync(HttpMethod method, string url, object body)
     {

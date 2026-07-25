@@ -285,3 +285,25 @@
     text-align: left;
     padding: 0.5rem 0.75rem;
 }
+
+/* Bulk selection (ADR 0055) */
+.bulk-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    margin-bottom: 0.4rem;
+    background: var(--accent-soft, #eef3fb);
+    border-radius: 0.3rem;
+    flex-wrap: wrap;
+}
+
+.bulk-message {
+    opacity: 0.85;
+    font-size: 0.9em;
+}
+
+.sel-col {
+    width: 2.2rem;
+    text-align: center;
+}
