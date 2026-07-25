@@ -41,9 +41,10 @@ internal static class CalendarOccurrence
 
     /// <summary>
     /// Expands a component into its concrete occurrence windows starting within [fromUtc, toUtc)
-    /// (ADR 0050), for the web grid. Returns (start, end) UTC pairs; a malformed blob yields none.
+    /// (ADR 0050/0051), for the web grid. Each item carries its RECURRENCE-ID (the canonical slot,
+    /// so a per-instance edit/delete can target it — ADR 0051); a malformed blob yields none.
     /// </summary>
-    public static IReadOnlyList<(DateTime StartUtc, DateTime EndUtc)> Occurrences(
+    public static IReadOnlyList<(DateTime StartUtc, DateTime EndUtc, DateTime RecurrenceIdUtc, string? Summary, string? Location)> Occurrences(
         string blob, DateTime fromUtc, DateTime toUtc)
     {
         Ical.Net.Calendar? calendar;
@@ -61,13 +62,26 @@ internal static class CalendarOccurrence
             return [];
         }
 
+        // An overridden occurrence's displayed start may differ from its RECURRENCE-ID; map the
+        // override's shown start back to its slot so re-editing targets the original occurrence.
+        var overrideSlots = calendar.Events
+            .Where(e => e.RecurrenceIdentifier is not null && e.DtStart is not null)
+            .GroupBy(e => e.DtStart!.AsUtc)
+            .ToDictionary(g => g.Key, g => g.First().RecurrenceIdentifier!.StartTime.AsUtc);
+
         var from = new CalDateTime(DateTime.SpecifyKind(fromUtc, DateTimeKind.Utc));
         return calendar.GetOccurrences(from)
             .TakeWhile(o => o.Period.StartTime?.AsUtc is { } s && s < toUtc)
             .Where(o => o.Period.StartTime?.AsUtc is { } s && s >= fromUtc)
-            .Select(o => (
-                o.Period.StartTime!.AsUtc,
-                o.Period.EndTime?.AsUtc ?? o.Period.StartTime!.AsUtc))
+            .Select(o =>
+            {
+                var start = o.Period.StartTime!.AsUtc;
+                var end = o.Period.EndTime?.AsUtc ?? start;
+                var recurrenceId = overrideSlots.GetValueOrDefault(start, start);
+                // An overridden occurrence's summary/location come from its own VEVENT, not the master.
+                var source = o.Source as Ical.Net.CalendarComponents.CalendarEvent;
+                return (start, end, recurrenceId, source?.Summary, source?.Location);
+            })
             .ToList();
     }
 }

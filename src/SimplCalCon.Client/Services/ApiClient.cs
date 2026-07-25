@@ -113,6 +113,36 @@ public sealed class ApiClient(HttpClient http)
         (await http.SendAsync(request)).EnsureSuccessStatusCode();
     }
 
+    public async Task DeleteEventAsync(Guid calendarId, Guid eventId)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, $"api/calendars/{calendarId}/events/{eventId}");
+        request.Headers.TryAddWithoutValidation("If-Match", "*");
+        (await http.SendAsync(request)).EnsureSuccessStatusCode();
+    }
+
+    // Per-instance recurring edits (ADR 0051). scope = "this" | "following".
+    public async Task UpdateOccurrenceAsync(Guid calendarId, Guid eventId, DateTime recurrenceIdUtc, string scope, object body)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Put, $"api/calendars/{calendarId}/events/{eventId}/occurrences/{RecurrenceIdPath(recurrenceIdUtc)}?scope={scope}")
+        {
+            Content = JsonContent.Create(body),
+        };
+        request.Headers.TryAddWithoutValidation("If-Match", "*");
+        (await http.SendAsync(request)).EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteOccurrenceAsync(Guid calendarId, Guid eventId, DateTime recurrenceIdUtc, string scope)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Delete, $"api/calendars/{calendarId}/events/{eventId}/occurrences/{RecurrenceIdPath(recurrenceIdUtc)}?scope={scope}");
+        request.Headers.TryAddWithoutValidation("If-Match", "*");
+        (await http.SendAsync(request)).EnsureSuccessStatusCode();
+    }
+
+    private static string RecurrenceIdPath(DateTime recurrenceIdUtc) =>
+        recurrenceIdUtc.ToUniversalTime().ToString("yyyyMMdd'T'HHmmss'Z'");
+
     public async Task<FreeBusyDto?> GetFreeBusyAsync(string address, DateTime fromUtc, DateTime toUtc) =>
         await http.GetFromJsonAsync<FreeBusyDto>(
             $"api/free-busy?address={Uri.EscapeDataString(address)}&fromUtc={fromUtc:o}&toUtc={toUtc:o}");

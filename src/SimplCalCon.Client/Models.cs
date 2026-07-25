@@ -30,11 +30,12 @@ public sealed record AddressBookDto(Guid Id, string Name, bool Shared);
 public sealed record EventDto(
     Guid Id, string? Summary, DateTime? StartUtc, DateTime? EndUtc, bool IsAllDay, bool IsRecurring,
     IReadOnlyList<AttendeeDto>? Attendees = null, string? Location = null,
-    RecurrenceDto? Recurrence = null, string? RecurrenceRule = null, bool RecurrenceSupported = false);
+    RecurrenceDto? Recurrence = null, string? RecurrenceRule = null, bool RecurrenceSupported = false,
+    DateTime? RecurrenceId = null);
 
-/// <summary>A structured repeat rule the editor can model (ADR 0050).</summary>
+/// <summary>A structured repeat rule the editor can model (ADR 0050/0051).</summary>
 public sealed record RecurrenceDto(
-    string Frequency, int Interval, IReadOnlyList<string> ByDay, int? Count, DateTime? UntilUtc);
+    string Frequency, int Interval, IReadOnlyList<string> ByDay, int? Count, DateTime? UntilUtc, int? ByMonthDay = null);
 
 public sealed record AttendeeDto(string Address, string? CommonName, string Role, string ParticipationStatus, bool IsOrganizer);
 

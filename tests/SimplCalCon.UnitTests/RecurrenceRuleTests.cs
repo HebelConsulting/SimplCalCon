@@ -31,14 +31,34 @@ public sealed class RecurrenceRuleTests
         Assert.Equal(new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc), recurrence.UntilUtc);
     }
 
+    [Fact]
+    public void Parses_monthly_by_month_day()
+    {
+        Assert.True(RecurrenceRule.TryParse("FREQ=MONTHLY;BYMONTHDAY=15", out var recurrence));
+        Assert.Equal(15, recurrence.ByMonthDay);
+        Assert.Empty(recurrence.ByDay);
+    }
+
+    [Theory]
+    [InlineData("FREQ=MONTHLY;BYDAY=2TU", "2TU")]
+    [InlineData("FREQ=MONTHLY;BYDAY=-1FR", "-1FR")]
+    public void Parses_monthly_nth_weekday(string rule, string token)
+    {
+        Assert.True(RecurrenceRule.TryParse(rule, out var recurrence));
+        Assert.Equal([token], recurrence.ByDay);
+        Assert.Null(recurrence.ByMonthDay);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("FREQ=SECONDLY")]                       // unsupported frequency
     [InlineData("FREQ=MONTHLY;BYSETPOS=-1;BYDAY=MO")]   // BYSETPOS beyond the editor
-    [InlineData("FREQ=MONTHLY;BYMONTHDAY=15")]          // BYMONTHDAY beyond the editor
-    [InlineData("FREQ=MONTHLY;BYDAY=2TU")]              // ordinal BYDAY beyond the editor
-    [InlineData("FREQ=DAILY;BYDAY=MO")]                 // BYDAY only modelled for weekly
+    [InlineData("FREQ=MONTHLY;BYMONTHDAY=15;BYDAY=MO")] // day-of-month and weekday together
+    [InlineData("FREQ=MONTHLY;BYDAY=5TU")]              // 5th weekday not modelled (only 1..4, -1)
+    [InlineData("FREQ=MONTHLY;BYDAY=MO,TU")]            // multiple ordinal weekdays not modelled
+    [InlineData("FREQ=DAILY;BYDAY=MO")]                 // BYDAY only modelled for weekly/monthly
+    [InlineData("FREQ=WEEKLY;BYDAY=2MO")]               // ordinal BYDAY not modelled for weekly
     [InlineData("FREQ=WEEKLY;COUNT=3;UNTIL=20260101T000000Z")] // COUNT and UNTIL are exclusive
     public void Rejects_unsupported_rules(string? rule)
     {
@@ -49,6 +69,9 @@ public sealed class RecurrenceRuleTests
     [InlineData("FREQ=DAILY")]
     [InlineData("FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE")]
     [InlineData("FREQ=MONTHLY;COUNT=5")]
+    [InlineData("FREQ=MONTHLY;BYMONTHDAY=15")]
+    [InlineData("FREQ=MONTHLY;BYDAY=2TU")]
+    [InlineData("FREQ=MONTHLY;INTERVAL=3;BYDAY=-1FR")]
     [InlineData("FREQ=YEARLY;UNTIL=20301231T000000Z")]
     public void Format_round_trips_parse(string rule)
     {

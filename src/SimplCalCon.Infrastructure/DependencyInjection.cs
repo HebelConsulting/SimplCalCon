@@ -85,6 +85,7 @@ public static class DependencyInjection
         services.AddScoped<IEmailSender, Email.MailKitEmailSender>();
         services.AddScoped<IObjectComposer, ObjectComposer>();
         services.AddScoped<IEventSplitter, EventSplitter>();
+        services.AddScoped<IRecurrenceEditor, RecurrenceEditor>();
         services.AddScoped<IDavRepository, DavRepository>();
         services.AddScoped<IAclService, AclService>();
         services.AddScoped<IPrincipalDirectory, PrincipalDirectory>();

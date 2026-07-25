@@ -13,7 +13,8 @@ public sealed record Recurrence(
     int Interval,
     IReadOnlyList<string> ByDay,
     int? Count,
-    DateTime? UntilUtc);
+    DateTime? UntilUtc,
+    int? ByMonthDay = null);
 
 /// <summary>
 /// Parses/formats the <c>RRULE</c> value (without the <c>RRULE:</c> prefix) to and from the
@@ -38,6 +39,7 @@ public static class RecurrenceRule
         var byDay = new List<string>();
         int? count = null;
         DateTime? until = null;
+        int? byMonthDay = null;
 
         foreach (var part in rule.Trim().Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
@@ -69,17 +71,17 @@ public static class RecurrenceRule
                     break;
 
                 case "BYDAY":
-                    foreach (var day in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                    {
-                        // Only plain weekday codes — an ordinal prefix (e.g. 2MO) is beyond the editor.
-                        if (!Weekdays.Contains(day))
-                        {
-                            return false;
-                        }
+                    // Collected raw; validated against the frequency below (plain for weekly, one ordinal for monthly).
+                    byDay.AddRange(value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                    break;
 
-                        byDay.Add(day);
+                case "BYMONTHDAY":
+                    if (!int.TryParse(value, out var day) || day is < 1 or > 31)
+                    {
+                        return false;
                     }
 
+                    byMonthDay = day;
                     break;
 
                 case "COUNT":
@@ -101,19 +103,69 @@ public static class RecurrenceRule
                     break;
 
                 default:
-                    // Any other part (BYSETPOS, BYMONTHDAY, WKST, …) is outside the supported subset.
+                    // Any other part (BYSETPOS, WKST, …) is outside the supported subset.
                     return false;
             }
         }
 
-        // BYDAY is only modelled for weekly; COUNT and UNTIL are mutually exclusive.
-        if (frequency is null || (byDay.Count > 0 && frequency != "WEEKLY") || (count is not null && until is not null))
+        // COUNT and UNTIL are mutually exclusive.
+        if (frequency is null || (count is not null && until is not null))
         {
             return false;
         }
 
-        recurrence = new Recurrence(frequency, interval, byDay, count, until);
+        switch (frequency)
+        {
+            case "WEEKLY":
+                // Plain weekday codes only — an ordinal prefix (2MO) is beyond the editor; BYMONTHDAY is meaningless.
+                if (byMonthDay is not null || byDay.Any(d => !Weekdays.Contains(d)))
+                {
+                    return false;
+                }
+
+                break;
+
+            case "MONTHLY":
+                // Either "on day N" (BYMONTHDAY) or a single ordinal weekday (e.g. 2TU, -1FR) — not both.
+                if (byMonthDay is not null && byDay.Count > 0)
+                {
+                    return false;
+                }
+
+                if (byDay.Count > 1 || (byDay.Count == 1 && !IsOrdinalWeekday(byDay[0])))
+                {
+                    return false;
+                }
+
+                break;
+
+            default:
+                // Daily / yearly carry no BYDAY / BYMONTHDAY here.
+                if (byDay.Count > 0 || byMonthDay is not null)
+                {
+                    return false;
+                }
+
+                break;
+        }
+
+        recurrence = new Recurrence(frequency, interval, byDay, count, until, byMonthDay);
         return true;
+    }
+
+    // A monthly ordinal weekday token: an ordinal in {1,2,3,4,-1} followed by a weekday, e.g. "2TU", "-1FR".
+    private static bool IsOrdinalWeekday(string token)
+    {
+        if (token.Length < 3)
+        {
+            return false;
+        }
+
+        var weekday = token[^2..];
+        var ordinalText = token[..^2];
+        return Weekdays.Contains(weekday)
+            && int.TryParse(ordinalText, out var ordinal)
+            && ordinal is 1 or 2 or 3 or 4 or -1;
     }
 
     public static string Format(Recurrence recurrence)
@@ -125,9 +177,20 @@ public static class RecurrenceRule
             parts.Add($"INTERVAL={recurrence.Interval}");
         }
 
-        if (recurrence.Frequency.Equals("WEEKLY", StringComparison.OrdinalIgnoreCase) && recurrence.ByDay.Count > 0)
+        var isWeekly = recurrence.Frequency.Equals("WEEKLY", StringComparison.OrdinalIgnoreCase);
+        var isMonthly = recurrence.Frequency.Equals("MONTHLY", StringComparison.OrdinalIgnoreCase);
+
+        if (isWeekly && recurrence.ByDay.Count > 0)
         {
             parts.Add($"BYDAY={string.Join(',', recurrence.ByDay.Select(d => d.ToUpperInvariant()))}");
+        }
+        else if (isMonthly && recurrence.ByMonthDay is { } monthDay)
+        {
+            parts.Add($"BYMONTHDAY={monthDay}");
+        }
+        else if (isMonthly && recurrence.ByDay.Count == 1)
+        {
+            parts.Add($"BYDAY={recurrence.ByDay[0].ToUpperInvariant()}");
         }
 
         if (recurrence.Count is { } n)

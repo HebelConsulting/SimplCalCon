@@ -62,16 +62,19 @@ internal static partial class ResourceMapper
     public static EventResource MapEvent(CalendarObject calendarObject) =>
         MapEvent(calendarObject, calendarObject.DtStartUtc, calendarObject.DtEndUtc);
 
-    /// <summary>Maps an event, overriding its times with an expanded occurrence's window (ADR 0050).</summary>
-    public static EventResource MapEvent(CalendarObject calendarObject, DateTime? startUtc, DateTime? endUtc)
+    /// <summary>Maps an event, overriding its times/fields with an expanded occurrence's window + RECURRENCE-ID (ADR 0050/0051).</summary>
+    public static EventResource MapEvent(
+        CalendarObject calendarObject, DateTime? startUtc, DateTime? endUtc, DateTime? recurrenceId = null,
+        string? summaryOverride = null, string? locationOverride = null)
     {
         var supported = RecurrenceRule.TryParse(calendarObject.RecurrenceRule, out var recurrence);
         return new EventResource
         {
+            RecurrenceId = recurrenceId,
             Id = calendarObject.Id,
             ResourceName = calendarObject.ResourceName,
-            Summary = calendarObject.Summary,
-            Location = calendarObject.Location,
+            Summary = summaryOverride ?? calendarObject.Summary,
+            Location = locationOverride ?? calendarObject.Location,
             StartUtc = startUtc,
             EndUtc = endUtc,
             IsAllDay = calendarObject.IsAllDay,

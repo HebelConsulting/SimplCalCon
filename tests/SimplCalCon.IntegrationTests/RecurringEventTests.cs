@@ -86,6 +86,101 @@ public sealed class RecurringEventTests(AuthWebApplicationFactory factory) : ICl
         Assert.Equal("FREQ=MONTHLY;BYSETPOS=-1;BYDAY=MO", after.GetProperty("recurrenceRule").GetString());
     }
 
+    [Fact]
+    public async Task Deleting_one_occurrence_excludes_it_via_exdate()
+    {
+        var client = await BearerClientAsync();
+        var calendarId = await CreateCalendarAsync(client);
+        var id = await CreateWeeklyAsync(client, calendarId, count: 4);
+
+        var occurrences = await ExpandAsync(client, calendarId);
+        Assert.Equal(4, occurrences.Count);
+        var secondSlot = occurrences[1].GetProperty("recurrenceId").GetDateTime();
+
+        using var delete = new HttpRequestMessage(
+            HttpMethod.Delete, $"/api/calendars/{calendarId}/events/{id}/occurrences/{Basic(secondSlot)}?scope=this");
+        delete.Headers.TryAddWithoutValidation("If-Match", "*");
+        (await client.SendAsync(delete)).EnsureSuccessStatusCode();
+
+        var after = await ExpandAsync(client, calendarId);
+        Assert.Equal(3, after.Count);
+        Assert.DoesNotContain(after, o => o.GetProperty("startUtc").GetDateTime() == secondSlot);
+    }
+
+    [Fact]
+    public async Task Overriding_one_occurrence_changes_only_that_instance()
+    {
+        var client = await BearerClientAsync();
+        var calendarId = await CreateCalendarAsync(client);
+        var id = await CreateWeeklyAsync(client, calendarId, count: 4);
+
+        var occurrences = await ExpandAsync(client, calendarId);
+        var thirdSlot = occurrences[2].GetProperty("recurrenceId").GetDateTime();
+
+        using var put = new HttpRequestMessage(
+            HttpMethod.Put, $"/api/calendars/{calendarId}/events/{id}/occurrences/{Basic(thirdSlot)}?scope=this")
+        {
+            Content = JsonContent.Create(new
+            {
+                summary = "Moved standup",
+                startUtc = thirdSlot.AddHours(1),
+                endUtc = thirdSlot.AddHours(1).AddMinutes(15),
+                isAllDay = false,
+            }),
+        };
+        put.Headers.TryAddWithoutValidation("If-Match", "*");
+        (await client.SendAsync(put)).EnsureSuccessStatusCode();
+
+        var after = await ExpandAsync(client, calendarId);
+        Assert.Equal(4, after.Count);
+        Assert.Single(after, o => o.GetProperty("summary").GetString() == "Moved standup");
+        Assert.Equal(3, after.Count(o => o.GetProperty("summary").GetString() == "Standup"));
+    }
+
+    [Fact]
+    public async Task Deleting_this_and_following_truncates_the_series()
+    {
+        var client = await BearerClientAsync();
+        var calendarId = await CreateCalendarAsync(client);
+        var id = await CreateWeeklyAsync(client, calendarId, count: 4);
+
+        var occurrences = await ExpandAsync(client, calendarId);
+        var thirdSlot = occurrences[2].GetProperty("recurrenceId").GetDateTime();
+
+        using var delete = new HttpRequestMessage(
+            HttpMethod.Delete, $"/api/calendars/{calendarId}/events/{id}/occurrences/{Basic(thirdSlot)}?scope=following");
+        delete.Headers.TryAddWithoutValidation("If-Match", "*");
+        (await client.SendAsync(delete)).EnsureSuccessStatusCode();
+
+        var after = await ExpandAsync(client, calendarId);
+        Assert.Equal(2, after.Count); // the 3rd and 4th are gone
+    }
+
+    private async Task<Guid> CreateWeeklyAsync(HttpClient client, Guid calendarId, int count)
+    {
+        var created = await client.PostAsJsonAsync($"/api/calendars/{calendarId}/events", new
+        {
+            summary = "Standup",
+            startUtc = new DateTime(2026, 9, 7, 9, 0, 0, DateTimeKind.Utc),
+            endUtc = new DateTime(2026, 9, 7, 9, 15, 0, DateTimeKind.Utc),
+            isAllDay = false,
+            recurrence = new { frequency = "WEEKLY", interval = 1, byDay = Array.Empty<string>(), count },
+        });
+        created.EnsureSuccessStatusCode();
+        return (await Body(created)).GetProperty("id").GetGuid();
+    }
+
+    private static async Task<List<JsonElement>> ExpandAsync(HttpClient client, Guid calendarId)
+    {
+        var expanded = await client.GetFromJsonAsync<JsonElement>(
+            $"/api/calendars/{calendarId}/events?fromUtc=2026-09-01T00:00:00Z&toUtc=2026-11-01T00:00:00Z&expand=true");
+        return expanded.GetProperty("items").EnumerateArray()
+            .OrderBy(o => o.GetProperty("startUtc").GetDateTime()).ToList();
+    }
+
+    private static string Basic(DateTime slot) =>
+        slot.ToUniversalTime().ToString("yyyyMMdd'T'HHmmss'Z'");
+
     private async Task<Guid> CreateCalendarAsync(HttpClient client) =>
         (await Body(await client.PostAsJsonAsync("/api/calendars", new { name = $"Cal {Guid.NewGuid():N}" })))
             .GetProperty("id").GetGuid();

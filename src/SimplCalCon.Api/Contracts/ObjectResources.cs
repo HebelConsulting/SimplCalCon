@@ -33,6 +33,9 @@ public sealed class EventResource : HypermediaResource, IETaggedResource
     /// <summary>True when <see cref="Recurrence"/> models the rule; false means it's shown read-only (custom).</summary>
     public bool RecurrenceSupported { get; init; }
 
+    /// <summary>Set only on an expanded occurrence (ADR 0051): its RECURRENCE-ID, so a per-instance edit/delete can target it.</summary>
+    public DateTime? RecurrenceId { get; init; }
+
     /// <summary>Organizer + attendees (ADR 0030); the organizer is the entry with <c>isOrganizer</c>.</summary>
     public IReadOnlyList<AttendeeResource> Attendees { get; init; } = [];
 
