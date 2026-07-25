@@ -21,4 +21,10 @@ public interface IChangeNotifier
     /// grant/revoke (owner + affected principals) and on group-membership changes (the affected member).
     /// </summary>
     Task SharesChangedAsync(IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A tenant-admin-managed list changed (ADR 0065): a group was created/deleted or its membership
+    /// edited, so the Admin tab's group list should reload for that tenant's admins.
+    /// </summary>
+    Task AdminChangedAsync(Guid tenantId, CancellationToken cancellationToken);
 }

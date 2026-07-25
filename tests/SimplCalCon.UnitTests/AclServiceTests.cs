@@ -80,6 +80,8 @@ public sealed class AclServiceTests
             LastShares = userIds.ToList();
             return Task.CompletedTask;
         }
+
+        public Task AdminChangedAsync(Guid tenantId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     [Fact]

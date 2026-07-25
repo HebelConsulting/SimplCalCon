@@ -22,9 +22,19 @@ public sealed class NotificationHub(IAclService acl) : Hub
 
     public static string CollectionGroup(Guid collectionId) => $"collection:{collectionId}";
 
+    public static string TenantAdminGroup(Guid tenantId) => $"admin:tenant:{tenantId}";
+
     public override async Task OnConnectedAsync()
     {
-        await Groups.AddToGroupAsync(Context.ConnectionId, UserGroup(Context.User!.GetUserId()));
+        var user = Context.User!;
+        await Groups.AddToGroupAsync(Context.ConnectionId, UserGroup(user.GetUserId()));
+
+        // Tenant admins also join their tenant's admin group for admin-list live refresh (ADR 0065).
+        if (user.IsInRole("admin") && user.GetTenantId() is { } tenantId)
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, TenantAdminGroup(tenantId));
+        }
+
         await base.OnConnectedAsync();
     }
 

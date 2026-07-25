@@ -19,6 +19,9 @@ internal sealed class CompositeChangeNotifier(
     public Task SharesChangedAsync(IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken) =>
         FanOutAsync(n => n.SharesChangedAsync(userIds, cancellationToken));
 
+    public Task AdminChangedAsync(Guid tenantId, CancellationToken cancellationToken) =>
+        FanOutAsync(n => n.AdminChangedAsync(tenantId, cancellationToken));
+
     private async Task FanOutAsync(Func<IChangeNotifier, Task> send)
     {
         foreach (var notifier in notifiers)

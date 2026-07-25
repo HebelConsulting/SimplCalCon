@@ -13,4 +13,6 @@ internal sealed class NoOpChangeNotifier : IChangeNotifier
     public Task InvitationsChangedAsync(Guid userId, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task SharesChangedAsync(IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task AdminChangedAsync(Guid tenantId, CancellationToken cancellationToken) => Task.CompletedTask;
 }
