@@ -2,12 +2,14 @@ using Microsoft.AspNetCore.Mvc;
 using SimplCalCon.Api.Dav.Http;
 using SimplCalCon.Api.Dav.Xml;
 using SimplCalCon.Application.Abstractions.Acl;
+using SimplCalCon.Application.Abstractions.Push;
 using SimplCalCon.Application.Abstractions.Storage;
 
 namespace SimplCalCon.Api.Dav.Controllers;
 
 /// <summary>The addressbook-home-set: lists the user's address books (auto-provisioning a default).</summary>
-public sealed class CardDavHomeController(IDavRepository repository, IAclService acl) : DavControllerBase
+public sealed class CardDavHomeController(
+    IDavRepository repository, IAclService acl, IWebPushConfiguration webPush) : DavControllerBase
 {
     [HttpPropfind("~/dav/addressbooks/{userId:guid}")]
     public async Task<IActionResult> Propfind(Guid userId, CancellationToken cancellationToken)
@@ -34,7 +36,8 @@ public sealed class CardDavHomeController(IDavRepository repository, IAclService
             {
                 var rights = await EffectiveRightsAsync(book, acl, cancellationToken);
                 resources.Add(CardDavResources.AddressBookCollection(
-                    CollectionHref(book.OwnerId, book.ResourceName), PrincipalHref(book.OwnerId), book, rights));
+                    CollectionHref(book.OwnerId, book.ResourceName), PrincipalHref(book.OwnerId), book, rights,
+                    webPush.VapidPublicKey));
             }
         }
 

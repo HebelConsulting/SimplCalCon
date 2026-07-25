@@ -21,7 +21,7 @@ internal static class CalDavResources
     }
 
     public static DavResource CalendarCollection(
-        string calendarHref, string principalHref, Calendar calendar, AclRight callerRights)
+        string calendarHref, string principalHref, Calendar calendar, AclRight callerRights, string? vapidPublicKey = null)
     {
         var resource = new DavResource(calendarHref);
         resource.Set(DavNames.ResourceType, new object[]
@@ -40,6 +40,7 @@ internal static class CalDavResources
         resource.Set(DavNames.SupportedCalendarData,
             new XElement(DavNames.CalendarData,
                 new XAttribute("content-type", "text/calendar"), new XAttribute("version", "2.0")));
+        DavPushAdvertisement.Apply(resource, calendar.Id, vapidPublicKey);
         return resource;
     }
 

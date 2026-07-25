@@ -36,6 +36,7 @@ public static class DependencyInjection
         services.Configure<PasswordPolicyOptions>(configuration.GetSection(PasswordPolicyOptions.SectionName));
         services.Configure<BootstrapOptions>(configuration.GetSection(BootstrapOptions.SectionName));
         services.Configure<SpaClientOptions>(configuration.GetSection(SpaClientOptions.SectionName));
+        services.Configure<Push.WebPushOptions>(configuration.GetSection("SimplCalCon:WebPush"));
 
         services.AddDbContext<SimplCalConDbContext>(options =>
         {
@@ -57,6 +58,16 @@ public static class DependencyInjection
         services.AddScoped<IDavCredentialAuthenticator, DavCredentialAuthenticator>();
         // Default no-transport notifier; the Api replaces it with the SignalR-backed one (ADR 0049).
         services.AddSingleton<IChangeNotifier, NoOpChangeNotifier>();
+
+        // WebDAV-Push (ADR 0052): VAPID config, subscription store, Web Push sender + the change
+        // notifier. The Api composes this notifier with the SignalR one.
+        services.AddSingleton<Push.WebPushConfiguration>();
+        services.AddSingleton<Application.Abstractions.Push.IWebPushConfiguration>(
+            sp => sp.GetRequiredService<Push.WebPushConfiguration>());
+        services.AddSingleton<Application.Abstractions.Push.IWebPushSender, Push.WebPushSender>();
+        services.AddSingleton<Push.WebPushChangeNotifier>();
+        services.AddScoped<Application.Abstractions.Push.IPushSubscriptions, Push.PushSubscriptionRepository>();
+
         services.AddScoped<IObjectStore, ObjectStore>();
         services.AddScoped<IObjectImportExport, ObjectImportExport>();
         services.AddScoped<IContactPhotoService, ContactPhotoService>();

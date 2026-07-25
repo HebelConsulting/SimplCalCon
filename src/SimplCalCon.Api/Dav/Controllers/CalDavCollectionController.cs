@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using SimplCalCon.Api.Dav.Http;
 using SimplCalCon.Api.Dav.Xml;
 using SimplCalCon.Application.Abstractions.Acl;
+using SimplCalCon.Application.Abstractions.Push;
 using SimplCalCon.Application.Abstractions.Storage;
 using SimplCalCon.Domain.Acl;
 using Calendar = SimplCalCon.Domain.Collections.Calendar;
@@ -12,7 +13,8 @@ namespace SimplCalCon.Api.Dav.Controllers;
 
 /// <summary>A calendar collection: PROPFIND, REPORT (calendar-query/multiget/sync-collection), MKCALENDAR/MKCOL, DELETE.</summary>
 public sealed class CalDavCollectionController(
-    IDavRepository repository, IFreeBusyService freeBusy, IAclService acl) : DavControllerBase
+    IDavRepository repository, IFreeBusyService freeBusy, IAclService acl,
+    IWebPushConfiguration webPush) : DavControllerBase
 {
     private static readonly string[] IcalDateFormats =
         ["yyyyMMdd'T'HHmmss'Z'", "yyyyMMdd'T'HHmmss", "yyyyMMdd"];
@@ -35,7 +37,7 @@ public sealed class CalDavCollectionController(
         var rights = await EffectiveRightsAsync(calendar, acl, cancellationToken);
         var resources = new List<DavResource>
         {
-            CalDavResources.CalendarCollection(CalendarHref(userId, cal), PrincipalHref(userId), calendar, rights),
+            CalDavResources.CalendarCollection(CalendarHref(userId, cal), PrincipalHref(userId), calendar, rights, webPush.VapidPublicKey),
         };
 
         if (Depth() >= 1)

@@ -6,8 +6,24 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using SimplCalCon.Application.Abstractions.Email;
+using SimplCalCon.Application.Abstractions.Push;
 
 namespace SimplCalCon.IntegrationTests;
+
+/// <summary>Captures WebDAV-Push sends in tests instead of hitting a real push service (ADR 0052).</summary>
+public sealed class CapturingWebPushSender : IWebPushSender
+{
+    private readonly ConcurrentQueue<(string Endpoint, string Payload)> _sent = new();
+
+    public IReadOnlyCollection<(string Endpoint, string Payload)> Sent => _sent;
+
+    public Task<WebPushDelivery> SendAsync(
+        string endpoint, string p256dh, string auth, string payload, CancellationToken cancellationToken)
+    {
+        _sent.Enqueue((endpoint, payload));
+        return Task.FromResult(WebPushDelivery.Delivered);
+    }
+}
 
 /// <summary>Captures iMIP sends in tests instead of hitting a real SMTP server (ADR 0047).</summary>
 public sealed class CapturingEmailSender : IEmailSender
@@ -59,15 +75,19 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
 
     public CapturingEmailSender EmailSender { get; } = new();
 
+    public CapturingWebPushSender WebPushSender { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(Environments.Development);
 
-        // Capture iMIP email instead of sending via real SMTP.
+        // Capture iMIP email + Web Push sends instead of hitting real services.
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(EmailSender);
+            services.RemoveAll<IWebPushSender>();
+            services.AddSingleton<IWebPushSender>(WebPushSender);
         });
 
         builder.ConfigureAppConfiguration((_, configuration) =>
@@ -84,6 +104,8 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
                 ["SimplCalCon:Bootstrap:DemoTenant:TenantSlug"] = "demo",
                 ["SimplCalCon:Bootstrap:DemoTenant:AdminEmail"] = DemoAdminEmail,
                 ["SimplCalCon:Bootstrap:DemoTenant:AdminPassword"] = DemoAdminPassword,
+                // Enable WebDAV-Push with an ephemeral VAPID key pair for the tests (ADR 0052).
+                ["SimplCalCon:WebPush:AllowEphemeralKeys"] = "true",
             });
         });
     }

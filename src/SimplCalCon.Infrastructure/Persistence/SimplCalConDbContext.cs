@@ -42,6 +42,7 @@ public class SimplCalConDbContext(DbContextOptions<SimplCalConDbContext> options
     public DbSet<ContactPhoto> ContactPhotos => Set<ContactPhoto>();
     public DbSet<EventAttendee> EventAttendees => Set<EventAttendee>();
     public DbSet<AclEntry> AclEntries => Set<AclEntry>();
+    public DbSet<Domain.Push.PushSubscription> PushSubscriptions => Set<Domain.Push.PushSubscription>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

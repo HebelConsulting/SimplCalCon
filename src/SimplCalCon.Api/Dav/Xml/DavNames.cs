@@ -9,6 +9,15 @@ public static class DavNames
     public static readonly XNamespace CardDav = "urn:ietf:params:xml:ns:carddav";
     public static readonly XNamespace CalDav = "urn:ietf:params:xml:ns:caldav";
     public static readonly XNamespace CalendarServer = "http://calendarserver.org/ns/";
+    public static readonly XNamespace Push = "https://bitfire.at/webdav-push";
+
+    // WebDAV-Push (ADR 0052)
+    public static readonly XName PushTransports = Push + "transports";
+    public static readonly XName PushWebPush = Push + "web-push";
+    public static readonly XName PushVapidPublicKey = Push + "vapid-public-key";
+    public static readonly XName PushTopic = Push + "topic";
+    public static readonly XName PushSupportedTriggers = Push + "supported-triggers";
+    public static readonly XName PushContentUpdate = Push + "content-update";
 
     // DAV: core
     public static readonly XName Multistatus = Dav + "multistatus";

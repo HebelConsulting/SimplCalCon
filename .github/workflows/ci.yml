@@ -59,3 +59,4 @@ jobs:
           --input src/SimplCalCon.Api/SimplCalCon.Api.csproj
           --include-transitive
           --allowed-license-types build/licenses/allowed-licenses.json
+          --override-package-information build/licenses/package-overrides.json
