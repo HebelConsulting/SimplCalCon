@@ -20,4 +20,12 @@ public interface ISchedulingService
 
     /// <summary>Process a calendar-object deletion (the blob as it was before removal).</summary>
     Task ProcessDeleteAsync(Guid collectionId, string deletedBlob, Guid actingUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Sends an attendee's REPLY for an invitation REQUEST — delivers <c>METHOD:REPLY</c> with the
+    /// chosen PARTSTAT to the organizer's inbox and auto-applies it to the organizer's copy — without
+    /// touching the attendee's own calendar. Used by the REST/UI accept-decline flow (ADR 0045).
+    /// </summary>
+    Task SendReplyAsync(
+        Guid attendeeUserId, string requestBlob, string participationStatus, CancellationToken cancellationToken);
 }

@@ -28,7 +28,17 @@ internal static class ItipCalendar
 
         return attendees.Count == 0
             ? null
-            : new ItipInfo(RequireUid(calendarEvent.Uid), organizer.ToString(), Email(organizer.ToString()), attendees);
+            : new ItipInfo(
+                RequireUid(calendarEvent.Uid), organizer.ToString(), Email(organizer.ToString()), attendees,
+                calendarEvent.Summary, ToUtc(calendarEvent.DtStart), ToUtc(calendarEvent.DtEnd));
+    }
+
+    /// <summary>The iTIP object as a plain calendar object (METHOD removed) — for storing an accepted invite.</summary>
+    public static string WithoutMethod(string blob)
+    {
+        var calendar = Load(blob);
+        calendar.Method = null;
+        return Serialize(calendar);
     }
 
     /// <summary>The organizer's object as a METHOD:REQUEST message (the VEVENT unchanged).</summary>
@@ -118,8 +128,27 @@ internal static class ItipCalendar
         new CalendarSerializer().SerializeToString(calendar) ?? string.Empty;
 
     private static string RequireUid(string? uid) => string.IsNullOrWhiteSpace(uid) ? System.Guid.NewGuid().ToString() : uid;
+
+    private static System.DateTime? ToUtc(CalDateTime? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return System.DateTime.SpecifyKind(value.AsUtc, System.DateTimeKind.Utc);
+        }
+        catch (System.Exception)
+        {
+            return null;
+        }
+    }
 }
 
-internal sealed record ItipInfo(string Uid, string Organizer, string OrganizerEmail, IReadOnlyList<ItipAttendee> Attendees);
+internal sealed record ItipInfo(
+    string Uid, string Organizer, string OrganizerEmail, IReadOnlyList<ItipAttendee> Attendees,
+    string? Summary = null, System.DateTime? StartUtc = null, System.DateTime? EndUtc = null);
 
 internal sealed record ItipAttendee(string Address, string Email, string? CommonName, string ParticipationStatus);

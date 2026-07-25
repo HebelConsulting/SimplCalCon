@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using SimplCalCon.Api.Hypermedia;
+using SimplCalCon.Application.Abstractions.Scheduling;
 using SimplCalCon.Domain.Collections;
 using SimplCalCon.Domain.Objects;
 
@@ -8,6 +9,18 @@ namespace SimplCalCon.Api.Contracts;
 /// <summary>Maps domain entities to REST resources with their hypermedia links (ADR 0009).</summary>
 internal static partial class ResourceMapper
 {
+    public static InvitationResource MapInvitation(Invitation invitation) => new()
+    {
+        ResourceName = invitation.ResourceName,
+        Uid = invitation.Uid,
+        Summary = invitation.Summary,
+        StartUtc = invitation.StartUtc,
+        EndUtc = invitation.EndUtc,
+        OrganizerEmail = invitation.OrganizerEmail,
+        OrganizerName = invitation.OrganizerName,
+        Links = { new Link("respond", "/api/invitations/respond") },
+    };
+
     // A PHOTO property line: optional group prefix (item1.), then PHOTO, then ';' params or ':' value.
     [GeneratedRegex(@"^(?:[A-Za-z0-9-]+\.)?PHOTO[;:]", RegexOptions.Multiline | RegexOptions.IgnoreCase)]
     private static partial Regex PhotoLine();

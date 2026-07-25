@@ -63,6 +63,36 @@ internal sealed class SchedulingService(
         }
     }
 
+    public async Task SendReplyAsync(
+        Guid attendeeUserId, string requestBlob, string participationStatus, CancellationToken cancellationToken)
+    {
+        if (ItipCalendar.Inspect(requestBlob) is not { } info)
+        {
+            return;
+        }
+
+        var actor = await ActorAsync(attendeeUserId, cancellationToken);
+        if (actor is null || info.Attendees.FirstOrDefault(a => a.Email == actor.Email) is not { } mine)
+        {
+            return;
+        }
+
+        if (await ResolveAsync(info.OrganizerEmail, actor.TenantId, cancellationToken) is not { } organizer)
+        {
+            return; // organizer not local — no iMIP yet
+        }
+
+        logger.LogInformation(
+            "Scheduling REPLY for {Uid} from {Attendee} ({PartStat}) to organizer {Organizer} (REST).",
+            info.Uid, actor.Email, participationStatus, info.OrganizerEmail);
+
+        var reply = ItipCalendar.Reply(info.Uid, info.Organizer, mine.Address, participationStatus, mine.CommonName);
+        var inbox = await inboxes.EnsureInboxAsync(organizer, actor.TenantId, cancellationToken);
+        await inboxes.DeliverAsync(inbox.Id, reply, "REPLY", cancellationToken);
+
+        await AutoApplyAsync(organizer, info.Uid, actor.Email, participationStatus, cancellationToken);
+    }
+
     private async Task OrganizerWriteAsync(
         ItipInfo info, string? oldBlob, string newBlob, Guid tenantId, CancellationToken cancellationToken)
     {

@@ -1,0 +1,81 @@
+@page "/invitations"
+@attribute [Authorize]
+@inject ApiClient Api
+
+<PageTitle>Invitations</PageTitle>
+
+<SectionContent SectionName="RibbonSection">
+    <a class="ribbon-btn" href="calendars">Back to calendar</a>
+</SectionContent>
+
+<h1>Invitations</h1>
+
+@if (invitations is null)
+{
+    <p>Loading…</p>
+}
+else if (invitations.Count == 0)
+{
+    <p>No pending invitations.</p>
+}
+else
+{
+    <ul class="invitations">
+        @foreach (var inv in invitations)
+        {
+            <li @key="inv.ResourceName">
+                <div class="inv-main">
+                    <div class="inv-summary">@(string.IsNullOrWhiteSpace(inv.Summary) ? "(no title)" : inv.Summary)</div>
+                    <div class="inv-meta">
+                        @When(inv) · from @(inv.OrganizerName ?? inv.OrganizerEmail)
+                    </div>
+                </div>
+                <div class="inv-actions">
+                    <button @onclick='() => RespondAsync(inv, "accepted")' disabled="@busy">Accept</button>
+                    <button @onclick='() => RespondAsync(inv, "tentative")' disabled="@busy">Tentative</button>
+                    <button class="danger" @onclick='() => RespondAsync(inv, "declined")' disabled="@busy">Decline</button>
+                </div>
+            </li>
+        }
+    </ul>
+}
+
+@if (message is not null)
+{
+    <p class="inv-message">@message</p>
+}
+
+@code {
+    private IReadOnlyList<InvitationDto>? invitations;
+    private bool busy;
+    private string? message;
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    private async Task ReloadAsync() => invitations = await Api.GetInvitationsAsync();
+
+    private static string When(InvitationDto inv) =>
+        inv.StartUtc?.ToLocalTime() is { } s
+            ? s.ToString("ddd, d MMM yyyy HH:mm")
+            : "no date";
+
+    private async Task RespondAsync(InvitationDto inv, string response)
+    {
+        busy = true;
+        try
+        {
+            await Api.RespondToInvitationAsync(inv.ResourceName, response);
+            message = response switch
+            {
+                "accepted" => $"Accepted “{inv.Summary}” — added to your calendar.",
+                "tentative" => $"Marked “{inv.Summary}” as tentative — added to your calendar.",
+                _ => $"Declined “{inv.Summary}”.",
+            };
+            await ReloadAsync();
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

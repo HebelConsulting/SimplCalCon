@@ -1,0 +1,42 @@
+.invitations {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-width: 44rem;
+}
+
+.invitations li {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid #e2e6ea;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    background: #fff;
+}
+
+.inv-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.inv-summary {
+    font-weight: 600;
+}
+
+.inv-meta {
+    font-size: 0.85rem;
+    color: #667;
+}
+
+.inv-actions {
+    display: flex;
+    gap: 0.4rem;
+    flex: 0 0 auto;
+}
+
+.inv-message {
+    margin-top: 0.75rem;
+    color: #333;
+}

@@ -5,6 +5,7 @@ using SimplCalCon.Api.Errors.Exceptions.Resources;
 using SimplCalCon.Api.Http;
 using SimplCalCon.Api.Hypermedia;
 using SimplCalCon.Application.Abstractions.Acl;
+using SimplCalCon.Application.Abstractions.Scheduling;
 using SimplCalCon.Application.Abstractions.Storage;
 using SimplCalCon.Domain.Acl;
 using SimplCalCon.Domain.Objects;
@@ -15,7 +16,8 @@ namespace SimplCalCon.Api.Controllers;
 /// <summary>Events in a calendar. Reads need `read`; writes need `write-content` (ADR 0007, 0009).</summary>
 [Route("api/calendars/{calendarId:guid}/events")]
 public sealed class EventsController(
-    IDavRepository repository, IObjectStore objectStore, IObjectComposer composer, IEventSplitter splitter, IAclService acl)
+    IDavRepository repository, IObjectStore objectStore, IObjectComposer composer, IEventSplitter splitter,
+    ISchedulingService scheduling, IAclService acl)
     : ApiControllerBase(acl)
 {
     [HttpGet]
@@ -50,7 +52,9 @@ public sealed class EventsController(
         await RequireRightsAsync(calendarId, AclRight.WriteContent, cancellationToken);
         var result = await composer.PutEventAsync(calendarId, null, ToInput(request), CurrentUserId, cancellationToken);
         var created = await repository.GetCalendarObjectByIdAsync(result.Id, cancellationToken);
-        return CreatedAtRoute("GetEvent", new { calendarId, id = result.Id }, ResourceMapper.MapEvent(created!));
+        // Deliver iTIP invitations for a web-created event with attendees (ADR 0045), mirroring the DAV path.
+        await scheduling.ProcessWriteAsync(calendarId, null, created!.Blob, CurrentUserId, cancellationToken);
+        return CreatedAtRoute("GetEvent", new { calendarId, id = result.Id }, ResourceMapper.MapEvent(created));
     }
 
     [HttpPut("{id:guid}")]
@@ -62,9 +66,11 @@ public sealed class EventsController(
         var existing = await FindAsync(calendarId, id, cancellationToken);
         EnsureIfMatch(existing.ConcurrencyToken);
 
+        var oldBlob = existing.Blob;
         await composer.PutEventAsync(calendarId, existing.ResourceName, ToInput(request), CurrentUserId, cancellationToken);
         var updated = await repository.GetCalendarObjectByIdAsync(id, cancellationToken);
-        return ResourceMapper.MapEvent(updated!);
+        await scheduling.ProcessWriteAsync(calendarId, oldBlob, updated!.Blob, CurrentUserId, cancellationToken);
+        return ResourceMapper.MapEvent(updated);
     }
 
     [HttpDelete("{id:guid}")]
