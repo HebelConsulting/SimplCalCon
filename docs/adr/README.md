@@ -53,5 +53,6 @@ rather than an edit.
 | [0045](0045-rest-ui-invitations.md) | REST + web-UI invitations (accept/tentative/decline) |
 | [0046](0046-sharing-ui-and-shared-with-me.md) | Sharing UI modernization + "shared with me" |
 | [0047](0047-email-imip-per-tenant-smtp.md) | Email iMIP via per-tenant SMTP (external attendees) |
+| [0048](0048-attendee-delete-as-decline.md) | Attendee delete as decline (REPLY;PARTSTAT=DECLINED) |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

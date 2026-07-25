@@ -53,19 +53,36 @@ internal sealed class SchedulingService(
         }
 
         var actor = await ActorAsync(actingUserId, cancellationToken);
-        if (actor is null || info.OrganizerEmail != actor.Email)
+        if (actor is null)
         {
-            return; // Only the organizer cancelling propagates in this slice.
+            return;
         }
 
-        var cancel = ItipCalendar.Cancel(deletedBlob);
-        var recipients = info.Attendees.Where(a => a.Email != actor.Email).ToList();
-        logger.LogInformation(
-            "Scheduling CANCEL for {Uid} from {Organizer} to {AttendeeCount} attendee(s).",
-            info.Uid, actor.Email, recipients.Count);
-        foreach (var attendee in recipients)
+        if (info.OrganizerEmail == actor.Email)
         {
-            await DeliverAsync(attendee.Email, actor.TenantId, cancel, "CANCEL", actor.Email, cancellationToken);
+            // Organizer DELETE → CANCEL to every attendee.
+            var cancel = ItipCalendar.Cancel(deletedBlob);
+            var recipients = info.Attendees.Where(a => a.Email != actor.Email).ToList();
+            logger.LogInformation(
+                "Scheduling CANCEL for {Uid} from {Organizer} to {AttendeeCount} attendee(s).",
+                info.Uid, actor.Email, recipients.Count);
+            foreach (var attendee in recipients)
+            {
+                await DeliverAsync(attendee.Email, actor.TenantId, cancel, "CANCEL", actor.Email, cancellationToken);
+            }
+        }
+        else if (info.Attendees.FirstOrDefault(a => a.Email == actor.Email) is { } mine)
+        {
+            // Attendee DELETE → treat as a decline: REPLY;PARTSTAT=DECLINED to the organizer (ADR 0048).
+            logger.LogInformation(
+                "Scheduling REPLY DECLINED for {Uid} from {Attendee} (deleted) to organizer {Organizer}.",
+                info.Uid, actor.Email, info.OrganizerEmail);
+            var reply = ItipCalendar.Reply(info.Uid, info.Organizer, mine.Address, "DECLINED", mine.CommonName);
+            var organizer = await DeliverAsync(info.OrganizerEmail, actor.TenantId, reply, "REPLY", actor.Email, cancellationToken);
+            if (organizer is { } organizerUserId)
+            {
+                await AutoApplyAsync(organizerUserId, info.Uid, actor.Email, "DECLINED", cancellationToken);
+            }
         }
     }
 
