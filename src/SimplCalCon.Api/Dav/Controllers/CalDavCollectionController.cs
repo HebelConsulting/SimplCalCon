@@ -218,11 +218,9 @@ public sealed class CalDavCollectionController(
         Guid userId, string cal, Calendar calendar, XElement body, CancellationToken cancellationToken)
     {
         var request = PropRequest.FromProp(body.Element(DavNames.Prop));
-        var timeRange = body.Descendants(DavNames.TimeRange).FirstOrDefault();
-        var start = ParseIcalUtc(timeRange?.Attribute("start")?.Value);
-        var end = ParseIcalUtc(timeRange?.Attribute("end")?.Value);
+        var filter = DavFilterParser.ParseCalendarQuery(body);
 
-        var objects = await repository.QueryCalendarObjectsAsync(calendar.Id, start, end, cancellationToken);
+        var objects = await repository.QueryCalendarObjectsAsync(calendar.Id, filter, cancellationToken);
         var resources = objects
             .Select(o => CalDavResources.CalendarObjectResource(CalendarObjectHref(userId, cal, o.ResourceName), o))
             .ToList();
