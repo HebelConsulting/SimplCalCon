@@ -59,6 +59,8 @@ public sealed record SharedCollectionDto(Guid Id, string Kind, string Name, stri
 public sealed record SharedByMeDto(Guid Id, string Kind, string Name, IReadOnlyList<ShareDto> Shares);
 
 public sealed record PrincipalDto(Guid Id, string Kind, string DisplayName, string? Email);
+public sealed record GroupDto(Guid Id, string Name, int MemberCount);
+public sealed record GroupMemberDto(Guid Id, string Kind, string DisplayName, string? Email);
 public sealed record TenantEmailSettingsDto(
     bool Enabled, string Host, int Port, bool UseStartTls, string? Username, bool HasPassword, string FromAddress, string? FromName,
     bool InboundEnabled = false, string? ImapHost = null, int ImapPort = 993, bool ImapUseSsl = true,

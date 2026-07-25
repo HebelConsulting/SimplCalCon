@@ -17,9 +17,82 @@ namespace SimplCalCon.Api.Controllers;
 /// </summary>
 [Route("api/admin")]
 public sealed class AdminController(
-    SimplCalConDbContext dbContext, ITenantEmailSettingsService emailSettings, IEmailSender emailSender, IAclService acl)
+    SimplCalConDbContext dbContext, ITenantEmailSettingsService emailSettings, IEmailSender emailSender,
+    IGroupService groups, IAclService acl)
     : ApiControllerBase(acl)
 {
+    // --- Groups (ADR 0059): tenant-admin-managed, so group-based ACL grants are usable. ---
+
+    [HttpGet("groups")]
+    [HttpHead("groups")]
+    public async Task<ActionResult<CollectionResource<GroupResource>>> Groups(CancellationToken cancellationToken)
+    {
+        var tenantId = await RequireTenantAdminAsync(cancellationToken);
+        var list = await groups.ListAsync(tenantId, cancellationToken);
+        return new CollectionResource<GroupResource>
+        {
+            Items = list.Select(g => new GroupResource(g.Id, g.Name, g.MemberCount)).ToList(),
+            Links = { new Link("self", "/api/admin/groups") },
+        };
+    }
+
+    [HttpPost("groups")]
+    public async Task<ActionResult<GroupResource>> CreateGroup(
+        [FromBody] CreateGroupRequest request, CancellationToken cancellationToken)
+    {
+        var tenantId = await RequireTenantAdminAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            return BadRequest("A group name is required.");
+        }
+
+        var created = await groups.CreateAsync(tenantId, request.Name, cancellationToken);
+        return created is null
+            ? Conflict("A group with that name already exists.")
+            : new GroupResource(created.Id, created.Name, created.MemberCount);
+    }
+
+    [HttpDelete("groups/{groupId:guid}")]
+    public async Task<IActionResult> DeleteGroup(Guid groupId, CancellationToken cancellationToken)
+    {
+        var tenantId = await RequireTenantAdminAsync(cancellationToken);
+        return await groups.DeleteAsync(tenantId, groupId, cancellationToken) ? NoContent() : NotFound();
+    }
+
+    [HttpGet("groups/{groupId:guid}/members")]
+    [HttpHead("groups/{groupId:guid}/members")]
+    public async Task<ActionResult<CollectionResource<GroupMemberResource>>> GroupMembers(
+        Guid groupId, CancellationToken cancellationToken)
+    {
+        var tenantId = await RequireTenantAdminAsync(cancellationToken);
+        var members = await groups.ListMembersAsync(tenantId, groupId, cancellationToken);
+        return new CollectionResource<GroupMemberResource>
+        {
+            Items = members.Select(m => new GroupMemberResource(m.Id, m.Kind, m.DisplayName, m.Email)).ToList(),
+            Links = { new Link("self", $"/api/admin/groups/{groupId}/members") },
+        };
+    }
+
+    [HttpPut("groups/{groupId:guid}/members/{principalId:guid}")]
+    public async Task<IActionResult> AddGroupMember(Guid groupId, Guid principalId, CancellationToken cancellationToken)
+    {
+        var tenantId = await RequireTenantAdminAsync(cancellationToken);
+        return await groups.AddMemberAsync(tenantId, groupId, principalId, cancellationToken) switch
+        {
+            AddMemberResult.Added => NoContent(),
+            AddMemberResult.WouldCycle => Conflict("That would create a group membership cycle."),
+            _ => NotFound(),
+        };
+    }
+
+    [HttpDelete("groups/{groupId:guid}/members/{principalId:guid}")]
+    public async Task<IActionResult> RemoveGroupMember(Guid groupId, Guid principalId, CancellationToken cancellationToken)
+    {
+        var tenantId = await RequireTenantAdminAsync(cancellationToken);
+        await groups.RemoveMemberAsync(tenantId, groupId, principalId, cancellationToken);
+        return NoContent();
+    }
+
     [HttpPost("email-settings/test")]
     public async Task<IActionResult> TestEmail(
         [FromBody] TestEmailRequest request, CancellationToken cancellationToken)

@@ -105,6 +105,7 @@ public static class DependencyInjection
         services.AddScoped<IRecurrenceEditor, RecurrenceEditor>();
         services.AddSingleton<IDavDataFormatter, DavDataFormatter>();
         services.AddScoped<IDavRepository, DavRepository>();
+        services.AddScoped<Application.Abstractions.Acl.IGroupService, Identity.GroupService>();
         services.AddScoped<IAclService, AclService>();
         services.AddScoped<IPrincipalDirectory, PrincipalDirectory>();
 

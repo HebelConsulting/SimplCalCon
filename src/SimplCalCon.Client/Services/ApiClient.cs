@@ -244,6 +244,24 @@ public sealed class ApiClient(HttpClient http)
     public async Task<IReadOnlyList<PrincipalDto>> SearchPrincipalsAsync(string query) =>
         (await http.GetFromJsonAsync<Collection<PrincipalDto>>($"api/principals?q={Uri.EscapeDataString(query)}"))?.Items ?? [];
 
+    // Group management (ADR 0059, tenant-admin).
+    public async Task<IReadOnlyList<GroupDto>> GetGroupsAsync() =>
+        (await http.GetFromJsonAsync<Collection<GroupDto>>("api/admin/groups"))?.Items ?? [];
+
+    public async Task<HttpResponseMessage> CreateGroupAsync(string name) =>
+        await http.PostAsJsonAsync("api/admin/groups", new { name });
+
+    public Task DeleteGroupAsync(Guid groupId) => http.DeleteAsync($"api/admin/groups/{groupId}");
+
+    public async Task<IReadOnlyList<GroupMemberDto>> GetGroupMembersAsync(Guid groupId) =>
+        (await http.GetFromJsonAsync<Collection<GroupMemberDto>>($"api/admin/groups/{groupId}/members"))?.Items ?? [];
+
+    public async Task<HttpResponseMessage> AddGroupMemberAsync(Guid groupId, Guid principalId) =>
+        await http.PutAsync($"api/admin/groups/{groupId}/members/{principalId}", null);
+
+    public Task RemoveGroupMemberAsync(Guid groupId, Guid principalId) =>
+        http.DeleteAsync($"api/admin/groups/{groupId}/members/{principalId}");
+
     // Trash & version history (ADR 0028). `kind` is "calendars" or "address-books"; its child resource is events/contacts.
     private static string Child(string kind) => kind == "calendars" ? "events" : "contacts";
 
