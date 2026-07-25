@@ -163,6 +163,73 @@ public sealed class ContactsController(
         return NoContent();
     }
 
+    /// <summary>Soft-deletes several contacts in one call (ADR 0055): a verb sub-resource, If-Match-exempt (operates on current versions).</summary>
+    [HttpPost("bulk-delete")]
+    public async Task<ActionResult<BulkResultResource>> BulkDelete(
+        Guid addressBookId, [FromBody] BulkDeleteRequest request, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(addressBookId, AclRight.WriteContent, cancellationToken);
+
+        var failures = new List<string>();
+        var succeeded = 0;
+        foreach (var id in request.Ids.Distinct())
+        {
+            var found = await repository.GetContactObjectByIdAsync(id, cancellationToken);
+            if (found is null || found.CollectionId != addressBookId)
+            {
+                failures.Add($"{id}: not found");
+                continue;
+            }
+
+            await objectStore.DeleteAsync(addressBookId, found.ResourceName, CurrentUserId, cancellationToken);
+            succeeded++;
+        }
+
+        return new BulkResultResource(succeeded, failures.Count, failures);
+    }
+
+    /// <summary>Moves several contacts to another address book in one call (ADR 0055): write access to both; UID clashes are reported.</summary>
+    [HttpPost("bulk-move")]
+    public async Task<ActionResult<BulkResultResource>> BulkMove(
+        Guid addressBookId, [FromBody] BulkMoveRequest request, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(addressBookId, AclRight.WriteContent, cancellationToken);
+        if (request.TargetId == addressBookId)
+        {
+            return new BulkResultResource(0, 0, []);
+        }
+
+        var target = await repository.GetAddressBookByIdAsync(request.TargetId, cancellationToken)
+            ?? throw new ResourceNotFoundException("Address book", request.TargetId);
+        await RequireRightsAsync(target.Id, AclRight.WriteContent, cancellationToken);
+
+        var failures = new List<string>();
+        var succeeded = 0;
+        foreach (var id in request.Ids.Distinct())
+        {
+            var found = await repository.GetContactObjectByIdAsync(id, cancellationToken);
+            if (found is null || found.CollectionId != addressBookId)
+            {
+                failures.Add($"{id}: not found");
+                continue;
+            }
+
+            try
+            {
+                await objectStore.PutAsync(
+                    new PutObjectRequest(target.Id, found.ResourceName, found.Blob, CurrentUserId), cancellationToken);
+                await objectStore.DeleteAsync(addressBookId, found.ResourceName, CurrentUserId, cancellationToken);
+                succeeded++;
+            }
+            catch (UidConflictException)
+            {
+                failures.Add($"{id}: UID conflict");
+            }
+        }
+
+        return new BulkResultResource(succeeded, failures.Count, failures);
+    }
+
     // --- Trash & version history (ADR 0028). Trash/restore act on already-deleted items, so they are If-Match-exempt. ---
 
     [HttpGet("trash")]

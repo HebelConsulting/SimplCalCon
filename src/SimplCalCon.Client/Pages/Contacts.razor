@@ -52,9 +52,33 @@ else
 {
     <div class="contacts-split">
         <div class="contacts-list" @ref="listPane">
+            @if (selectedIds.Count > 0)
+            {
+                <div class="bulk-bar">
+                    <span>@selectedIds.Count selected</span>
+                    @if (books is { Count: > 1 })
+                    {
+                        <select @bind="bulkTarget">
+                            <option value="">Move to…</option>
+                            @foreach (var b in books.Where(b => b.Id != EffectiveId))
+                            {
+                                <option value="@b.Id">@b.Name</option>
+                            }
+                        </select>
+                        <button @onclick="BulkMoveAsync" disabled="@(string.IsNullOrEmpty(bulkTarget) || bulkBusy)">Move</button>
+                    }
+                    <button class="danger" @onclick="BulkDeleteAsync" disabled="@bulkBusy">Delete</button>
+                    <button @onclick="ClearBulk">Clear</button>
+                    @if (bulkMessage is not null)
+                    {
+                        <span class="bulk-message">@bulkMessage</span>
+                    }
+                </div>
+            }
             <table @ref="contactTable">
                 <thead>
                     <tr>
+                        <th class="sel-col"><input type="checkbox" checked="@AllSelected" @onchange="ToggleSelectAll" /></th>
                         <th @onclick='() => Sort("name")'>Name <span class="sort">@Indicator("name")</span></th>
                         <th @onclick='() => Sort("org")'>Organization <span class="sort">@Indicator("org")</span></th>
                         <th @onclick='() => Sort("email")'>Email <span class="sort">@Indicator("email")</span></th>
@@ -62,6 +86,7 @@ else
                         <th class="photo-col" @onclick='() => Sort("photo")'>Photo <span class="sort">@Indicator("photo")</span></th>
                     </tr>
                     <tr class="filter-row">
+                        <th class="sel-col"></th>
                         <th><FilterInput @bind-Value="filterName" Placeholder="Filter…" /></th>
                         <th><FilterInput @bind-Value="filterOrg" Placeholder="Filter…" /></th>
                         <th><FilterInput @bind-Value="filterEmail" Placeholder="Filter…" /></th>
@@ -77,6 +102,9 @@ else
                     @foreach (var c in View())
                     {
                         <tr class="@(selected?.Id == c.Id ? "selected" : null)" @onclick="() => SelectAsync(c)">
+                            <td class="sel-col" @onclick:stopPropagation>
+                                <input type="checkbox" checked="@selectedIds.Contains(c.Id)" @onchange="() => ToggleSelected(c.Id)" />
+                            </td>
                             <td>@c.FormattedName</td>
                             <td>@c.Organization</td>
                             <td>@c.Emails.FirstOrDefault()</td>
@@ -253,6 +281,12 @@ else
     private string filterEmail = string.Empty;
     private string filterPhone = string.Empty;
     private bool filterPhotoOnly;
+
+    // Bulk move/delete (ADR 0055)
+    private readonly HashSet<Guid> selectedIds = [];
+    private string bulkTarget = string.Empty;
+    private bool bulkBusy;
+    private string? bulkMessage;
 
     private ElementReference listPane;
     private ElementReference splitterHandle;
@@ -456,6 +490,96 @@ else
         && Contains(string.Join(" ", c.Emails), filterEmail)
         && Contains(string.Join(" ", c.Phones), filterPhone)
         && (!filterPhotoOnly || c.HasPhoto);
+
+    // --- Bulk selection (ADR 0055) ---
+    private bool AllSelected => View().Any() && View().All(c => selectedIds.Contains(c.Id));
+
+    private void ToggleSelected(Guid id)
+    {
+        if (!selectedIds.Remove(id))
+        {
+            selectedIds.Add(id);
+        }
+
+        bulkMessage = null;
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        var all = View().Select(c => c.Id).ToList();
+        if (e.Value is true && !all.All(selectedIds.Contains))
+        {
+            foreach (var id in all)
+            {
+                selectedIds.Add(id);
+            }
+        }
+        else
+        {
+            foreach (var id in all)
+            {
+                selectedIds.Remove(id);
+            }
+        }
+    }
+
+    private void ClearBulk()
+    {
+        selectedIds.Clear();
+        bulkTarget = string.Empty;
+        bulkMessage = null;
+    }
+
+    private async Task BulkDeleteAsync()
+    {
+        if (EffectiveId is not { } id || selectedIds.Count == 0)
+        {
+            return;
+        }
+
+        bulkBusy = true;
+        try
+        {
+            var result = await Api.BulkDeleteAsync("address-books", id, selectedIds.ToList());
+            await AfterBulkAsync(id, result, "Deleted");
+        }
+        finally
+        {
+            bulkBusy = false;
+        }
+    }
+
+    private async Task BulkMoveAsync()
+    {
+        if (EffectiveId is not { } id || selectedIds.Count == 0 || !Guid.TryParse(bulkTarget, out var target))
+        {
+            return;
+        }
+
+        bulkBusy = true;
+        try
+        {
+            var result = await Api.BulkMoveAsync("address-books", id, selectedIds.ToList(), target);
+            await AfterBulkAsync(id, result, "Moved");
+        }
+        finally
+        {
+            bulkBusy = false;
+        }
+    }
+
+    private async Task AfterBulkAsync(Guid id, BulkResultDto? result, string verb)
+    {
+        bulkMessage = result is null ? "Failed." : $"{verb} {result.Succeeded}{(result.Failed > 0 ? $", {result.Failed} failed" : "")}.";
+        if (selected is not null && selectedIds.Contains(selected.Id))
+        {
+            ClearSelection();
+        }
+
+        selectedIds.Clear();
+        bulkTarget = string.Empty;
+        contacts = (await Api.GetContactsAsync(id)).ToList();
+    }
 
     private static bool Contains(string? value, string filter) =>
         string.IsNullOrWhiteSpace(filter) || (value ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase);

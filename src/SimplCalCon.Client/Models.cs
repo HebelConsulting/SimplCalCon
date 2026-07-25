@@ -68,6 +68,8 @@ public sealed record TrashItemDto(Guid Id, string? Summary, string? FormattedNam
 
 public sealed record RevisionDto(long RevisionNumber, string Operation, DateTime CreatedAt, Guid? AuthorPrincipalId);
 
+public sealed record BulkResultDto(int Succeeded, int Failed, IReadOnlyList<string> Failures);
+
 public sealed record ImportResultDto(
     int Imported, int Skipped, int Failed, IReadOnlyList<string> Errors, int CreatedCollections = 0);
 

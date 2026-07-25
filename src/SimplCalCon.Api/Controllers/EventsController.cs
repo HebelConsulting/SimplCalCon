@@ -259,6 +259,78 @@ public sealed class EventsController(
         return NoContent();
     }
 
+    /// <summary>
+    /// Soft-deletes several events in one call (ADR 0055): a verb sub-resource, If-Match-exempt
+    /// (operates on current versions, like the recovery actions). Each is cancelled via iTIP.
+    /// </summary>
+    [HttpPost("bulk-delete")]
+    public async Task<ActionResult<BulkResultResource>> BulkDelete(
+        Guid calendarId, [FromBody] BulkDeleteRequest request, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(calendarId, AclRight.WriteContent, cancellationToken);
+
+        var failures = new List<string>();
+        var succeeded = 0;
+        foreach (var id in request.Ids.Distinct())
+        {
+            var found = await repository.GetCalendarObjectByIdAsync(id, cancellationToken);
+            if (found is null || found.CollectionId != calendarId)
+            {
+                failures.Add($"{id}: not found");
+                continue;
+            }
+
+            var deletedBlob = found.Blob;
+            await objectStore.DeleteAsync(calendarId, found.ResourceName, CurrentUserId, cancellationToken);
+            await scheduling.ProcessDeleteAsync(calendarId, deletedBlob, CurrentUserId, cancellationToken);
+            succeeded++;
+        }
+
+        return new BulkResultResource(succeeded, failures.Count, failures);
+    }
+
+    /// <summary>Moves several events to another calendar in one call (ADR 0055): write access to both; UID clashes are reported, not fatal.</summary>
+    [HttpPost("bulk-move")]
+    public async Task<ActionResult<BulkResultResource>> BulkMove(
+        Guid calendarId, [FromBody] BulkMoveRequest request, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(calendarId, AclRight.WriteContent, cancellationToken);
+        if (request.TargetId == calendarId)
+        {
+            return new BulkResultResource(0, 0, []);
+        }
+
+        var target = await repository.GetCalendarByIdAsync(request.TargetId, cancellationToken)
+            ?? throw new ResourceNotFoundException("Calendar", request.TargetId);
+        await RequireRightsAsync(target.Id, AclRight.WriteContent, cancellationToken);
+
+        var failures = new List<string>();
+        var succeeded = 0;
+        foreach (var id in request.Ids.Distinct())
+        {
+            var found = await repository.GetCalendarObjectByIdAsync(id, cancellationToken);
+            if (found is null || found.CollectionId != calendarId)
+            {
+                failures.Add($"{id}: not found");
+                continue;
+            }
+
+            try
+            {
+                await objectStore.PutAsync(
+                    new PutObjectRequest(target.Id, found.ResourceName, found.Blob, CurrentUserId), cancellationToken);
+                await objectStore.DeleteAsync(calendarId, found.ResourceName, CurrentUserId, cancellationToken);
+                succeeded++;
+            }
+            catch (UidConflictException)
+            {
+                failures.Add($"{id}: UID conflict");
+            }
+        }
+
+        return new BulkResultResource(succeeded, failures.Count, failures);
+    }
+
     // --- Trash & version history (ADR 0028). Trash/restore act on already-deleted items, so they are If-Match-exempt. ---
 
     [HttpGet("trash")]

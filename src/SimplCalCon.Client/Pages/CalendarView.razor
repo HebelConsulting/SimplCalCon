@@ -44,15 +44,40 @@ else if (calendars.Count == 0)
 else
 {
     <div class="cal-list @(viewMode == View.List ? "" : "hidden")">
+        @if (selectedIds.Count > 0)
+        {
+            <div class="bulk-bar">
+                <span>@selectedIds.Count selected</span>
+                @if (calendars is { Count: > 1 })
+                {
+                    <select @bind="bulkTarget">
+                        <option value="">Move to…</option>
+                        @foreach (var c in calendars.Where(c => c.Id != EffectiveId))
+                        {
+                            <option value="@c.Id">@c.Name</option>
+                        }
+                    </select>
+                    <button @onclick="BulkMoveAsync" disabled="@(string.IsNullOrEmpty(bulkTarget) || bulkBusy)">Move</button>
+                }
+                <button class="danger" @onclick="BulkDeleteAsync" disabled="@bulkBusy">Delete</button>
+                <button @onclick="ClearSelection">Clear</button>
+                @if (bulkMessage is not null)
+                {
+                    <span class="bulk-message">@bulkMessage</span>
+                }
+            </div>
+        }
         <table @ref="eventTable" class="event-table">
             <thead>
                 <tr>
+                    <th class="sel-col"><input type="checkbox" checked="@AllSelected" @onchange="ToggleSelectAll" /></th>
                     <th @onclick='() => Sort("start")'>Start <span class="sort">@Indicator("start")</span></th>
                     <th @onclick='() => Sort("title")'>Title <span class="sort">@Indicator("title")</span></th>
                     <th @onclick='() => Sort("location")'>Location <span class="sort">@Indicator("location")</span></th>
                     <th class="repeats-col" @onclick='() => Sort("repeats")'>Repeats <span class="sort">@Indicator("repeats")</span></th>
                 </tr>
                 <tr class="filter-row">
+                    <th class="sel-col"></th>
                     <th><FilterInput @bind-Value="fStart" /></th>
                     <th><FilterInput @bind-Value="fTitle" /></th>
                     <th><FilterInput @bind-Value="fLocation" /></th>
@@ -65,6 +90,9 @@ else
                 @foreach (var e in FilteredSorted())
                 {
                     <tr @key="e.Id" class="@(selected?.Id == e.Id ? "sel" : "")" @onclick="() => Select(e)">
+                        <td class="sel-col" @onclick:stopPropagation>
+                            <input type="checkbox" checked="@selectedIds.Contains(e.Id)" @onchange="() => ToggleSelected(e.Id)" />
+                        </td>
                         <td>@FormatStart(e)</td>
                         <td>@e.Summary</td>
                         <td>@e.Location</td>
@@ -388,6 +416,12 @@ else
     private string fStart = string.Empty, fTitle = string.Empty, fLocation = string.Empty;
     private bool fRepeatsOnly;
 
+    // Bulk move/delete (ADR 0055)
+    private readonly HashSet<Guid> selectedIds = [];
+    private string bulkTarget = string.Empty;
+    private bool bulkBusy;
+    private string? bulkMessage;
+
     private IReadOnlyList<EventDto>? occurrences;
 
     private EventDto? selected;
@@ -587,6 +621,91 @@ else
         };
         return sortAscending ? ordered : ordered.Reverse();
     }
+
+    // --- Bulk selection (ADR 0055) ---
+    private bool AllSelected => FilteredSorted().Any() && FilteredSorted().All(e => selectedIds.Contains(e.Id));
+
+    private void ToggleSelected(Guid id)
+    {
+        if (!selectedIds.Remove(id))
+        {
+            selectedIds.Add(id);
+        }
+
+        bulkMessage = null;
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        var all = FilteredSorted().Select(x => x.Id).ToList();
+        if (e.Value is true && !all.All(selectedIds.Contains))
+        {
+            foreach (var id in all)
+            {
+                selectedIds.Add(id);
+            }
+        }
+        else
+        {
+            foreach (var id in all)
+            {
+                selectedIds.Remove(id);
+            }
+        }
+    }
+
+    private void ClearSelection()
+    {
+        selectedIds.Clear();
+        bulkTarget = string.Empty;
+        bulkMessage = null;
+    }
+
+    private async Task BulkDeleteAsync()
+    {
+        if (EffectiveId is not { } id || selectedIds.Count == 0)
+        {
+            return;
+        }
+
+        bulkBusy = true;
+        try
+        {
+            var result = await Api.BulkDeleteAsync("calendars", id, selectedIds.ToList());
+            bulkMessage = Summarize(result, "Deleted");
+            selectedIds.Clear();
+            await ReloadEventsAsync();
+        }
+        finally
+        {
+            bulkBusy = false;
+        }
+    }
+
+    private async Task BulkMoveAsync()
+    {
+        if (EffectiveId is not { } id || selectedIds.Count == 0 || !Guid.TryParse(bulkTarget, out var target))
+        {
+            return;
+        }
+
+        bulkBusy = true;
+        try
+        {
+            var result = await Api.BulkMoveAsync("calendars", id, selectedIds.ToList(), target);
+            bulkMessage = Summarize(result, "Moved");
+            selectedIds.Clear();
+            bulkTarget = string.Empty;
+            await ReloadEventsAsync();
+        }
+        finally
+        {
+            bulkBusy = false;
+        }
+    }
+
+    private static string Summarize(BulkResultDto? result, string verb) =>
+        result is null ? "Failed." : $"{verb} {result.Succeeded}{(result.Failed > 0 ? $", {result.Failed} failed" : "")}.";
 
     private static DateTime? LocalStart(EventDto e) => e.StartUtc?.ToLocalTime();
 
