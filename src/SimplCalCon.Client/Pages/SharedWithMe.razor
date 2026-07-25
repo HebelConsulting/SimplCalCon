@@ -3,7 +3,7 @@
 @inject ApiClient Api
 @inject NavigationManager Nav
 
-<PageTitle>Shared with me</PageTitle>
+<PageTitle>Shared</PageTitle>
 
 <SectionContent SectionName="RibbonSection">
     <a class="ribbon-btn" href="">← Overview</a>
@@ -34,11 +34,48 @@ else
     </ul>
 }
 
+<h1>Shared by me</h1>
+
+@if (byMe is null)
+{
+    <p>Loading…</p>
+}
+else if (byMe.Count == 0)
+{
+    <p>You haven't shared any calendars or address books.</p>
+}
+else
+{
+    <ul class="shared-list">
+        @foreach (var item in byMe)
+        {
+            <li>
+                <button class="shared-open" @onclick="() => Open(item.Id, item.Kind)">@item.Name</button>
+                <span class="shared-meta">@(item.Kind == "calendars" ? "Calendar" : "Address book")</span>
+                <a class="ribbon-btn" href="share/@item.Kind/@item.Id">Manage</a>
+                <ul class="shared-grants">
+                    @foreach (var share in item.Shares)
+                    {
+                        <li>@share.DisplayName@(share.Kind == "group" ? " (group)" : "") · @string.Join(", ", share.Rights)</li>
+                    }
+                </ul>
+            </li>
+        }
+    </ul>
+}
+
 @code {
     private IReadOnlyList<SharedCollectionDto>? items;
+    private IReadOnlyList<SharedByMeDto>? byMe;
 
-    protected override async Task OnInitializedAsync() => items = await Api.GetSharedWithMeAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        items = await Api.GetSharedWithMeAsync();
+        byMe = await Api.GetSharedByMeAsync();
+    }
 
-    private void Open(SharedCollectionDto item) =>
-        Nav.NavigateTo(item.Kind == "calendars" ? $"calendars/{item.Id}" : $"address-books/{item.Id}");
+    private void Open(SharedCollectionDto item) => Open(item.Id, item.Kind);
+
+    private void Open(Guid id, string kind) =>
+        Nav.NavigateTo(kind == "calendars" ? $"calendars/{id}" : $"address-books/{id}");
 }
