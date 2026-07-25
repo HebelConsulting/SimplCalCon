@@ -28,4 +28,22 @@ public class TenantEmailSettings
     public required string FromAddress { get; set; }
 
     public string? FromName { get; set; }
+
+    // --- Inbound iMIP over IMAP (ADR 0056) ---
+
+    /// <summary>When true, the poller fetches iMIP mail from the mailbox below.</summary>
+    public bool InboundEnabled { get; set; }
+
+    public string? ImapHost { get; set; }
+
+    public int ImapPort { get; set; } = 993;
+
+    public bool ImapUseSsl { get; set; } = true;
+
+    public string? ImapUsername { get; set; }
+
+    /// <summary>Data-Protection-encrypted IMAP password.</summary>
+    public string? ImapPasswordEncrypted { get; set; }
+
+    public string? ImapFolder { get; set; }
 }

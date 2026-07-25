@@ -21,5 +21,10 @@ public class TenantEmailSettingsConfiguration : IEntityTypeConfiguration<TenantE
         builder.Property(s => s.Username).HasMaxLength(320);
         builder.Property(s => s.FromAddress).IsRequired().HasMaxLength(320);
         builder.Property(s => s.FromName).HasMaxLength(200);
+
+        // Inbound IMAP (ADR 0056).
+        builder.Property(s => s.ImapHost).HasMaxLength(255);
+        builder.Property(s => s.ImapUsername).HasMaxLength(320);
+        builder.Property(s => s.ImapFolder).HasMaxLength(255);
     }
 }

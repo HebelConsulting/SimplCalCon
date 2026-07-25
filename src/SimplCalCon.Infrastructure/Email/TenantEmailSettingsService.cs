@@ -12,11 +12,13 @@ internal sealed class TenantEmailSettingsService : ITenantEmailSettingsService
 {
     private readonly SimplCalConDbContext dbContext;
     private readonly IDataProtector protector;
+    private readonly IDataProtector imapProtector;
 
     public TenantEmailSettingsService(SimplCalConDbContext dbContext, IDataProtectionProvider dataProtection)
     {
         this.dbContext = dbContext;
         protector = dataProtection.CreateProtector("SimplCalCon.TenantEmailSettings.SmtpPassword.v1");
+        imapProtector = dataProtection.CreateProtector("SimplCalCon.TenantEmailSettings.ImapPassword.v1");
     }
 
     public async Task<TenantSmtpConfig?> GetSendConfigAsync(Guid tenantId, CancellationToken cancellationToken)
@@ -50,8 +52,31 @@ internal sealed class TenantEmailSettingsService : ITenantEmailSettingsService
             ? null
             : new TenantEmailSettingsView(
                 settings.Enabled, settings.Host, settings.Port, settings.UseStartTls, settings.Username,
-                settings.PasswordEncrypted is not null, settings.FromAddress, settings.FromName);
+                settings.PasswordEncrypted is not null, settings.FromAddress, settings.FromName,
+                settings.InboundEnabled, settings.ImapHost, settings.ImapPort, settings.ImapUseSsl,
+                settings.ImapUsername, settings.ImapPasswordEncrypted is not null, settings.ImapFolder);
     }
+
+    public async Task<TenantImapConfig?> GetImapConfigAsync(Guid tenantId, CancellationToken cancellationToken)
+    {
+        var settings = await dbContext.TenantEmailSettings.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.TenantId == tenantId, cancellationToken);
+        if (settings is null || !settings.InboundEnabled || string.IsNullOrWhiteSpace(settings.ImapHost))
+        {
+            return null;
+        }
+
+        return new TenantImapConfig(
+            settings.ImapHost, settings.ImapPort, settings.ImapUseSsl, settings.ImapUsername,
+            Decrypt(imapProtector, settings.ImapPasswordEncrypted),
+            string.IsNullOrWhiteSpace(settings.ImapFolder) ? "INBOX" : settings.ImapFolder);
+    }
+
+    public async Task<IReadOnlyList<Guid>> ListInboundTenantIdsAsync(CancellationToken cancellationToken) =>
+        await dbContext.TenantEmailSettings.AsNoTracking()
+            .Where(s => s.InboundEnabled && s.ImapHost != null)
+            .Select(s => s.TenantId)
+            .ToListAsync(cancellationToken);
 
     public async Task SaveAsync(Guid tenantId, TenantEmailSettingsInput input, CancellationToken cancellationToken)
     {
@@ -77,10 +102,24 @@ internal sealed class TenantEmailSettingsService : ITenantEmailSettingsService
             settings.PasswordEncrypted = input.NewPassword.Length == 0 ? null : protector.Protect(input.NewPassword);
         }
 
+        // Inbound IMAP (ADR 0056).
+        settings.InboundEnabled = input.InboundEnabled;
+        settings.ImapHost = input.ImapHost;
+        settings.ImapPort = input.ImapPort;
+        settings.ImapUseSsl = input.ImapUseSsl;
+        settings.ImapUsername = input.ImapUsername;
+        settings.ImapFolder = input.ImapFolder;
+        if (input.NewImapPassword is not null)
+        {
+            settings.ImapPasswordEncrypted = input.NewImapPassword.Length == 0 ? null : imapProtector.Protect(input.NewImapPassword);
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private string? Decrypt(string? encrypted)
+    private string? Decrypt(string? encrypted) => Decrypt(protector, encrypted);
+
+    private static string? Decrypt(IDataProtector dp, string? encrypted)
     {
         if (string.IsNullOrEmpty(encrypted))
         {
@@ -89,7 +128,7 @@ internal sealed class TenantEmailSettingsService : ITenantEmailSettingsService
 
         try
         {
-            return protector.Unprotect(encrypted);
+            return dp.Unprotect(encrypted);
         }
         catch (CryptographicException)
         {

@@ -37,6 +37,7 @@ public static class DependencyInjection
         services.Configure<BootstrapOptions>(configuration.GetSection(BootstrapOptions.SectionName));
         services.Configure<SpaClientOptions>(configuration.GetSection(SpaClientOptions.SectionName));
         services.Configure<Push.WebPushOptions>(configuration.GetSection("SimplCalCon:WebPush"));
+        services.Configure<Email.InboundEmailOptions>(configuration.GetSection("SimplCalCon:InboundEmail"));
 
         services.AddDbContext<SimplCalConDbContext>(options =>
         {
@@ -94,6 +95,9 @@ public static class DependencyInjection
         services.AddScoped<IInvitationService, InvitationService>();
         services.AddScoped<ITenantEmailSettingsService, Email.TenantEmailSettingsService>();
         services.AddScoped<IEmailSender, Email.MailKitEmailSender>();
+        // Inbound iMIP (ADR 0056): the shared processor + the background IMAP poller.
+        services.AddScoped<IInboundItipProcessor, InboundItipProcessor>();
+        services.AddHostedService<Email.ImapInboundPoller>();
         services.AddScoped<IObjectComposer, ObjectComposer>();
         services.AddScoped<IEventSplitter, EventSplitter>();
         services.AddScoped<IRecurrenceEditor, RecurrenceEditor>();

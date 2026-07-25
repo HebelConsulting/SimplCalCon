@@ -33,6 +33,19 @@ internal static class ItipCalendar
                 calendarEvent.Summary, ToUtc(calendarEvent.DtStart), ToUtc(calendarEvent.DtEnd));
     }
 
+    /// <summary>The METHOD of an iTIP message (REQUEST/REPLY/CANCEL), or null if absent/unparseable (ADR 0056).</summary>
+    public static string? ReadMethod(string blob)
+    {
+        try
+        {
+            return Load(blob).Method;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     /// <summary>The iTIP object as a plain calendar object (METHOD removed) — for storing an accepted invite.</summary>
     public static string WithoutMethod(string blob)
     {

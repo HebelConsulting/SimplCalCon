@@ -86,6 +86,15 @@ else
             <div class="form-row"><label>Password</label><input type="password" @bind="newPassword" placeholder="@(email.HasPassword ? "•••••• — leave blank to keep" : "(optional)")" /></div>
             <div class="form-row"><label>From address</label><input @bind="email.FromAddress" placeholder="calendar@example.com" /></div>
             <div class="form-row"><label>From name</label><input @bind="email.FromName" placeholder="(optional)" /></div>
+
+            <h3>Inbound (IMAP) — receive replies/invitations from external senders</h3>
+            <label class="form-check"><input type="checkbox" @bind="email.InboundEnabled" /> <span>Poll a mailbox for incoming iMIP mail</span></label>
+            <div class="form-row"><label>IMAP host</label><input @bind="email.ImapHost" placeholder="imap.example.com" /></div>
+            <div class="form-row"><label>Port</label><input type="number" @bind="email.ImapPort" /></div>
+            <label class="form-check"><input type="checkbox" @bind="email.ImapUseSsl" /> <span>Use SSL/TLS (implicit)</span></label>
+            <div class="form-row"><label>Username</label><input @bind="email.ImapUsername" placeholder="(optional)" /></div>
+            <div class="form-row"><label>Password</label><input type="password" @bind="newImapPassword" placeholder="@(email.HasImapPassword ? "•••••• — leave blank to keep" : "(optional)")" /></div>
+            <div class="form-row"><label>Folder</label><input @bind="email.ImapFolder" placeholder="INBOX" /></div>
             <div class="form-row"><label>Test to</label><input @bind="testTo" placeholder="you@example.com" /></div>
             <div class="form-actions">
                 <button @onclick="SaveEmailAsync" disabled="@savingEmail">Save</button>
@@ -107,6 +116,7 @@ else
 
     private EmailForm? email;
     private string newPassword = string.Empty;
+    private string newImapPassword = string.Empty;
     private string testTo = string.Empty;
     private bool savingEmail;
     private string? emailMessage;
@@ -137,6 +147,13 @@ else
                 HasPassword = settings?.HasPassword ?? false,
                 FromAddress = settings?.FromAddress ?? string.Empty,
                 FromName = settings?.FromName,
+                InboundEnabled = settings?.InboundEnabled ?? false,
+                ImapHost = settings?.ImapHost,
+                ImapPort = settings?.ImapPort ?? 993,
+                ImapUseSsl = settings?.ImapUseSsl ?? true,
+                ImapUsername = settings?.ImapUsername,
+                HasImapPassword = settings?.HasImapPassword ?? false,
+                ImapFolder = settings?.ImapFolder ?? "INBOX",
             };
         }
     }
@@ -162,11 +179,24 @@ else
                 newPassword = string.IsNullOrEmpty(newPassword) ? null : newPassword,
                 fromAddress = email.FromAddress,
                 fromName = email.FromName,
+                inboundEnabled = email.InboundEnabled,
+                imapHost = email.ImapHost,
+                imapPort = email.ImapPort,
+                imapUseSsl = email.ImapUseSsl,
+                imapUsername = email.ImapUsername,
+                newImapPassword = string.IsNullOrEmpty(newImapPassword) ? null : newImapPassword,
+                imapFolder = string.IsNullOrWhiteSpace(email.ImapFolder) ? "INBOX" : email.ImapFolder,
             });
             if (!string.IsNullOrEmpty(newPassword))
             {
                 email.HasPassword = true;
                 newPassword = string.Empty;
+            }
+
+            if (!string.IsNullOrEmpty(newImapPassword))
+            {
+                email.HasImapPassword = true;
+                newImapPassword = string.Empty;
             }
 
             emailMessage = "Saved.";
@@ -206,6 +236,15 @@ else
         public bool HasPassword { get; set; }
         public string FromAddress { get; set; } = string.Empty;
         public string? FromName { get; set; }
+
+        // Inbound IMAP (ADR 0056)
+        public bool InboundEnabled { get; set; }
+        public string? ImapHost { get; set; }
+        public int ImapPort { get; set; } = 993;
+        public bool ImapUseSsl { get; set; } = true;
+        public string? ImapUsername { get; set; }
+        public bool HasImapPassword { get; set; }
+        public string ImapFolder { get; set; } = "INBOX";
     }
 
     private static string Initials(AdminUserDto user)
