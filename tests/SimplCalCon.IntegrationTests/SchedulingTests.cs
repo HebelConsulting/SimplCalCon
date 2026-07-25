@@ -332,6 +332,44 @@ public sealed class SchedulingTests(AuthWebApplicationFactory factory) : IClassF
         Assert.Contains(factory.EmailSender.PlainSent, m => m.To == to);
     }
 
+    [Fact]
+    public async Task Attendee_deleting_an_invited_event_replies_declined_to_the_organizer()
+    {
+        var (_, organizerId, organizerEmail) = await DavTestUser.CreateDetailedAsync(factory, "add-org");
+        var (attendeeClient, attendeeId, attendeeEmail) = await DavTestUser.CreateDetailedAsync(factory, "add-att");
+        var calendar = await CreateDavCalendarAsync(attendeeClient, attendeeId);
+        var uid = $"evt-{Guid.NewGuid():N}";
+        var url = $"/dav/calendars/{attendeeId}/{calendar}/{uid}.ics";
+
+        // The attendee's copy of an invited event.
+        await Put(attendeeClient, url, $"""
+            BEGIN:VCALENDAR
+            VERSION:2.0
+            PRODID:-//Test//EN
+            BEGIN:VEVENT
+            UID:{uid}
+            SUMMARY:Team Sync
+            DTSTART:20260715T090000Z
+            DTEND:20260715T100000Z
+            ORGANIZER:mailto:{organizerEmail}
+            ATTENDEE;PARTSTAT=ACCEPTED:mailto:{attendeeEmail}
+            END:VEVENT
+            END:VCALENDAR
+            """);
+
+        // Deleting it declines.
+        var delete = await attendeeClient.SendAsync(new HttpRequestMessage(HttpMethod.Delete, url));
+        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SimplCalConDbContext>();
+        var inboxId = await db.ScheduleInboxes.Where(i => i.OwnerId == organizerId).Select(i => i.Id).FirstAsync();
+        var replies = await db.ScheduleMessages
+            .Where(m => m.CollectionId == inboxId && m.Method == "REPLY" && !m.IsDeleted)
+            .ToListAsync();
+        Assert.Contains(replies, m => m.Blob.Contains(uid) && m.Blob.Contains("DECLINED"));
+    }
+
     private static async Task<Guid> CreateCalendarAsync(HttpClient client) =>
         (await Body(await client.PostAsJsonAsync("/api/calendars", new { name = $"Cal {Guid.NewGuid():N}" }))).GetProperty("id").GetGuid();
 

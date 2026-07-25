@@ -81,7 +81,10 @@ public sealed class EventsController(
         var existing = await FindAsync(calendarId, id, cancellationToken);
         EnsureIfMatch(existing.ConcurrencyToken);
 
+        var deletedBlob = existing.Blob;
         await objectStore.DeleteAsync(calendarId, existing.ResourceName, CurrentUserId, cancellationToken);
+        // Organizer delete → CANCEL; attendee delete → decline (ADR 0045, 0048), mirroring the DAV path.
+        await scheduling.ProcessDeleteAsync(calendarId, deletedBlob, CurrentUserId, cancellationToken);
         return NoContent();
     }
 
