@@ -45,7 +45,8 @@ else
                          ActiveId="activeId"
                          OnFilterChanged="OnFilterChangedAsync"
                          OnActiveChanged="OnActiveChangedAsync"
-                         OnColorChanged="OnColorChangedAsync" />
+                         OnColorChanged="OnColorChangedAsync"
+                         OnColorReset="OnColorResetAsync" />
 
         <div class="cal-main">
             @if (entries is null)
@@ -402,8 +403,13 @@ else
     }
 </Modal>
 
-<Modal Visible="showRename" Title="Rename calendar" OnClose="() => showRename = false">
-    <div class="form-row"><input @bind="renameName" placeholder="Calendar name" /></div>
+<Modal Visible="showRename" Title="Edit calendar" OnClose="() => showRename = false">
+    <div class="form-row"><label>Name</label><input @bind="renameName" placeholder="Calendar name" /></div>
+    <div class="form-row">
+        <label>Default colour</label>
+        <input type="color" @bind="renameColor" />
+        <span class="hint">Shared with everyone; each person can still pick their own.</span>
+    </div>
     <div class="form-actions">
         <button @onclick="RenameAsync" disabled="@string.IsNullOrWhiteSpace(renameName)">Save</button>
         <button @onclick="() => showRename = false">Cancel</button>
@@ -519,6 +525,7 @@ else
     private bool showShare;
     private bool showRename;
     private string renameName = string.Empty;
+    private string renameColor = "#3B82F6";
     private string? renameError;
     private bool showDelete;
     private string moveTarget = string.Empty;
@@ -536,7 +543,8 @@ else
     private string? ActiveCalendarName => ActiveCalendar?.Name;
 
     private List<CollectionsPane.Item> PaneItems() =>
-        (calendars ?? []).Select(c => new CollectionsPane.Item(c.Id, c.Name, c.Color, c.Shared)).ToList();
+        (calendars ?? []).Select(c => new CollectionsPane.Item(
+            c.Id, c.Name, CollectionColors.Effective(c.Id, c.MyColor, c.Color), c.MyColor is not null, c.Shared)).ToList();
 
     private static readonly string[] WeekdayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -659,20 +667,23 @@ else
         await SaveStateAsync();
     }
 
+    // The pane picker sets the caller's personal colour (ADR 0066) for everyone; reset clears it.
     private async Task OnColorChangedAsync((Guid Id, string Color) change)
     {
-        var cal = calendars?.FirstOrDefault(c => c.Id == change.Id);
-        if (cal is null)
-        {
-            return;
-        }
+        await Api.SetMyColorAsync("calendars", change.Id, change.Color);
+        await RefreshColorsAsync();
+    }
 
-        var error = await Api.UpdateCollectionAsync("calendars", change.Id, cal.Name, change.Color);
-        if (error is null)
-        {
-            calendars = await Api.GetCalendarsAsync();
-            await ReloadAllAsync(); // re-tag entries with the new colour
-        }
+    private async Task OnColorResetAsync(Guid id)
+    {
+        await Api.ClearMyColorAsync("calendars", id);
+        await RefreshColorsAsync();
+    }
+
+    private async Task RefreshColorsAsync()
+    {
+        calendars = await Api.GetCalendarsAsync();
+        await ReloadAllAsync(); // re-tag entries with the new effective colour
     }
 
     // A live change to a shown calendar → reload the merged view.
@@ -700,7 +711,7 @@ else
         var list = new List<CalEntry>();
         foreach (var c in Visible())
         {
-            var color = CollectionColors.For(c.Id, c.Color);
+            var color = CollectionColors.Effective(c.Id, c.MyColor, c.Color);
             foreach (var e in await Api.GetEventsAsync(c.Id))
             {
                 list.Add(new CalEntry(e, c.Id, c.Name, color));
@@ -726,7 +737,7 @@ else
         var occ = new List<CalEntry>();
         foreach (var c in Visible())
         {
-            var color = CollectionColors.For(c.Id, c.Color);
+            var color = CollectionColors.Effective(c.Id, c.MyColor, c.Color);
             foreach (var e in await Api.GetEventOccurrencesAsync(c.Id, fromUtc, toUtc))
             {
                 occ.Add(new CalEntry(e, c.Id, c.Name, color));
@@ -960,6 +971,7 @@ else
     private void OpenRename()
     {
         renameName = ActiveCalendarName ?? string.Empty;
+        renameColor = ActiveCalendar is { } c ? CollectionColors.For(c.Id, c.Color) : "#3B82F6";
         renameError = null;
         showRename = true;
     }
@@ -971,7 +983,7 @@ else
             return;
         }
 
-        renameError = await Api.UpdateCollectionAsync("calendars", id, renameName.Trim(), ActiveCalendar?.Color);
+        renameError = await Api.UpdateCollectionAsync("calendars", id, renameName.Trim(), renameColor);
         if (renameError is null)
         {
             calendars = await Api.GetCalendarsAsync();

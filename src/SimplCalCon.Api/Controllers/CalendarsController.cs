@@ -14,15 +14,17 @@ namespace SimplCalCon.Api.Controllers;
 /// <summary>Calendars the caller owns or has a grant on (ADR 0009, 0010).</summary>
 [Route("api/calendars")]
 public sealed class CalendarsController(
-    IDavRepository repository, IObjectImportExport importExport, IAclService acl) : ApiControllerBase(acl)
+    IDavRepository repository, IObjectImportExport importExport, IAclService acl,
+    IUserCollectionColorService colors) : ApiControllerBase(acl)
 {
     [HttpGet]
     public async Task<ActionResult<CollectionResource<CalendarResource>>> List(CancellationToken cancellationToken)
     {
         var calendars = await repository.ListAccessibleCalendarsAsync(CurrentUserId, cancellationToken);
+        var myColors = await colors.GetOverridesAsync(CurrentUserId, calendars.Select(c => c.Id).ToList(), cancellationToken);
         return new CollectionResource<CalendarResource>
         {
-            Items = calendars.Select(c => ResourceMapper.MapCalendar(c, CurrentUserId)).ToList(),
+            Items = calendars.Select(c => ResourceMapper.MapCalendar(c, CurrentUserId, myColors.GetValueOrDefault(c.Id))).ToList(),
             Links = { new Link("self", "/api/calendars") },
         };
     }
@@ -36,7 +38,25 @@ public sealed class CalendarsController(
         var calendar = await repository.GetCalendarByIdAsync(id, cancellationToken)
             ?? throw new ResourceNotFoundException("Calendar", id);
         await RequireRightsAsync(id, AclRight.Read, cancellationToken);
-        return ResourceMapper.MapCalendar(calendar, CurrentUserId);
+        var myColor = await colors.GetOverrideAsync(CurrentUserId, id, cancellationToken);
+        return ResourceMapper.MapCalendar(calendar, CurrentUserId, myColor);
+    }
+
+    // The caller's personal colour override (ADR 0066): any reader may set/clear their own colour.
+    [HttpPut("{id:guid}/color")]
+    public async Task<IActionResult> SetColor(Guid id, [FromBody] CollectionColorRequest request, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(id, AclRight.Read, cancellationToken);
+        await colors.SetAsync(CurrentUserId, id, request.Color, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpDelete("{id:guid}/color")]
+    public async Task<IActionResult> ClearColor(Guid id, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(id, AclRight.Read, cancellationToken);
+        await colors.ClearAsync(CurrentUserId, id, cancellationToken);
+        return NoContent();
     }
 
     [HttpPost]

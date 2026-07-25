@@ -35,6 +35,14 @@ public sealed class CollectionUpdateRequest
     public string? Color { get; init; }
 }
 
+/// <summary>Set the caller's personal colour for a collection (ADR 0066).</summary>
+public sealed class CollectionColorRequest
+{
+    [Required]
+    [RegularExpression("^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$", ErrorMessage = "Color must be a hex value like #RRGGBB.")]
+    public required string Color { get; init; }
+}
+
 /// <summary>Move an entry into another collection of the same kind (ADR 0042).</summary>
 public sealed class MoveObjectRequest
 {

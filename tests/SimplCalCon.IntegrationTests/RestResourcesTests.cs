@@ -239,6 +239,50 @@ public sealed class RestResourcesTests(AuthWebApplicationFactory factory) : ICla
     }
 
     [Fact]
+    public async Task Personal_colour_override_round_trips_and_clears()
+    {
+        var client = await AuthedClientAsync();
+        var created = await client.PostAsJsonAsync("/api/calendars", new { name = "MyColour" });
+        var id = (await Body(created)).GetProperty("id").GetGuid();
+        var etag = created.Headers.ETag!.ToString();
+
+        // Owner sets the shared default colour.
+        using (var put = new HttpRequestMessage(HttpMethod.Put, $"/api/calendars/{id}")
+        {
+            Content = JsonContent.Create(new { name = "MyColour", color = "#111111" }),
+        })
+        {
+            put.Headers.TryAddWithoutValidation("If-Match", etag);
+            Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(put)).StatusCode);
+        }
+
+        // Set a personal override (no If-Match needed — it's the caller's own preference).
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await client.PutAsJsonAsync($"/api/calendars/{id}/color", new { color = "#22aa33" })).StatusCode);
+
+        var fetched = await client.GetFromJsonAsync<JsonElement>($"/api/calendars/{id}");
+        Assert.Equal("#111111", fetched.GetProperty("color").GetString());    // owner default unchanged
+        Assert.Equal("#22aa33", fetched.GetProperty("myColor").GetString());  // personal override
+
+        // Clearing reverts to the default.
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/calendars/{id}/color")).StatusCode);
+        var after = await client.GetFromJsonAsync<JsonElement>($"/api/calendars/{id}");
+        Assert.Equal(JsonValueKind.Null, after.GetProperty("myColor").ValueKind);
+        Assert.Equal("#111111", after.GetProperty("color").GetString());
+    }
+
+    [Fact]
+    public async Task Personal_colour_rejects_a_malformed_hex()
+    {
+        var client = await AuthedClientAsync();
+        var created = await client.PostAsJsonAsync("/api/address-books", new { name = "BadMyColour" });
+        var id = (await Body(created)).GetProperty("id").GetGuid();
+
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await client.PutAsJsonAsync($"/api/address-books/{id}/color", new { color = "nope" })).StatusCode);
+    }
+
+    [Fact]
     public async Task Collection_update_rejects_a_malformed_colour()
     {
         var client = await AuthedClientAsync();

@@ -28,12 +28,13 @@ internal static partial class ResourceMapper
 
     private static bool HasPhoto(string? blob) => !string.IsNullOrEmpty(blob) && PhotoLine().IsMatch(blob);
 
-    public static CalendarResource MapCalendar(Calendar calendar, Guid currentUserId) => new()
+    public static CalendarResource MapCalendar(Calendar calendar, Guid currentUserId, string? myColor = null) => new()
     {
         Id = calendar.Id,
         ResourceName = calendar.ResourceName,
         Name = calendar.Name,
         Color = calendar.Color,
+        MyColor = myColor,
         SupportsEvents = calendar.SupportsEvents,
         SupportsTasks = calendar.SupportsTasks,
         Shared = calendar.OwnerId != currentUserId,
@@ -45,12 +46,13 @@ internal static partial class ResourceMapper
         },
     };
 
-    public static AddressBookResource MapAddressBook(AddressBook addressBook, Guid currentUserId) => new()
+    public static AddressBookResource MapAddressBook(AddressBook addressBook, Guid currentUserId, string? myColor = null) => new()
     {
         Id = addressBook.Id,
         ResourceName = addressBook.ResourceName,
         Name = addressBook.Name,
         Color = addressBook.Color,
+        MyColor = myColor,
         Shared = addressBook.OwnerId != currentUserId,
         ConcurrencyToken = addressBook.ConcurrencyToken,
         Links =

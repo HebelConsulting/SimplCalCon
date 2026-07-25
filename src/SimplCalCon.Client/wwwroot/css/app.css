@@ -342,6 +342,21 @@ button.danger:hover {
     cursor: pointer;
 }
 
+.coll-reset {
+    flex: 0 0 auto;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #889;
+    font-size: 0.9rem;
+    line-height: 1;
+    padding: 0 0.1rem;
+}
+
+.coll-reset:hover { color: #333; }
+
+.hint { font-size: 0.78rem; color: #889; }
+
 .coll-name {
     flex: 1 1 auto;
     min-width: 0;

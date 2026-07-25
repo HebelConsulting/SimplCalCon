@@ -15,4 +15,7 @@ public static class CollectionColors
 
     public static string For(Guid id, string? stored) =>
         !string.IsNullOrWhiteSpace(stored) ? stored! : Palette[(int)((uint)id.GetHashCode() % Palette.Length)];
+
+    /// <summary>The effective colour for a user (ADR 0066): personal override, else owner default, else palette.</summary>
+    public static string Effective(Guid id, string? myColor, string? ownerColor) => For(id, myColor ?? ownerColor);
 }
