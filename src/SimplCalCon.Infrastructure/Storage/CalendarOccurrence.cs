@@ -32,11 +32,46 @@ internal static class CalendarOccurrence
             return true;
         }
 
-        var from = new CalDateTime(DateTime.SpecifyKind(start, DateTimeKind.Utc));
-        return calendar.GetOccurrences(from)
-            .Select(occurrence => occurrence.Period.StartTime?.AsUtc)
-            .TakeWhile(startTime => startTime is not null && startTime.Value < end)
-            .Any();
+        // RFC 4791 time-range = true interval overlap: an occurrence [s, e) matches iff s < end && e > start.
+        // Look back by the event's duration so an occurrence starting before the window but running into
+        // it is still found (occurrences are start-ordered, so we can stop once s >= end).
+        var from = new CalDateTime(DateTime.SpecifyKind(start - MaxOccurrenceDuration(calendar), DateTimeKind.Utc));
+        foreach (var occurrence in calendar.GetOccurrences(from))
+        {
+            if (occurrence.Period.StartTime?.AsUtc is not { } s)
+            {
+                continue;
+            }
+
+            if (s >= end)
+            {
+                break;
+            }
+
+            var e = occurrence.Period.EffectiveEndTime?.AsUtc ?? s; // EndTime is null on occurrences; EffectiveEndTime = start+duration
+            if (e >= start) // effective-end inclusive — matches the non-recurring column filter and covers point events
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // The longest master-event duration in the blob — the look-back needed so a time-range query
+    // doesn't skip an occurrence that started before the window but overlaps it (true overlap).
+    private static TimeSpan MaxOccurrenceDuration(Ical.Net.Calendar calendar)
+    {
+        var max = TimeSpan.Zero;
+        foreach (var ev in calendar.Events)
+        {
+            if (ev.DtStart?.AsUtc is { } s && ev.DtEnd?.AsUtc is { } e && e > s && e - s > max)
+            {
+                max = e - s;
+            }
+        }
+
+        return max;
     }
 
     /// <summary>
@@ -64,7 +99,10 @@ internal static class CalendarOccurrence
             return ([], false);
         }
 
-        var from = new CalDateTime(DateTime.SpecifyKind(fromUtc, DateTimeKind.Utc));
+        // Look back by the event duration so occurrences overlapping the window from before fromUtc are
+        // materialized too (true overlap — RFC 4791). Keep only occurrences whose interval overlaps
+        // [fromUtc, toUtc): start < toUtc && end > fromUtc.
+        var from = new CalDateTime(DateTime.SpecifyKind(fromUtc - MaxOccurrenceDuration(calendar), DateTimeKind.Utc));
         var windows = new List<(DateTime StartUtc, DateTime EndUtc)>();
         foreach (var occurrence in calendar.GetOccurrences(from))
         {
@@ -83,8 +121,11 @@ internal static class CalendarOccurrence
                 return (windows, true); // pathological rule — stop and fall back beyond here
             }
 
-            var end = occurrence.Period.EndTime?.AsUtc ?? start;
-            windows.Add((start, end));
+            var end = occurrence.Period.EffectiveEndTime?.AsUtc ?? start; // EndTime is null on occurrences
+            if (end >= fromUtc) // overlaps [fromUtc, toUtc): start < toUtc (loop guard) and effective end in-window
+            {
+                windows.Add((start, end));
+            }
         }
 
         return (windows, false); // the series ended within the window
@@ -127,7 +168,7 @@ internal static class CalendarOccurrence
             .Select(o =>
             {
                 var start = o.Period.StartTime!.AsUtc;
-                var end = o.Period.EndTime?.AsUtc ?? start;
+                var end = o.Period.EffectiveEndTime?.AsUtc ?? start; // EndTime is null on occurrences; use the computed end
                 var recurrenceId = overrideSlots.GetValueOrDefault(start, start);
                 // An overridden occurrence's summary/location come from its own VEVENT, not the master.
                 var source = o.Source as Ical.Net.CalendarComponents.CalendarEvent;

@@ -63,6 +63,32 @@ public sealed class CalendarOccurrenceTests
         Assert.True(CalendarOccurrence.OverlapsRange(Weekly, Sep1, null));
     }
 
+    // A weekly event lasting 3 days: each occurrence spans Mon 00:00 → Thu 00:00.
+    private const string WeeklySpanning =
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:span\r\n" +
+        "DTSTART:20260907T000000Z\r\nDTEND:20260910T000000Z\r\nRRULE:FREQ=WEEKLY;COUNT=4\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
+    [Fact]
+    public void Overlaps_range_finds_an_occurrence_spanning_into_the_window()
+    {
+        // Tue 12:00 → Wed 12:00 is mid-occurrence: the occurrence started Monday (before the window)
+        // but runs through it. Start-based matching would miss it; true overlap (RFC 4791) finds it.
+        var qStart = new DateTime(2026, 9, 8, 12, 0, 0, DateTimeKind.Utc);
+        var qEnd = new DateTime(2026, 9, 9, 12, 0, 0, DateTimeKind.Utc);
+
+        Assert.True(CalendarOccurrence.OverlapsRange(WeeklySpanning, qStart, qEnd));
+    }
+
+    [Fact]
+    public void Overlaps_range_false_when_wholly_between_occurrences()
+    {
+        // Fri 12:00 → Sat 12:00: after the first 3-day occurrence ended (Thu) and before the next Monday.
+        var qStart = new DateTime(2026, 9, 11, 12, 0, 0, DateTimeKind.Utc);
+        var qEnd = new DateTime(2026, 9, 12, 12, 0, 0, DateTimeKind.Utc);
+
+        Assert.False(CalendarOccurrence.OverlapsRange(WeeklySpanning, qStart, qEnd));
+    }
+
     [Fact]
     public void Materialize_bounded_series_is_not_truncated()
     {

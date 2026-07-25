@@ -85,6 +85,45 @@ public sealed class CalDavTests(AuthWebApplicationFactory factory) : IClassFixtu
     }
 
     [Fact]
+    public async Task Calendar_query_time_range_finds_an_event_spanning_into_the_window()
+    {
+        var (client, userId) = await DavClientAsync();
+        var cal = await CreateCalendarAsync(client, userId);
+        var basePath = $"/dav/calendars/{userId}/{cal}";
+
+        // Weekly 3-day event: first occurrence Jul 6 00:00 → Jul 9 00:00.
+        const string span = """
+            BEGIN:VCALENDAR
+            VERSION:2.0
+            PRODID:-//Test//EN
+            BEGIN:VEVENT
+            UID:span@t
+            SUMMARY:Span
+            DTSTART:20260706T000000Z
+            DTEND:20260709T000000Z
+            RRULE:FREQ=WEEKLY;COUNT=3
+            END:VEVENT
+            END:VCALENDAR
+            """;
+        await SendAsync(client, "PUT", $"{basePath}/span.ics", content: span, contentType: "text/calendar");
+
+        // Jul 7 12:00 → Jul 8 12:00 is mid the first occurrence, which started Jul 6 (before the window).
+        // Start-based matching missed it; true RFC 4791 overlap returns it (ADR 0067).
+        var query = await SendAsync(client, "REPORT", $"{basePath}/", body: """
+            <c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+              <d:prop><d:getetag/></d:prop>
+              <c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT">
+                <c:time-range start="20260707T120000Z" end="20260708T120000Z"/>
+              </c:comp-filter></c:comp-filter></c:filter>
+            </c:calendar-query>
+            """);
+
+        var hrefs = XDocument.Parse(await query.Content.ReadAsStringAsync())
+            .Descendants(Dav + "href").Select(h => h.Value).ToList();
+        Assert.Contains(hrefs, h => h.EndsWith("/span.ics"));
+    }
+
+    [Fact]
     public async Task Calendar_query_evaluates_a_summary_prop_filter()
     {
         var (client, userId) = await DavClientAsync();

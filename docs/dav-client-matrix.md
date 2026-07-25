@@ -52,8 +52,10 @@ Legend: ✅ verified · ⬜ not yet checked · ⚠️ works with caveat (note it
 - `address-data` / `calendar-data` honor a requested `<comp>`/`<prop>` subset, and
   `calendar-data` supports `expand` (one VEVENT per occurrence) — ADR 0054.
   `limit-recurrence-set` and partial data on `sync-collection` are not implemented.
-- Time-range expansion keys on occurrence start, so an event spanning into the window
-  from before it can be missed (rare).
+- Time-range matching is **true RFC 4791 interval overlap** (ADR 0067): an event that
+  started before a client's visible window but runs into it is returned (a look-back by
+  the event's own duration catches spanning occurrences). Recurring events also now
+  contribute their real duration to free/busy and to `calendar-data expand`.
 
 ## WebDAV-Push (ADR 0052) — pending manual acceptance
 
