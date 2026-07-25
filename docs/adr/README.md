@@ -72,5 +72,6 @@ rather than an edit.
 | [0064](0064-shares-live-refresh.md) | Live refresh for sharing (SharesChanged over SignalR) |
 | [0065](0065-admin-list-live-refresh.md) | Admin-list live refresh (group list over SignalR) |
 | [0066](0066-per-user-collection-colour.md) | Per-user collection colour override (layered on the owner colour) |
+| [0067](0067-time-range-true-overlap.md) | Time-range matching: true RFC 4791 interval overlap |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

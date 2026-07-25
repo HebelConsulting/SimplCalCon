@@ -63,6 +63,22 @@ public sealed class FreeBusyServiceTests
         Assert.Equal(2, busy.Count);
     }
 
+    [Fact]
+    public async Task Recurring_event_spanning_into_the_window_counts_as_busy()
+    {
+        var (calendarId, ownerId) = await SeedAsync();
+        // Weekly 3-day event; the first occurrence (Jul 14 00:00 → Jul 17 00:00) starts before the
+        // [Jul 15, Jul 18) window but runs into it — true overlap must count it as busy (RFC 4791).
+        await PutAsync(calendarId, "span.ics",
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//T//EN\r\nBEGIN:VEVENT\r\nUID:span\r\nSUMMARY:Span\r\n" +
+            "DTSTART:20260714T000000Z\r\nDTEND:20260717T000000Z\r\nRRULE:FREQ=WEEKLY;COUNT=2\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n");
+
+        var busy = await GetBusyAsync(ownerId);
+
+        Assert.NotEmpty(busy);
+        Assert.Equal(new DateTime(2026, 7, 15, 0, 0, 0, DateTimeKind.Utc), busy[0].StartUtc); // clipped to the window start
+    }
+
     private async Task<IReadOnlyList<BusyPeriod>> GetBusyAsync(Guid ownerId)
     {
         await using var context = _database.CreateContext();

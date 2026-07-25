@@ -82,10 +82,17 @@ internal sealed class FreeBusyService(SimplCalConDbContext dbContext) : IFreeBus
             return;
         }
 
-        var from = new CalDateTime(DateTime.SpecifyKind(fromUtc, DateTimeKind.Utc));
+        // Look back by the event duration so an occurrence that started before the window but runs into
+        // it still counts as busy (true overlap — RFC 4791); Add() clips to [fromUtc, toUtc).
+        var from = new CalDateTime(DateTime.SpecifyKind(fromUtc - MaxDuration(calendar), DateTimeKind.Utc));
         foreach (var occurrence in calendar.GetOccurrences(from))
         {
-            if (occurrence.Period.StartTime?.AsUtc is not { } start || start >= toUtc)
+            if (occurrence.Period.StartTime?.AsUtc is not { } start)
+            {
+                continue;
+            }
+
+            if (start >= toUtc)
             {
                 break;
             }
@@ -98,7 +105,7 @@ internal sealed class FreeBusyService(SimplCalConDbContext dbContext) : IFreeBus
                 continue;
             }
 
-            var end = occurrence.Period.EndTime?.AsUtc ?? start;
+            var end = occurrence.Period.EffectiveEndTime?.AsUtc ?? start; // EndTime is null on occurrences; use the computed end
             Add(periods, DateTime.SpecifyKind(start, DateTimeKind.Utc), DateTime.SpecifyKind(end, DateTimeKind.Utc), fromUtc, toUtc);
         }
     }
@@ -107,6 +114,21 @@ internal sealed class FreeBusyService(SimplCalConDbContext dbContext) : IFreeBus
     // non-recurring path needn't full-parse the blob it already has in hand.
     private static bool IsTransparent(string blob) =>
         blob.Split('\n').Any(line => line.Trim().Equals("TRANSP:TRANSPARENT", StringComparison.OrdinalIgnoreCase));
+
+    // The longest master-event duration in the blob — the look-back needed so a spanning occurrence isn't skipped.
+    private static TimeSpan MaxDuration(Ical.Net.Calendar calendar)
+    {
+        var max = TimeSpan.Zero;
+        foreach (var ev in calendar.Events)
+        {
+            if (ev.DtStart?.AsUtc is { } s && ev.DtEnd?.AsUtc is { } e && e > s && e - s > max)
+            {
+                max = e - s;
+            }
+        }
+
+        return max;
+    }
 
     private static void Add(List<BusyPeriod> periods, DateTime start, DateTime end, DateTime fromUtc, DateTime toUtc)
     {

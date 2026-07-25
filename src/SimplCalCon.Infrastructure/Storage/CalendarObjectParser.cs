@@ -213,7 +213,9 @@ internal static class CalendarObjectParser
             instance.ExceptionDates.Clear();
             instance.RecurrenceIdentifier = new RecurrenceIdentifier(new CalDateTime(DateTime.SpecifyKind(start, DateTimeKind.Utc)));
             instance.DtStart = new CalDateTime(DateTime.SpecifyKind(start, DateTimeKind.Utc));
-            instance.DtEnd = occurrence.Period.EndTime?.AsUtc is { } end
+            // EndTime is null on an occurrence; EffectiveEndTime is start+duration, so expanded
+            // instances keep the event's real length (ADR 0054/0067) instead of becoming zero-duration.
+            instance.DtEnd = occurrence.Period.EffectiveEndTime?.AsUtc is { } end
                 ? new CalDateTime(DateTime.SpecifyKind(end, DateTimeKind.Utc))
                 : null;
             expanded.Events.Add(instance);

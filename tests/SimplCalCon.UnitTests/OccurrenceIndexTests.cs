@@ -148,6 +148,21 @@ public sealed class OccurrenceIndexTests
     }
 
     [Fact]
+    public async Task Query_finds_a_recurring_occurrence_spanning_into_the_window()
+    {
+        var calendarId = await SeedCalendarAsync();
+        // Weekly 3-day event, first occurrence Jun 8 00:00 → Jun 11 00:00 (within the materialized window).
+        await PutAsync(calendarId, "span.ics",
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:span@t\r\n" +
+            "DTSTART:20260608T000000Z\r\nDTEND:20260611T000000Z\r\nSUMMARY:Span\r\nRRULE:FREQ=WEEKLY;COUNT=4\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n");
+
+        // Jun 9 12:00 → Jun 10 12:00 is mid-occurrence (the occurrence started Jun 8, before this window).
+        var hits = await QueryAsync(calendarId, new DateTime(2026, 6, 9, 12, 0, 0), new DateTime(2026, 6, 10, 12, 0, 0));
+
+        Assert.Equal(["span@t"], hits);
+    }
+
+    [Fact]
     public async Task Index_and_fallback_agree_with_pure_expansion_across_ranges()
     {
         var calendarId = await SeedCalendarAsync();

@@ -294,14 +294,15 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
         }
 
         // Answered purely in SQL: non-recurring column overlaps + recurring objects whose materialized
-        // window covers the query (occurrence-index EXISTS — no recurrence expansion).
+        // window covers the query (occurrence-index EXISTS — no recurrence expansion). True interval
+        // overlap (RFC 4791): [s, e] intersects [start, end) iff s < end && e >= start.
         var results = await baseQuery.Where(o =>
                 (!o.IsRecurring && (o.DtStartUtc == null
                     || (o.DtStartUtc < end && (o.DtEndUtc ?? o.DtStartUtc) >= start)))
                 || (o.IsRecurring
                     && (o.OccurrencesComplete
                         || (o.OccurrencesFromUtc <= start && o.OccurrencesUntilUtc >= end))
-                    && o.Occurrences.Any(x => x.StartUtc >= start && x.StartUtc < end)))
+                    && o.Occurrences.Any(x => x.StartUtc < end && x.EndUtc >= start)))
             .ToListAsync(cancellationToken);
 
         // Recurring objects whose window does NOT cover the query fall back to precise expansion.
