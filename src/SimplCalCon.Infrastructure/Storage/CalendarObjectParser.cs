@@ -102,6 +102,71 @@ internal static class CalendarObjectParser
             ?? calendar.Events.FirstOrDefault()
             ?? throw new MalformedObjectException("No VEVENT component was found to split.");
 
+    // --- Per-instance recurrence transforms (ADR 0051). Each returns a fresh blob. ---
+
+    /// <summary>Excludes a single occurrence from the series by adding an EXDATE to the master.</summary>
+    public static string ExcludeOccurrence(string blob, DateTime recurrenceIdUtc)
+    {
+        var calendar = Load(blob);
+        var master = PrimaryEvent(calendar);
+        master.ExceptionDates.Add(new CalDateTime(DateTime.SpecifyKind(recurrenceIdUtc, DateTimeKind.Utc)));
+        return Serialize(calendar);
+    }
+
+    /// <summary>Ends the series just before <paramref name="recurrenceIdUtc"/> (this + all following) and drops overrides from there.</summary>
+    public static string TruncateSeriesBefore(string blob, DateTime recurrenceIdUtc)
+    {
+        var calendar = Load(blob);
+        var master = PrimaryEvent(calendar);
+        if (master.RecurrenceRule is { } rule)
+        {
+            rule.Count = null;
+            rule.Until = new CalDateTime(DateTime.SpecifyKind(recurrenceIdUtc.AddSeconds(-1), DateTimeKind.Utc));
+        }
+
+        foreach (var over in calendar.Events
+                     .Where(e => e.RecurrenceIdentifier is { } r && r.StartTime.AsUtc >= recurrenceIdUtc)
+                     .ToList())
+        {
+            calendar.Events.Remove(over);
+        }
+
+        return Serialize(calendar);
+    }
+
+    /// <summary>Adds/replaces a single-occurrence override (a VEVENT with RECURRENCE-ID) carrying the edited fields.</summary>
+    public static string SetOccurrenceOverride(
+        string blob, DateTime recurrenceIdUtc, DateTime nowUtc,
+        string summary, DateTime startUtc, DateTime? endUtc, bool isAllDay, string? location)
+    {
+        var calendar = Load(blob);
+        var master = PrimaryEvent(calendar);
+
+        foreach (var existing in calendar.Events
+                     .Where(e => e.RecurrenceIdentifier is { } r && r.StartTime.AsUtc == recurrenceIdUtc)
+                     .ToList())
+        {
+            calendar.Events.Remove(existing);
+        }
+
+        var end = endUtc ?? startUtc.AddHours(1);
+        var over = new Ical.Net.CalendarComponents.CalendarEvent
+        {
+            Uid = master.Uid,
+            RecurrenceIdentifier = new RecurrenceIdentifier(new CalDateTime(DateTime.SpecifyKind(recurrenceIdUtc, DateTimeKind.Utc))),
+            DtStamp = new CalDateTime(DateTime.SpecifyKind(nowUtc, DateTimeKind.Utc)),
+            DtStart = new CalDateTime(DateTime.SpecifyKind(startUtc, DateTimeKind.Utc)),
+            DtEnd = new CalDateTime(DateTime.SpecifyKind(end, DateTimeKind.Utc)),
+            Summary = summary,
+            Location = string.IsNullOrWhiteSpace(location) ? null : location,
+        };
+        calendar.Events.Add(over);
+        return Serialize(calendar);
+    }
+
+    private static string Serialize(Ical.Net.Calendar calendar) =>
+        new CalendarSerializer().SerializeToString(calendar) ?? string.Empty;
+
     /// <summary>Splits a multi-object calendar file into one self-contained blob per UID.</summary>
     public static IEnumerable<(string Uid, string Blob)> Split(string content)
     {

@@ -300,14 +300,15 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
         {
             if (candidate.IsRecurring)
             {
-                foreach (var (start, end) in CalendarOccurrence.Occurrences(candidate.Blob, startUtc, endUtc))
+                foreach (var (start, end, recurrenceId, summary, location)
+                         in CalendarOccurrence.Occurrences(candidate.Blob, startUtc, endUtc))
                 {
-                    occurrences.Add(new CalendarObjectOccurrence(candidate, start, end));
+                    occurrences.Add(new CalendarObjectOccurrence(candidate, start, end, recurrenceId, summary, location));
                 }
             }
             else if (candidate.DtStartUtc is { } masterStart)
             {
-                occurrences.Add(new CalendarObjectOccurrence(candidate, masterStart, candidate.DtEndUtc ?? masterStart));
+                occurrences.Add(new CalendarObjectOccurrence(candidate, masterStart, candidate.DtEndUtc ?? masterStart, null));
             }
         }
 

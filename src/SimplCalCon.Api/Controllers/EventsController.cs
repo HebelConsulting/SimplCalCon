@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using SimplCalCon.Api.Contracts;
 using SimplCalCon.Api.Errors.Exceptions.Calendars;
@@ -17,7 +18,7 @@ namespace SimplCalCon.Api.Controllers;
 [Route("api/calendars/{calendarId:guid}/events")]
 public sealed class EventsController(
     IDavRepository repository, IObjectStore objectStore, IObjectComposer composer, IEventSplitter splitter,
-    ISchedulingService scheduling, IAclService acl)
+    IRecurrenceEditor recurrenceEditor, ISchedulingService scheduling, IAclService acl)
     : ApiControllerBase(acl)
 {
     [HttpGet]
@@ -36,7 +37,9 @@ public sealed class EventsController(
                 cancellationToken);
             return new CollectionResource<EventResource>
             {
-                Items = occurrences.Select(o => ResourceMapper.MapEvent(o.Object, o.StartUtc, o.EndUtc)).ToList(),
+                Items = occurrences
+                    .Select(o => ResourceMapper.MapEvent(o.Object, o.StartUtc, o.EndUtc, o.RecurrenceIdUtc, o.Summary, o.Location))
+                    .ToList(),
                 Links = { new Link("self", $"/api/calendars/{calendarId}/events") },
             };
         }
@@ -87,6 +90,70 @@ public sealed class EventsController(
         await scheduling.ProcessWriteAsync(calendarId, oldBlob, updated!.Blob, CurrentUserId, cancellationToken);
         return ResourceMapper.MapEvent(updated);
     }
+
+    /// <summary>
+    /// Edits a single occurrence of a recurring series (ADR 0051): <c>scope=this</c> writes a
+    /// RECURRENCE-ID override; <c>scope=following</c> ends the series here and starts a new one from
+    /// the edited fields. ("All events" uses the plain <see cref="Update"/>.) The recurrence-id is
+    /// the occurrence's original UTC slot in RFC 5545 basic form (<c>yyyyMMddTHHmmssZ</c>).
+    /// </summary>
+    [HttpPut("{id:guid}/occurrences/{recurrenceId}")]
+    [RequireIfMatch]
+    public async Task<ActionResult<EventResource>> UpdateOccurrence(
+        Guid calendarId, Guid id, string recurrenceId, [FromQuery] string? scope,
+        [FromBody] EventWriteRequest request, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(calendarId, AclRight.WriteContent, cancellationToken);
+        var existing = await FindAsync(calendarId, id, cancellationToken);
+        EnsureIfMatch(existing.ConcurrencyToken);
+        var recurrenceIdUtc = ParseRecurrenceId(recurrenceId);
+
+        if (scope == "following")
+        {
+            await recurrenceEditor.SplitSeriesAsync(
+                calendarId, existing.ResourceName, recurrenceIdUtc, ToInput(request), CurrentUserId, cancellationToken);
+        }
+        else
+        {
+            await recurrenceEditor.OverrideOccurrenceAsync(
+                calendarId, existing.ResourceName, recurrenceIdUtc, ToInput(request), CurrentUserId, cancellationToken);
+        }
+
+        var updated = await repository.GetCalendarObjectByIdAsync(id, cancellationToken);
+        return ResourceMapper.MapEvent(updated!);
+    }
+
+    /// <summary>Deletes a single occurrence (<c>scope=this</c> → EXDATE) or this and all following (<c>scope=following</c>) — ADR 0051.</summary>
+    [HttpDelete("{id:guid}/occurrences/{recurrenceId}")]
+    [RequireIfMatch]
+    public async Task<IActionResult> DeleteOccurrence(
+        Guid calendarId, Guid id, string recurrenceId, [FromQuery] string? scope, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(calendarId, AclRight.WriteContent, cancellationToken);
+        var existing = await FindAsync(calendarId, id, cancellationToken);
+        EnsureIfMatch(existing.ConcurrencyToken);
+        var recurrenceIdUtc = ParseRecurrenceId(recurrenceId);
+
+        if (scope == "following")
+        {
+            await recurrenceEditor.TruncateSeriesAsync(
+                calendarId, existing.ResourceName, recurrenceIdUtc, CurrentUserId, cancellationToken);
+        }
+        else
+        {
+            await recurrenceEditor.ExcludeOccurrenceAsync(
+                calendarId, existing.ResourceName, recurrenceIdUtc, CurrentUserId, cancellationToken);
+        }
+
+        return NoContent();
+    }
+
+    private static DateTime ParseRecurrenceId(string value) =>
+        DateTime.TryParseExact(
+            value, "yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed)
+            ? DateTime.SpecifyKind(parsed, DateTimeKind.Utc)
+            : throw new InvalidRecurrenceIdException(value);
 
     [HttpDelete("{id:guid}")]
     [RequireIfMatch]

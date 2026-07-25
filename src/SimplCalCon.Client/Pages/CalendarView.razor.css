@@ -272,3 +272,16 @@
     font-size: 0.85em;
     opacity: 0.85;
 }
+
+/* Recurring-event scope chooser (ADR 0051) */
+.scope-choices {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin: 0.5rem 0;
+}
+
+.scope-choices button {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+}

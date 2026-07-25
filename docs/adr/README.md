@@ -56,5 +56,6 @@ rather than an edit.
 | [0048](0048-attendee-delete-as-decline.md) | Attendee delete as decline (REPLY;PARTSTAT=DECLINED) |
 | [0049](0049-live-updates-signalr.md) | Live updates over SignalR (collections + invitation badge) |
 | [0050](0050-recurring-event-editing.md) | Recurring-event editing (structured RRULE editor + grid expansion) |
+| [0051](0051-per-instance-recurrence-edits.md) | Per-instance recurrence edits + monthly Nth-weekday |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

@@ -126,5 +126,11 @@ public sealed record DavSyncResult(
 public sealed record DavCalendarSyncResult(
     IReadOnlyList<CalendarObject> Changed, IReadOnlyList<string> RemovedResourceNames, long Token);
 
-/// <summary>One expanded occurrence of a calendar object within a queried window (ADR 0050).</summary>
-public sealed record CalendarObjectOccurrence(CalendarObject Object, DateTime StartUtc, DateTime EndUtc);
+/// <summary>
+/// One expanded occurrence of a calendar object within a queried window (ADR 0050/0051).
+/// <paramref name="Summary"/>/<paramref name="Location"/> are the occurrence's effective values
+/// (an overridden instance carries its own), or null to fall back to the master's.
+/// </summary>
+public sealed record CalendarObjectOccurrence(
+    CalendarObject Object, DateTime StartUtc, DateTime EndUtc, DateTime? RecurrenceIdUtc,
+    string? Summary = null, string? Location = null);

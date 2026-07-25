@@ -125,7 +125,12 @@ else
     <div class="form-row"><label>Location</label><input @bind="location" /></div>
     <div class="form-row"><label>Attendees</label><input placeholder="comma-separated emails" @bind="attendees" /></div>
 
-    @if (customRuleMode)
+    @* Editing a single occurrence ("this event") has no repeat rule of its own. *@
+    @if (editScope == "this")
+    {
+        <div class="form-row"><label>Repeats</label><span>This occurrence only</span></div>
+    }
+    else if (customRuleMode)
     {
         <div class="form-row">
             <label>Repeats</label>
@@ -163,6 +168,42 @@ else
                         }
                     </div>
                 </div>
+            }
+            @if (repeatFreq == "MONTHLY")
+            {
+                <div class="form-row">
+                    <label>On</label>
+                    <select @bind="monthlyMode">
+                        <option value="day">Day of the month</option>
+                        <option value="weekday">A weekday of the month</option>
+                    </select>
+                </div>
+                @if (monthlyMode == "day")
+                {
+                    <div class="form-row">
+                        <label>Day</label>
+                        <input type="number" min="1" max="31" class="interval" @bind="monthlyDay" />
+                    </div>
+                }
+                else
+                {
+                    <div class="form-row">
+                        <label>The</label>
+                        <select @bind="monthlyOrdinal">
+                            <option value="1">first</option>
+                            <option value="2">second</option>
+                            <option value="3">third</option>
+                            <option value="4">fourth</option>
+                            <option value="-1">last</option>
+                        </select>
+                        <select @bind="monthlyWeekday">
+                            @foreach (var wd in Weekdays)
+                            {
+                                <option value="@wd.Code">@wd.Name</option>
+                            }
+                        </select>
+                    </div>
+                }
             }
             <div class="form-row">
                 <label>Ends</label>
@@ -253,7 +294,8 @@ else
             }
         </dl>
         <div class="form-actions">
-            <button @onclick="() => OpenEditAsync(ev)">Edit</button>
+            <button @onclick="() => EditClickedAsync(ev)">Edit</button>
+            <button class="danger" @onclick="() => DeleteClickedAsync(ev)">Delete</button>
             <a class="ribbon-btn" href="history/calendars/@EffectiveId/@ev.Id">History</a>
             @if (CanSplit(ev))
             {
@@ -288,6 +330,16 @@ else
             }
         }
     }
+</Modal>
+
+<Modal Visible="scopeAction.Length > 0" Title="@(scopeAction == "edit" ? "Edit recurring event" : "Delete recurring event")" OnClose="CancelScope">
+    <p>This is a repeating event. Apply to:</p>
+    <div class="scope-choices">
+        <button @onclick='() => ChooseScope("this")'>This event</button>
+        <button @onclick='() => ChooseScope("following")'>This and following events</button>
+        <button @onclick='() => ChooseScope("all")'>All events in the series</button>
+    </div>
+    <div class="form-actions"><button @onclick="CancelScope">Cancel</button></div>
 </Modal>
 
 <Modal Visible="showShare" Title="Share calendar" OnClose="() => showShare = false">
@@ -360,6 +412,18 @@ else
     private int? repeatCount;
     private bool customRuleMode;              // an imported rule the editor can't model — preserved verbatim
     private string? customRule;
+
+    // Monthly "Nth weekday" / "day N" (ADR 0051)
+    private string monthlyMode = "day";       // day | weekday
+    private int monthlyDay = 1;
+    private int monthlyOrdinal = 1;           // 1..4, -1 = last
+    private string monthlyWeekday = "MO";
+
+    // Per-instance scope (ADR 0051)
+    private string editScope = "series";      // series | this | following
+    private DateTime? editRecurrenceId;       // the occurrence's RECURRENCE-ID, for this/following
+    private string scopeAction = string.Empty; // "" | edit | delete
+    private EventDto? scopeEvent;
 
     private static readonly (string Code, string Name)[] Weekdays =
         [("MO", "Mon"), ("TU", "Tue"), ("WE", "Wed"), ("TH", "Thu"), ("FR", "Fri"), ("SA", "Sat"), ("SU", "Sun")];
@@ -680,10 +744,12 @@ else
         await ReloadEventsAsync();
     }
 
-    // --- Event editor (create + edit), ADR 0050 ---
+    // --- Event editor (create + edit + per-instance), ADR 0050/0051 ---
     private void OpenNew()
     {
         editingId = null;
+        editScope = "series";
+        editRecurrenceId = null;
         summary = attendees = location = string.Empty;
         start = DateTime.Now;
         end = DateTime.Now.AddHours(1);
@@ -693,31 +759,131 @@ else
         showEditor = true;
     }
 
-    private async Task OpenEditAsync(EventDto clicked)
+    // Clicking Edit/Delete on a recurring occurrence asks for the scope first; otherwise act directly.
+    private async Task EditClickedAsync(EventDto ev)
+    {
+        if (ev is { IsRecurring: true, RecurrenceId: not null })
+        {
+            scopeEvent = ev;
+            scopeAction = "edit";
+        }
+        else
+        {
+            await OpenEditForScopeAsync(ev, "all");
+        }
+    }
+
+    private async Task DeleteClickedAsync(EventDto ev)
+    {
+        if (ev is { IsRecurring: true, RecurrenceId: not null })
+        {
+            scopeEvent = ev;
+            scopeAction = "delete";
+        }
+        else if (EffectiveId is { } id)
+        {
+            await Api.DeleteEventAsync(id, ev.Id);
+            CloseDetail();
+            await ReloadEventsAsync();
+        }
+    }
+
+    private void CancelScope()
+    {
+        scopeAction = string.Empty;
+        scopeEvent = null;
+    }
+
+    private async Task ChooseScope(string scope)
+    {
+        var ev = scopeEvent;
+        var action = scopeAction;
+        CancelScope();
+        if (ev is null)
+        {
+            return;
+        }
+
+        if (action == "edit")
+        {
+            await OpenEditForScopeAsync(ev, scope);
+        }
+        else if (EffectiveId is { } id)
+        {
+            if (scope == "all")
+            {
+                await Api.DeleteEventAsync(id, ev.Id);
+            }
+            else if (ev.RecurrenceId is { } recId)
+            {
+                await Api.DeleteOccurrenceAsync(id, ev.Id, recId, scope);
+            }
+
+            CloseDetail();
+            await ReloadEventsAsync();
+        }
+    }
+
+    private async Task OpenEditForScopeAsync(EventDto clicked, string scope)
     {
         if (EffectiveId is not { } id)
         {
             return;
         }
 
-        // Always edit the series master (a clicked grid item may be an expanded occurrence).
-        var ev = await Api.GetEventAsync(id, clicked.Id) ?? clicked;
-        editingId = ev.Id;
-        summary = ev.Summary ?? string.Empty;
-        location = ev.Location ?? string.Empty;
-        isAllDay = ev.IsAllDay;
-        start = (ev.StartUtc ?? DateTime.UtcNow).ToLocalTime();
-        end = ev.EndUtc?.ToLocalTime();
-        attendees = string.Join(", ", (ev.Attendees ?? []).Where(a => !a.IsOrganizer).Select(a => a.Address.Replace("mailto:", "")));
+        editingId = clicked.Id;
+        editScope = scope == "all" ? "series" : scope; // "series" | "this" | "following"
+        editRecurrenceId = clicked.RecurrenceId;
         ResetRecurrence();
 
+        // "series" edits the master; "this"/"following" start from the clicked occurrence's values.
+        var source = editScope == "series" ? await Api.GetEventAsync(id, clicked.Id) ?? clicked : clicked;
+        summary = source.Summary ?? string.Empty;
+        location = source.Location ?? string.Empty;
+        isAllDay = source.IsAllDay;
+        start = (source.StartUtc ?? DateTime.UtcNow).ToLocalTime();
+        end = source.EndUtc?.ToLocalTime();
+        attendees = string.Join(", ", (source.Attendees ?? []).Where(a => !a.IsOrganizer).Select(a => a.Address.Replace("mailto:", "")));
+        monthlyDay = start.Day;
+        monthlyWeekday = WeekdayCode(start);
+
+        // Load the recurrence controls for series/following (a single occurrence has none).
+        if (editScope != "this")
+        {
+            var master = editScope == "series" ? source : await Api.GetEventAsync(id, clicked.Id) ?? clicked;
+            LoadRecurrenceFrom(master);
+        }
+
+        selected = null;
+        editorError = null;
+        showEditor = true;
+    }
+
+    private void LoadRecurrenceFrom(EventDto ev)
+    {
         if (ev is { RecurrenceSupported: true, Recurrence: { } r })
         {
             repeatFreq = r.Frequency;
             repeatInterval = Math.Max(1, r.Interval);
-            foreach (var d in r.ByDay)
+            if (r.Frequency == "WEEKLY")
             {
-                repeatDays.Add(d);
+                foreach (var d in r.ByDay)
+                {
+                    repeatDays.Add(d);
+                }
+            }
+            else if (r.Frequency == "MONTHLY")
+            {
+                if (r.ByMonthDay is { } md)
+                {
+                    monthlyMode = "day";
+                    monthlyDay = md;
+                }
+                else if (r.ByDay.Count == 1)
+                {
+                    monthlyMode = "weekday";
+                    (monthlyOrdinal, monthlyWeekday) = ParseOrdinal(r.ByDay[0]);
+                }
             }
 
             (repeatEnd, repeatUntil, repeatCount) = r switch
@@ -732,10 +898,6 @@ else
             customRuleMode = true;
             customRule = ev.RecurrenceRule;
         }
-
-        selected = null;
-        editorError = null;
-        showEditor = true;
     }
 
     private void CloseEditor() => showEditor = false;
@@ -750,6 +912,8 @@ else
         repeatCount = null;
         customRuleMode = false;
         customRule = null;
+        monthlyMode = "day";
+        monthlyOrdinal = 1;
     }
 
     private void ToggleDay(string code)
@@ -758,6 +922,44 @@ else
         {
             repeatDays.Add(code);
         }
+    }
+
+    private object? BuildRecurrenceBody()
+    {
+        if (repeatFreq.Length == 0)
+        {
+            return null;
+        }
+
+        var byDay = new List<string>();
+        int? byMonthDay = null;
+        if (repeatFreq == "WEEKLY")
+        {
+            byDay = repeatDays.ToList();
+        }
+        else if (repeatFreq == "MONTHLY")
+        {
+            if (monthlyMode == "day")
+            {
+                byMonthDay = monthlyDay;
+            }
+            else
+            {
+                byDay = [$"{monthlyOrdinal}{monthlyWeekday}"];
+            }
+        }
+
+        return new
+        {
+            frequency = repeatFreq,
+            interval = Math.Max(1, repeatInterval),
+            byDay,
+            byMonthDay,
+            count = repeatEnd == "count" ? repeatCount : null,
+            untilUtc = repeatEnd == "until" && repeatUntil is { } u
+                ? DateTime.SpecifyKind(u.ToUniversalTime(), DateTimeKind.Utc)
+                : (DateTime?)null,
+        };
     }
 
     private async Task SaveAsync()
@@ -782,27 +984,26 @@ else
             ["attendees"] = invitees.Select(a => new { address = a }).ToList(),
         };
 
-        if (customRuleMode)
+        // A single occurrence carries no repeat rule; series/following do.
+        if (editScope != "this")
         {
-            body["recurrenceRule"] = customRule; // preserve the imported rule verbatim
-        }
-        else if (repeatFreq.Length > 0)
-        {
-            body["recurrence"] = new
+            if (customRuleMode)
             {
-                frequency = repeatFreq,
-                interval = Math.Max(1, repeatInterval),
-                byDay = repeatFreq == "WEEKLY" ? repeatDays.ToList() : new List<string>(),
-                count = repeatEnd == "count" ? repeatCount : null,
-                untilUtc = repeatEnd == "until" && repeatUntil is { } u
-                    ? DateTime.SpecifyKind(u.ToUniversalTime(), DateTimeKind.Utc)
-                    : (DateTime?)null,
-            };
+                body["recurrenceRule"] = customRule; // preserve the imported rule verbatim
+            }
+            else if (BuildRecurrenceBody() is { } recurrence)
+            {
+                body["recurrence"] = recurrence;
+            }
         }
 
         try
         {
-            if (editingId is { } existing)
+            if (editScope is "this" or "following" && editingId is { } series && editRecurrenceId is { } recId)
+            {
+                await Api.UpdateOccurrenceAsync(id, series, recId, editScope, body);
+            }
+            else if (editingId is { } existing)
             {
                 await Api.UpdateEventAsync(id, existing, body);
             }
@@ -820,6 +1021,22 @@ else
         showEditor = false;
         await ReloadEventsAsync();
     }
+
+    private static string WeekdayCode(DateTime d) => d.DayOfWeek switch
+    {
+        DayOfWeek.Monday => "MO",
+        DayOfWeek.Tuesday => "TU",
+        DayOfWeek.Wednesday => "WE",
+        DayOfWeek.Thursday => "TH",
+        DayOfWeek.Friday => "FR",
+        DayOfWeek.Saturday => "SA",
+        _ => "SU",
+    };
+
+    private static (int Ordinal, string Weekday) ParseOrdinal(string token) =>
+        token.Length >= 3 && int.TryParse(token[..^2], out var ordinal)
+            ? (ordinal, token[^2..])
+            : (1, "MO");
 
     private static string RecurrenceText(EventDto e)
     {
