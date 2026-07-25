@@ -28,6 +28,9 @@ public sealed class LiveUpdates(NavigationManager navigation, IAccessTokenProvid
     /// <summary>A sharing grant affecting the user changed (ADR 0064) — reload "shared with/by me".</summary>
     public event Action? SharesChanged;
 
+    /// <summary>A tenant-admin list changed (ADR 0065) — reload the Admin tab's groups.</summary>
+    public event Action? AdminChanged;
+
     public async Task StartAsync()
     {
         if (connection is not null)
@@ -48,6 +51,7 @@ public sealed class LiveUpdates(NavigationManager navigation, IAccessTokenProvid
         connection.On<Guid>("CollectionChanged", DebounceCollectionChanged);
         connection.On("InvitationsChanged", () => InvitationsChanged?.Invoke());
         connection.On("SharesChanged", () => SharesChanged?.Invoke());
+        connection.On("AdminChanged", () => AdminChanged?.Invoke());
 
         // Group membership is per-connection, so re-join every subscribed collection on reconnect.
         connection.Reconnected += async _ =>

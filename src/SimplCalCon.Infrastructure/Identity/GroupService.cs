@@ -38,6 +38,7 @@ internal sealed class GroupService(
         };
         dbContext.Groups.Add(group);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await NotifyAdminChangedAsync(tenantId, cancellationToken);
         return new GroupSummary(group.Id, group.DisplayName, 0);
     }
 
@@ -53,6 +54,7 @@ internal sealed class GroupService(
             .Where(m => m.GroupId == groupId || m.MemberId == groupId)
             .ExecuteDeleteAsync(cancellationToken);
         await dbContext.Groups.Where(g => g.Id == groupId).ExecuteDeleteAsync(cancellationToken);
+        await NotifyAdminChangedAsync(tenantId, cancellationToken);
         return true;
     }
 
@@ -93,6 +95,7 @@ internal sealed class GroupService(
         {
             await dbContext.SaveChangesAsync(cancellationToken);
             await NotifyMemberSharesChangedAsync(memberId, cancellationToken);
+            await NotifyAdminChangedAsync(tenantId, cancellationToken);
             return AddMemberResult.Added;
         }
         catch (InvalidOperationException)
@@ -115,9 +118,23 @@ internal sealed class GroupService(
         if (removed)
         {
             await NotifyMemberSharesChangedAsync(memberId, cancellationToken);
+            await NotifyAdminChangedAsync(tenantId, cancellationToken);
         }
 
         return removed;
+    }
+
+    // Live-refresh the Admin tab's group list for the tenant's admins (ADR 0065). Best-effort.
+    private async Task NotifyAdminChangedAsync(Guid tenantId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await changeNotifier.AdminChangedAsync(tenantId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to push admin-changed notification for tenant {TenantId}.", tenantId);
+        }
     }
 
     // A membership change alters what the affected member (its transitive users) can access, so their

@@ -82,6 +82,9 @@ public sealed class WebPushChangeNotifier(
     // "Shared with me" is a web-client concept; native DAV clients see shared collections in their home-set.
     public Task SharesChangedAsync(IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken) => Task.CompletedTask;
 
+    // The admin group list is a web-client concept — no DAV surface.
+    public Task AdminChangedAsync(Guid tenantId, CancellationToken cancellationToken) => Task.CompletedTask;
+
     // Must match the sync-token the DAV surface returns (DavTokens.Format) so the client can dedupe.
     private static string SyncToken(long changeSequence) => $"https://simplcalcon.example/ns/sync/{changeSequence}";
 

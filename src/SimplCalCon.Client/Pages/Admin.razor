@@ -1,6 +1,8 @@
 @page "/admin"
 @attribute [Authorize]
+@implements IDisposable
 @inject ApiClient Api
+@inject LiveUpdates Live
 
 <PageTitle>Admin</PageTitle>
 
@@ -202,6 +204,8 @@ else
         }
         else
         {
+            // A group change by another tenant admin (ADR 0065) refreshes the group list live.
+            Live.AdminChanged += OnAdminChanged;
             users = await Api.GetTenantUsersAsync();
             groups = await Api.GetGroupsAsync();
             var settings = await Api.GetTenantEmailSettingsAsync();
@@ -225,6 +229,15 @@ else
             };
         }
     }
+
+    // Another tenant admin created/deleted a group or changed membership (ADR 0065) → reload the list.
+    private void OnAdminChanged() => _ = InvokeAsync(async () =>
+    {
+        groups = await Api.GetGroupsAsync();
+        StateHasChanged();
+    });
+
+    public void Dispose() => Live.AdminChanged -= OnAdminChanged;
 
     private async Task SaveEmailAsync()
     {
