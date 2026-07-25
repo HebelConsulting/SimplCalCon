@@ -40,6 +40,7 @@ public static class DependencyInjection
         services.Configure<Email.InboundEmailOptions>(configuration.GetSection("SimplCalCon:InboundEmail"));
         services.Configure<Storage.ContactPhotoOptions>(configuration.GetSection("SimplCalCon:ContactPhotos"));
         services.Configure<Storage.RetentionOptions>(configuration.GetSection("SimplCalCon:Retention"));
+        services.Configure<Storage.OccurrenceOptions>(configuration.GetSection("SimplCalCon:Occurrences"));
 
         services.AddDbContext<SimplCalConDbContext>(options =>
         {
@@ -71,6 +72,8 @@ public static class DependencyInjection
         services.AddSingleton<Push.WebPushChangeNotifier>();
         services.AddScoped<Application.Abstractions.Push.IPushSubscriptions, Push.PushSubscriptionRepository>();
 
+        services.AddScoped<Storage.OccurrenceIndexer>();
+        services.AddHostedService<Storage.OccurrenceRollForwardService>();
         services.AddScoped<IObjectStore, ObjectStore>();
         services.AddScoped<IObjectImportExport, ObjectImportExport>();
         services.AddScoped<IContactPhotoService, ContactPhotoService>();

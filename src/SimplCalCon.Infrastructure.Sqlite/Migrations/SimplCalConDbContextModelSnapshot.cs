@@ -538,6 +538,33 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
                     b.ToTable("EventAttendees", (string)null);
                 });
 
+            modelBuilder.Entity("SimplCalCon.Domain.Objects.EventOccurrence", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("EndUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ObjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("StartUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ObjectId");
+
+                    b.HasIndex("CollectionId", "StartUtc");
+
+                    b.ToTable("EventOccurrences", (string)null);
+                });
+
             modelBuilder.Entity("SimplCalCon.Domain.Objects.ObjectRevision", b =>
                 {
                     b.Property<Guid>("Id")
@@ -897,6 +924,17 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
                         .HasMaxLength(1024)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("OccurrencesComplete")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime?>("OccurrencesFromUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("OccurrencesUntilUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("RecurrenceRule")
                         .HasMaxLength(1024)
                         .HasColumnType("TEXT");
@@ -1124,6 +1162,17 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
                     b.Navigation("Object");
                 });
 
+            modelBuilder.Entity("SimplCalCon.Domain.Objects.EventOccurrence", b =>
+                {
+                    b.HasOne("SimplCalCon.Domain.Objects.CalendarObject", "Object")
+                        .WithMany("Occurrences")
+                        .HasForeignKey("ObjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Object");
+                });
+
             modelBuilder.Entity("SimplCalCon.Domain.Objects.ObjectRevision", b =>
                 {
                     b.HasOne("SimplCalCon.Domain.Objects.CollectionObject", "Object")
@@ -1245,6 +1294,8 @@ namespace SimplCalCon.Infrastructure.Sqlite.Migrations
             modelBuilder.Entity("SimplCalCon.Domain.Objects.CalendarObject", b =>
                 {
                     b.Navigation("Attendees");
+
+                    b.Navigation("Occurrences");
                 });
 
             modelBuilder.Entity("SimplCalCon.Domain.Principals.Group", b =>

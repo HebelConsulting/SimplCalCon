@@ -40,6 +40,57 @@ internal static class CalendarOccurrence
     }
 
     /// <summary>
+    /// Materializes occurrence windows starting within [fromUtc, toUtc) for the occurrence-window
+    /// index (ADR 0061). Returns the windows plus <c>Truncated</c> — true when the series continues
+    /// at or past <paramref name="toUtc"/> or the <paramref name="maxRows"/> cap was hit, so the
+    /// caller knows the future horizon is not fully covered and time-range queries beyond it must
+    /// fall back to on-the-fly expansion. A malformed blob yields none (and no truncation).
+    /// </summary>
+    public static (IReadOnlyList<(DateTime StartUtc, DateTime EndUtc)> Windows, bool Truncated) Materialize(
+        string blob, DateTime fromUtc, DateTime toUtc, int maxRows)
+    {
+        Ical.Net.Calendar? calendar;
+        try
+        {
+            calendar = Ical.Net.Calendar.Load(blob);
+        }
+        catch (Exception)
+        {
+            return ([], false);
+        }
+
+        if (calendar is null)
+        {
+            return ([], false);
+        }
+
+        var from = new CalDateTime(DateTime.SpecifyKind(fromUtc, DateTimeKind.Utc));
+        var windows = new List<(DateTime StartUtc, DateTime EndUtc)>();
+        foreach (var occurrence in calendar.GetOccurrences(from))
+        {
+            if (occurrence.Period.StartTime?.AsUtc is not { } start)
+            {
+                continue;
+            }
+
+            if (start >= toUtc)
+            {
+                return (windows, true); // the series reaches past the window
+            }
+
+            if (windows.Count >= maxRows)
+            {
+                return (windows, true); // pathological rule — stop and fall back beyond here
+            }
+
+            var end = occurrence.Period.EndTime?.AsUtc ?? start;
+            windows.Add((start, end));
+        }
+
+        return (windows, false); // the series ended within the window
+    }
+
+    /// <summary>
     /// Expands a component into its concrete occurrence windows starting within [fromUtc, toUtc)
     /// (ADR 0050/0051), for the web grid. Each item carries its RECURRENCE-ID (the canonical slot,
     /// so a per-instance edit/delete can target it — ADR 0051); a malformed blob yields none.
