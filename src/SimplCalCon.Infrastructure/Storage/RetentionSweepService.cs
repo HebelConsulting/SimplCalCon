@@ -10,8 +10,11 @@ namespace SimplCalCon.Infrastructure.Storage;
 /// <summary>Bound from <c>SimplCalCon:Retention</c> (ADR 0060).</summary>
 public sealed class RetentionOptions
 {
-    /// <summary>Purge trashed objects soft-deleted more than this many days ago; 0 = keep forever (sweep disabled).</summary>
+    /// <summary>Purge trashed objects soft-deleted more than this many days ago; 0 = keep forever (disabled).</summary>
     public int TrashRetentionDays { get; set; }
+
+    /// <summary>Hard-purge collections soft-deleted more than this many days ago; 0 = keep forever (disabled) — ADR 0077.</summary>
+    public int DeletedCollectionRetentionDays { get; set; }
 
     /// <summary>Sweep cadence in hours (floored at 1).</summary>
     public int SweepHours { get; set; } = 24;
@@ -21,9 +24,10 @@ public sealed class RetentionOptions
 }
 
 /// <summary>
-/// Periodically purges trashed objects past the retention window (ADR 0060). Disabled unless
-/// <see cref="RetentionOptions.TrashRetentionDays"/> is set (destructive — opt-in). Each cycle
-/// drains all eligible objects in batches; a failed cycle is logged and retried next interval.
+/// Periodically purges trashed objects (ADR 0060) and long-deleted collections (ADR 0077) past their
+/// retention windows. Each is independently opt-in (its *RetentionDays &gt; 0); the service idles if both
+/// are off (destructive — opt-in). Each cycle drains all eligible rows in batches; a failed cycle is
+/// logged and retried next interval.
 /// </summary>
 internal sealed class RetentionSweepService(
     IServiceScopeFactory scopeFactory,
@@ -32,16 +36,20 @@ internal sealed class RetentionSweepService(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var days = options.Value.TrashRetentionDays;
-        if (days <= 0)
+        var trashDays = options.Value.TrashRetentionDays;
+        var collectionDays = options.Value.DeletedCollectionRetentionDays;
+        if (trashDays <= 0 && collectionDays <= 0)
         {
-            logger.LogInformation("Retention sweep disabled (SimplCalCon:Retention:TrashRetentionDays).");
+            logger.LogInformation(
+                "Retention sweep disabled (SimplCalCon:Retention:TrashRetentionDays / DeletedCollectionRetentionDays).");
             return;
         }
 
         var interval = TimeSpan.FromHours(Math.Max(1, options.Value.SweepHours));
         var batchSize = Math.Max(1, options.Value.BatchSize);
-        logger.LogInformation("Retention sweep started (trash older than {Days}d, every {Hours}h).", days, interval.TotalHours);
+        logger.LogInformation(
+            "Retention sweep started (trash {TrashDays}d, deleted collections {CollectionDays}d — 0 = off; every {Hours}h).",
+            trashDays, collectionDays, interval.TotalHours);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -50,20 +58,28 @@ internal sealed class RetentionSweepService(
                 using var scope = scopeFactory.CreateScope();
                 var retention = scope.ServiceProvider.GetRequiredService<IRetentionService>();
                 var clock = scope.ServiceProvider.GetRequiredService<IClock>();
-                var cutoff = clock.UtcNow.UtcDateTime.AddDays(-days);
+                var now = clock.UtcNow.UtcDateTime;
 
-                var total = 0;
-                int purged;
-                do
+                if (trashDays > 0)
                 {
-                    purged = await retention.PurgeTrashedBeforeAsync(cutoff, batchSize, stoppingToken);
-                    total += purged;
+                    var total = await DrainAsync(
+                        (cutoff, ct) => retention.PurgeTrashedBeforeAsync(cutoff, batchSize, ct),
+                        now.AddDays(-trashDays), batchSize, stoppingToken);
+                    if (total > 0)
+                    {
+                        logger.LogInformation("Retention: purged {Count} trashed object(s) older than {Days}d.", total, trashDays);
+                    }
                 }
-                while (purged == batchSize && !stoppingToken.IsCancellationRequested);
 
-                if (total > 0)
+                if (collectionDays > 0)
                 {
-                    logger.LogInformation("Retention: purged {Count} trashed object(s) older than {Days}d.", total, days);
+                    var total = await DrainAsync(
+                        (cutoff, ct) => retention.PurgeDeletedCollectionsBeforeAsync(cutoff, batchSize, ct),
+                        now.AddDays(-collectionDays), batchSize, stoppingToken);
+                    if (total > 0)
+                    {
+                        logger.LogInformation("Retention: purged {Count} deleted collection(s) older than {Days}d.", total, collectionDays);
+                    }
                 }
             }
             catch (Exception ex)
@@ -80,5 +96,20 @@ internal sealed class RetentionSweepService(
                 break;
             }
         }
+    }
+
+    // Drains all eligible rows for one purge kind in batches (a full batch means there may be more).
+    private static async Task<int> DrainAsync(
+        Func<DateTime, CancellationToken, Task<int>> purge, DateTime cutoff, int batchSize, CancellationToken stoppingToken)
+    {
+        var total = 0;
+        int purged;
+        do
+        {
+            purged = await purge(cutoff, stoppingToken);
+            total += purged;
+        }
+        while (purged == batchSize && !stoppingToken.IsCancellationRequested);
+        return total;
     }
 }

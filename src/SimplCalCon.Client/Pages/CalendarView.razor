@@ -48,7 +48,8 @@ else
                          OnColorChanged="OnColorChangedAsync"
                          OnColorReset="OnColorResetAsync"
                          Deleted="DeletedPaneItems()"
-                         OnRestore="OnRestoreAsync" />
+                         OnRestore="OnRestoreAsync"
+                         OnPurge="OnPurgeRequested" />
 
         <div class="cal-main">
             @if (entries is null)
@@ -450,6 +451,17 @@ else
     </div>
 </Modal>
 
+<Modal Visible="purgeId is not null" Title="Delete calendar permanently" OnClose="() => purgeId = null">
+    <p><strong>Permanently delete</strong> “<strong>@purgeName</strong>” and <strong>all its events and history</strong>? This <strong>cannot be undone</strong>.</p>
+    <p class="confirm-hint">To confirm, type the calendar's name — <strong>@purgeName</strong> — below.</p>
+    <input type="text" class="confirm-input" @bind="purgeConfirm" @bind:event="oninput"
+           placeholder="@purgeName" autocomplete="off" aria-label="Type the calendar name to confirm permanent deletion" />
+    <div class="form-actions">
+        <button class="danger" @onclick="PurgeAsync" disabled="@(!PurgeConfirmed)">Delete permanently</button>
+        <button @onclick="() => purgeId = null">Cancel</button>
+    </div>
+</Modal>
+
 @code {
     private enum View { List, Calendar }
     private enum Grid { Month, Week }
@@ -586,6 +598,35 @@ else
         deletedCalendars = await Api.GetDeletedCalendarsAsync();
         checkedIds.Add(id);                 // show the restored calendar straight away
         await OnFilterChangedAsync();       // persist, reload the merged view, re-subscribe
+    }
+
+    // Permanent purge of a deleted calendar (ADR 0077): type-the-name confirm, then hard-delete.
+    private Guid? purgeId;
+    private string purgeName = string.Empty;
+    private string purgeConfirm = string.Empty;
+
+    private bool PurgeConfirmed =>
+        !string.IsNullOrWhiteSpace(purgeName) &&
+        string.Equals(purgeConfirm.Trim(), purgeName.Trim(), StringComparison.Ordinal);
+
+    private void OnPurgeRequested(Guid id)
+    {
+        purgeName = deletedCalendars.FirstOrDefault(c => c.Id == id)?.Name ?? string.Empty;
+        purgeConfirm = string.Empty;
+        purgeId = id;
+    }
+
+    private async Task PurgeAsync()
+    {
+        if (purgeId is not { } id || !PurgeConfirmed)
+        {
+            return;
+        }
+
+        await Api.PurgeCollectionAsync("calendars", id);
+        purgeId = null;
+        purgeConfirm = string.Empty;
+        deletedCalendars = await Api.GetDeletedCalendarsAsync();
     }
 
     private static readonly string[] WeekdayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

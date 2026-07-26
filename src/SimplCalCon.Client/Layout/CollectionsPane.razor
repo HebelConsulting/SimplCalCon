@@ -52,6 +52,8 @@
                         <span class="coll-name-text coll-name-deleted" title="@d.Name">@d.Name</span>
                         <button type="button" class="coll-reset coll-restore" title="Restore this collection"
                                 @onclick="() => OnRestore.InvokeAsync(d.Id)">↺</button>
+                        <button type="button" class="coll-reset coll-purge" title="Delete permanently"
+                                @onclick="() => OnPurge.InvokeAsync(d.Id)">🗑</button>
                     </div>
                 }
             }
@@ -86,6 +88,9 @@
 
     /// <summary>Raised when a deleted collection's restore (↺) is clicked.</summary>
     [Parameter] public EventCallback<Guid> OnRestore { get; set; }
+
+    /// <summary>Raised when a deleted collection's permanent-delete (🗑) is clicked (ADR 0077); the parent confirms.</summary>
+    [Parameter] public EventCallback<Guid> OnPurge { get; set; }
 
     private bool showDeleted;
 

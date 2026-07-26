@@ -9,4 +9,10 @@ public interface IRetentionService
 {
     /// <summary>Purges up to <paramref name="batchSize"/> objects trashed before <paramref name="cutoffUtc"/>. Returns the count purged.</summary>
     Task<int> PurgeTrashedBeforeAsync(DateTime cutoffUtc, int batchSize, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Hard-purges up to <paramref name="batchSize"/> collections soft-deleted before <paramref name="cutoffUtc"/>
+    /// (their objects + revisions + child rows go via cascade, ADR 0077). Returns the count purged.
+    /// </summary>
+    Task<int> PurgeDeletedCollectionsBeforeAsync(DateTime cutoffUtc, int batchSize, CancellationToken cancellationToken);
 }

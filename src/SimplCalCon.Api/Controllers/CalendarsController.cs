@@ -166,6 +166,18 @@ public sealed class CalendarsController(
         return ResourceMapper.MapCalendar(restored, CurrentUserId);
     }
 
+    // Permanently purge a soft-deleted calendar (ADR 0077): owner-only, irreversible (cascade), If-Match-exempt.
+    [HttpDelete("deleted/{id:guid}")]
+    public async Task<IActionResult> Purge(Guid id, CancellationToken cancellationToken)
+    {
+        if (!await repository.PurgeCalendarAsync(id, CurrentUserId, cancellationToken))
+        {
+            throw new ResourceNotFoundException("Calendar", id);
+        }
+
+        return NoContent();
+    }
+
     // --- Import / export (ADR 0013/0029). A bulk write/read is a genuine action, so a verb sub-resource is used. ---
 
     [HttpPost("{id:guid}/import")]

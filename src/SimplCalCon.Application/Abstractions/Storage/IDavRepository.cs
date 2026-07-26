@@ -115,11 +115,17 @@ public interface IDavRepository
     /// <summary>Un-deletes the owner's deleted address book; returns it, or null if not found/not owned/not deleted.</summary>
     Task<AddressBook?> RestoreAddressBookAsync(Guid id, Guid ownerId, CancellationToken cancellationToken);
 
+    /// <summary>Hard-purges the owner's deleted address book (+ cascade); true if purged, false if not found/not owned/not deleted (ADR 0077).</summary>
+    Task<bool> PurgeAddressBookAsync(Guid id, Guid ownerId, CancellationToken cancellationToken);
+
     /// <summary>Calendars the owner has (soft-)deleted, most-recently-deleted first.</summary>
     Task<IReadOnlyList<Calendar>> ListDeletedCalendarsAsync(Guid ownerId, CancellationToken cancellationToken);
 
     /// <summary>Un-deletes the owner's deleted calendar; returns it, or null if not found/not owned/not deleted.</summary>
     Task<Calendar?> RestoreCalendarAsync(Guid id, Guid ownerId, CancellationToken cancellationToken);
+
+    /// <summary>Hard-purges the owner's deleted calendar (+ cascade); true if purged, false if not found/not owned/not deleted (ADR 0077).</summary>
+    Task<bool> PurgeCalendarAsync(Guid id, Guid ownerId, CancellationToken cancellationToken);
 
     // --- Trash & version history (ADR 0028) ---
 

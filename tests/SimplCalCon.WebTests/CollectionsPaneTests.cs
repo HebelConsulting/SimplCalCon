@@ -146,4 +146,18 @@ public sealed class CollectionsPaneTests : TestContext
 
         Assert.Equal(Old, restored);
     }
+
+    [Fact]
+    public void Clicking_permanent_delete_raises_the_purge_event_with_the_id()
+    {
+        Guid? purged = null;
+        var cut = Render(p => p
+            .Add(x => x.Deleted, OneDeleted())
+            .Add(x => x.OnPurge, id => purged = id));
+
+        cut.Find(".pane-deleted-toggle").Click(); // expand
+        cut.Find(".coll-purge").Click();
+
+        Assert.Equal(Old, purged);
+    }
 }
