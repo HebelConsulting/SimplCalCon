@@ -129,18 +129,21 @@ Two-way sync via the third-party add-in against the standard `/dav/` surface (AD
   the event's own duration catches spanning occurrences). Recurring events also now
   contribute their real duration to free/busy and to `calendar-data expand`.
 
-## WebDAV-Push (ADR 0052) — ✅ server-side verified end-to-end
+## WebDAV-Push (ADR 0052) — ✅ server-side verified end-to-end (into the device's push app)
 
-Moves DAVx⁵ from *polling* to *pushed* sync. **The whole server pipeline is verified against a real
-device** — advertise, register, encrypt, and deliver to the push service. The only unproven link is the
-device actually waking, which is a device push-app/battery-config matter, not a server one.
+Moves DAVx⁵ from *polling* to *pushed* sync. **Everything SimplCalCon and the relay control is verified
+against a real device** — advertise, register, encrypt, deliver to the push service, and (over a
+self-hosted LAN ntfy, ADR 0081) the encrypted message provably **arrives in the phone's ntfy app**. The
+sole remaining gap is the **ntfy → DAVx⁵ UnifiedPush handoff** (DAVx⁵ turning that push into a sync),
+which is DAVx⁵/UnifiedPush-client territory, outside SimplCalCon.
 
 | Flow | DAVx⁵ (Android) |
 |---|---|
 | Collection PROPFIND advertises `push:transports` / `push:topic` | ✅ ³ |
 | DAVx⁵ `POST`s a `push-register` → `204` (+ `Location` + `Expires`) | ✅ ³ |
 | Server change → encrypted `push-message` (topic + sync-token) delivered to the push service | ✅ ⁴ |
-| DAVx⁵ wakes and pulls the change via `sync-collection` within seconds | ⚠️ ⁴ |
+| …and received by the device's push app (ntfy) | ✅ ⁵ |
+| DAVx⁵ turns the push into a `sync-collection` (auto-wake) | ⚠️ ⁵ |
 | Unregister on account removal → `DELETE /dav/push-subscriptions/{id}` | 🔜 |
 
 ³ **Verified over the LAN** (ephemeral VAPID, `docker-compose.lan.yaml`). DAVx⁵ delivers push over
@@ -163,14 +166,28 @@ existing device subscriptions — re-sync DAVx⁵ to re-register after any resta
 avoids this — ADR 0052). Troubleshooting: `manual.md` → "Instant sync with WebDAV-Push" and
 `dav-device-testing.md` §7b.
 
+⁵ **Delivery into the device's push app verified via a self-hosted ntfy on the LAN (ADR 0081).** With
+`--profile push`, ntfy runs behind Caddy at `https://<LAN_HOST>:8443` and the api trusts the internal CA
+(dev-only flag). After a change to a subscribed calendar, the encrypted `push-message` was observed
+**cached on the exact `up…` topic DAVx⁵ registered** (`GET https://<LAN_HOST>:8443/<topic>/json?poll=1`)
+with no api send error, and the **ntfy Android app showed the `up…` topic received the message** at the
+same second — i.e. the push reached the device end to end. **But DAVx⁵ made no follow-up `/dav` call**, so
+it isn't turning the UnifiedPush broadcast into a sync (its debug log gave no hint). That last hop —
+ntfy-app → DAVx⁵ → sync — is **outside SimplCalCon** (a DAVx⁵/UnifiedPush-client matter; likely
+version/feature-dependent). **Gotcha found:** DAVx⁵ rotates its UnifiedPush endpoint on restart and
+re-registers **per collection lazily** — after a restart the calendars had a fresh `up…` endpoint while
+the address books still held the old one, so push a change on a collection whose *current* endpoint the
+phone is subscribed to.
+
 - **What's built:** the server implements the bitfire WebDAV-Push draft
   (`https://bitfire.at/webdav-push`) over Web Push — collections advertise
   `push:transports`/`push:topic`, clients `POST` a `push-register` (→ `204` + `Location` + `Expires`),
   and every change fans out an encrypted `push-message` (topic + `{DAV:}sync-token`) so the client then
   pulls via `sync-collection`. Automated tests cover advertisement, register/unregister, and change
   fan-out with a capturing sender; the real-device server fan-out is confirmed via the ntfy topic (⁴).
-- **Remaining:** only the on-device **wake** (ntfy → DAVx⁵), which is device push-app/battery config.
-  Setup, the ntfy verification method, and the battery-optimization note are in
+- **Remaining:** only the final **ntfy-app → DAVx⁵ handoff** — the push reaches the phone's ntfy app
+  (⁵) but DAVx⁵ doesn't act on it. Outside SimplCalCon (a DAVx⁵/UnifiedPush-client concern). Setup + the
+  self-hosted-ntfy verification method are in
   [`manual.md`](manual.md#instant-sync-with-webdav-push-davx--ntfy) and
   [`dav-device-testing.md`](dav-device-testing.md) §7b.
 - **Apple Calendar/Contacts do not use WebDAV-Push** (they use proprietary APNs push), so they are
