@@ -16,7 +16,7 @@ namespace SimplCalCon.Api.Controllers;
 [Route("api/address-books/{addressBookId:guid}/contacts")]
 public sealed class ContactsController(
     IDavRepository repository, IObjectStore objectStore, IObjectComposer composer,
-    IContactPhotoService photos, IAclService acl)
+    IContactCardComposer cardComposer, IContactPhotoService photos, IAclService acl)
     : ApiControllerBase(acl)
 {
     [HttpGet]
@@ -100,6 +100,45 @@ public sealed class ContactsController(
         catch (ObjectStoreException ex)
         {
             // The edited vCard didn't parse — refuse the save with a clear reason; nothing persisted.
+            throw new MalformedVCardException(ex.Message);
+        }
+    }
+
+    // Structured rich-field editor (ADR 0082): a lossless field form over the vCard. GET returns the
+    // structured view + ETag; PUT merges the fields back into the existing card — preserving PHOTO, X-*,
+    // and anything the form doesn't model — then stores it through the normal validate-and-extract path.
+    [HttpGet("{id:guid}/card")]
+    public async Task<ActionResult<ContactCard>> GetCard(Guid addressBookId, Guid id, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(addressBookId, AclRight.Read, cancellationToken);
+        var contact = await FindAsync(addressBookId, id, cancellationToken);
+        Response.Headers.ETag = ETag.Format(contact.ConcurrencyToken);
+        return cardComposer.Read(contact.Blob);
+    }
+
+    [HttpPut("{id:guid}/card")]
+    [RequireIfMatch]
+    public async Task<IActionResult> PutCard(
+        Guid addressBookId, Guid id, [FromBody] ContactCard card, CancellationToken cancellationToken)
+    {
+        await RequireRightsAsync(addressBookId, AclRight.WriteContent, cancellationToken);
+        var existing = await FindAsync(addressBookId, id, cancellationToken);
+        EnsureIfMatch(existing.ConcurrencyToken);
+
+        var blob = cardComposer.Merge(existing.Blob, card, existing.Uid);
+        try
+        {
+            var result = await objectStore.PutAsync(
+                new PutObjectRequest(addressBookId, existing.ResourceName, blob, CurrentUserId), cancellationToken);
+            Response.Headers.ETag = ETag.Format(result.ETag);
+            return NoContent();
+        }
+        catch (UidConflictException)
+        {
+            throw new VCardUidConflictException();
+        }
+        catch (ObjectStoreException ex)
+        {
             throw new MalformedVCardException(ex.Message);
         }
     }

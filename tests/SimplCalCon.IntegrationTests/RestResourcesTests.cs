@@ -108,6 +108,58 @@ public sealed class RestResourcesTests(AuthWebApplicationFactory factory) : ICla
     }
 
     [Fact]
+    public async Task Contact_card_edit_is_lossless_over_the_store()
+    {
+        var client = await AuthedClientAsync();
+        var bookId = (await Body(await client.PostAsJsonAsync("/api/address-books", new { name = "CardBook" }))).GetProperty("id").GetGuid();
+        var contactId = (await Body(await client.PostAsJsonAsync($"/api/address-books/{bookId}/contacts",
+            new { formattedName = "Temp", emails = Array.Empty<string>() }))).GetProperty("id").GetGuid();
+
+        // Seed a rich card with data the structured form doesn't model (PHOTO + X-*).
+        const string rich = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:card-uid-1\r\nFN:Old Name\r\nN:Old;Name;;;\r\n" +
+            "EMAIL:old@x.test\r\nPHOTO;ENCODING=b;TYPE=JPEG:/9j/KEEPME==\r\nX-FOO:bar\r\nEND:VCARD\r\n";
+        var rawEtag = (await client.GetAsync($"/api/address-books/{bookId}/contacts/{contactId}/raw")).Headers.ETag!.ToString();
+        using (var seed = new HttpRequestMessage(HttpMethod.Put, $"/api/address-books/{bookId}/contacts/{contactId}/raw")
+        {
+            Content = new StringContent(rich, System.Text.Encoding.UTF8, "text/vcard"),
+        })
+        {
+            seed.Headers.TryAddWithoutValidation("If-Match", rawEtag);
+            Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(seed)).StatusCode);
+        }
+
+        // Structured read.
+        var cardResponse = await client.GetAsync($"/api/address-books/{bookId}/contacts/{contactId}/card");
+        var cardEtag = cardResponse.Headers.ETag!.ToString();
+        var card = JsonDocument.Parse(await cardResponse.Content.ReadAsStringAsync()).RootElement;
+        Assert.Equal("Old Name", card.GetProperty("formattedName").GetString());
+
+        // Structured edit (change the name, replace emails).
+        using (var put = new HttpRequestMessage(HttpMethod.Put, $"/api/address-books/{bookId}/contacts/{contactId}/card")
+        {
+            Content = JsonContent.Create(new
+            {
+                formattedName = "New Name", givenName = "New", familyName = "Name",
+                emails = new[] { new { value = "new@x.test", type = "work" } },
+                phones = Array.Empty<object>(), addresses = Array.Empty<object>(),
+            }),
+        })
+        {
+            put.Headers.TryAddWithoutValidation("If-Match", cardEtag);
+            Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(put)).StatusCode);
+        }
+
+        // The card blob: modelled fields changed, unmodelled data preserved.
+        var raw = await (await client.GetAsync($"/api/address-books/{bookId}/contacts/{contactId}/raw")).Content.ReadAsStringAsync();
+        Assert.Contains("FN:New Name", raw);
+        Assert.Contains("EMAIL;TYPE=WORK:new@x.test", raw);
+        Assert.Contains("PHOTO;ENCODING=b;TYPE=JPEG:/9j/KEEPME==", raw); // preserved
+        Assert.Contains("X-FOO:bar", raw);                               // preserved
+        Assert.DoesNotContain("Old Name", raw);
+        Assert.DoesNotContain("old@x.test", raw);
+    }
+
+    [Fact]
     public async Task Invalid_raw_vcard_is_rejected()
     {
         var client = await AuthedClientAsync();

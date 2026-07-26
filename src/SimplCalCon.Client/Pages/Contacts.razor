@@ -163,28 +163,132 @@ else
                             <div class="detail-book">
                                 <span class="swatch" style="background:@selectedColor"></span> @selectedBookName
                             </div>
-                            <div class="detail-vcard">
+                            @* Structured, lossless edit form (ADR 0082). *@
+                            <div class="detail-card">
                                 <div class="detail-vcard-head">
-                                    <span>vCard @(editing ? "(editing)" : "(read-only)")</span>
+                                    <span>Contact @(cardEditing ? "(editing)" : "")</span>
                                     <span class="detail-vcard-actions">
-                                        @if (!editing)
+                                        @if (!cardEditing)
                                         {
-                                            <button @onclick="StartEdit">Edit</button>
+                                            <button @onclick="StartCardEdit">Edit</button>
                                         }
                                         else
                                         {
-                                            <button @onclick="SaveAsync" disabled="@busy">Save</button>
-                                            <button @onclick="CancelEdit" disabled="@busy">Cancel</button>
+                                            <button @onclick="SaveCardAsync" disabled="@busy">Save</button>
+                                            <button @onclick="CancelCardEdit" disabled="@busy">Cancel</button>
                                         }
                                     </span>
                                 </div>
-                                <textarea class="vcard-text" readonly="@(!editing)" @bind="editBuffer" @bind:event="oninput"></textarea>
-                                @if (detailMessage is not null)
+
+                                @if (!cardEditing)
                                 {
-                                    <p class="detail-msg">@detailMessage</p>
+                                    <dl class="card-view">
+                                        @if (!string.IsNullOrWhiteSpace(card?.FormattedName)) { <dt>Name</dt><dd>@card!.FormattedName</dd> }
+                                        @if (!string.IsNullOrWhiteSpace(card?.Organization)) { <dt>Organisation</dt><dd>@card!.Organization</dd> }
+                                        @if (!string.IsNullOrWhiteSpace(card?.Title)) { <dt>Title</dt><dd>@card!.Title</dd> }
+                                        @foreach (var e in card?.Emails ?? []) { <dt>Email@(TypeSuffix(e.Type))</dt><dd>@e.Value</dd> }
+                                        @foreach (var p in card?.Phones ?? []) { <dt>Phone@(TypeSuffix(p.Type))</dt><dd>@p.Value</dd> }
+                                        @foreach (var a in card?.Addresses ?? []) { <dt>Address@(TypeSuffix(a.Type))</dt><dd>@FormatAddress(a)</dd> }
+                                        @if (!string.IsNullOrWhiteSpace(card?.Birthday)) { <dt>Birthday</dt><dd>@card!.Birthday</dd> }
+                                        @if (!string.IsNullOrWhiteSpace(card?.Url)) { <dt>Website</dt><dd>@card!.Url</dd> }
+                                        @if (!string.IsNullOrWhiteSpace(card?.Note)) { <dt>Note</dt><dd class="card-note">@card!.Note</dd> }
+                                    </dl>
+                                }
+                                else
+                                {
+                                    <div class="card-form">
+                                        <div class="form-row"><label>Name</label><input @bind="edit.Fn" placeholder="Full name" /></div>
+                                        <div class="form-row"><label>First / Last</label><input @bind="edit.Given" placeholder="First" /><input @bind="edit.Family" placeholder="Last" /></div>
+                                        <div class="form-row"><label>Organisation</label><input @bind="edit.Org" /></div>
+                                        <div class="form-row"><label>Title</label><input @bind="edit.Title" /></div>
+
+                                        <div class="form-row form-row-top"><label>Emails</label>
+                                            <div class="repeat">
+                                                @foreach (var e in edit.Emails)
+                                                {
+                                                    <div class="repeat-row">
+                                                        <input @bind="e.Value" placeholder="name@example.com" />
+                                                        <select @bind="e.Type"><option value="">—</option><option value="home">home</option><option value="work">work</option></select>
+                                                        <button type="button" class="repeat-del" title="Remove" @onclick="() => edit.Emails.Remove(e)">✕</button>
+                                                    </div>
+                                                }
+                                                <button type="button" class="repeat-add" @onclick="() => edit.Emails.Add(new())">+ email</button>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-row form-row-top"><label>Phones</label>
+                                            <div class="repeat">
+                                                @foreach (var p in edit.Phones)
+                                                {
+                                                    <div class="repeat-row">
+                                                        <input @bind="p.Value" placeholder="+1 555 0100" />
+                                                        <select @bind="p.Type"><option value="">—</option><option value="mobile">mobile</option><option value="home">home</option><option value="work">work</option></select>
+                                                        <button type="button" class="repeat-del" title="Remove" @onclick="() => edit.Phones.Remove(p)">✕</button>
+                                                    </div>
+                                                }
+                                                <button type="button" class="repeat-add" @onclick="() => edit.Phones.Add(new())">+ phone</button>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-row form-row-top"><label>Addresses</label>
+                                            <div class="repeat">
+                                                @foreach (var a in edit.Addresses)
+                                                {
+                                                    <div class="repeat-addr">
+                                                        <div class="repeat-row">
+                                                            <input @bind="a.Street" placeholder="Street" />
+                                                            <select @bind="a.Type"><option value="">—</option><option value="home">home</option><option value="work">work</option></select>
+                                                            <button type="button" class="repeat-del" title="Remove" @onclick="() => edit.Addresses.Remove(a)">✕</button>
+                                                        </div>
+                                                        <div class="repeat-row">
+                                                            <input @bind="a.City" placeholder="City" />
+                                                            <input @bind="a.Region" placeholder="Region" />
+                                                            <input @bind="a.PostalCode" placeholder="Postcode" />
+                                                            <input @bind="a.Country" placeholder="Country" />
+                                                        </div>
+                                                    </div>
+                                                }
+                                                <button type="button" class="repeat-add" @onclick="() => edit.Addresses.Add(new())">+ address</button>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-row"><label>Birthday</label><input type="date" value="@edit.Birthday" @onchange="e => edit.Birthday = e.Value?.ToString()" /></div>
+                                        <div class="form-row"><label>Website</label><input @bind="edit.Url" placeholder="https://…" /></div>
+                                        <div class="form-row form-row-top"><label>Note</label><textarea rows="3" @bind="edit.Note"></textarea></div>
+                                    </div>
+                                }
+                                @if (cardMessage is not null)
+                                {
+                                    <p class="detail-msg">@cardMessage</p>
                                 }
                             </div>
-                            @if (!editing && books is { Count: > 1 })
+
+                            @* Raw vCard fallback (ADR 0036) — for anything the form doesn't model. *@
+                            <details class="detail-advanced">
+                                <summary>Advanced: raw vCard</summary>
+                                <div class="detail-vcard">
+                                    <div class="detail-vcard-head">
+                                        <span>vCard @(editing ? "(editing)" : "(read-only)")</span>
+                                        <span class="detail-vcard-actions">
+                                            @if (!editing)
+                                            {
+                                                <button @onclick="StartEdit">Edit</button>
+                                            }
+                                            else
+                                            {
+                                                <button @onclick="SaveAsync" disabled="@busy">Save</button>
+                                                <button @onclick="CancelEdit" disabled="@busy">Cancel</button>
+                                            }
+                                        </span>
+                                    </div>
+                                    <textarea class="vcard-text" readonly="@(!editing)" @bind="editBuffer" @bind:event="oninput"></textarea>
+                                    @if (detailMessage is not null)
+                                    {
+                                        <p class="detail-msg">@detailMessage</p>
+                                    }
+                                </div>
+                            </details>
+                            @if (!editing && !cardEditing && books is { Count: > 1 })
                             {
                                 <div class="detail-move">
                                     <label>Move to</label>
@@ -350,6 +454,44 @@ else
     private bool editing;
     private bool busy;
     private string? detailMessage;
+
+    // Structured (lossless) card editor (ADR 0082).
+    private ContactCardDto? card;
+    private string? cardEtag;
+    private bool cardEditing;
+    private string? cardMessage;
+    private CardEdit edit = new();
+
+    private sealed class CardEdit
+    {
+        public string? Fn { get; set; }
+        public string? Given { get; set; }
+        public string? Family { get; set; }
+        public string? Org { get; set; }
+        public string? Title { get; set; }
+        public string? Birthday { get; set; }
+        public string? Url { get; set; }
+        public string? Note { get; set; }
+        public List<FieldRow> Emails { get; set; } = [];
+        public List<FieldRow> Phones { get; set; } = [];
+        public List<AddrRow> Addresses { get; set; } = [];
+    }
+
+    private sealed class FieldRow
+    {
+        public string Value { get; set; } = string.Empty;
+        public string? Type { get; set; }
+    }
+
+    private sealed class AddrRow
+    {
+        public string? Type { get; set; }
+        public string? Street { get; set; }
+        public string? City { get; set; }
+        public string? Region { get; set; }
+        public string? PostalCode { get; set; }
+        public string? Country { get; set; }
+    }
 
     private string sortColumn = "name";
     private bool sortAscending = true;
@@ -832,16 +974,94 @@ else
         selectedBookName = entry.BookName;
         selectedColor = entry.Color;
         editing = false;
+        cardEditing = false;
         detailMessage = null;
+        cardMessage = null;
         moveTarget = string.Empty;
         moveError = null;
         var (vcard, etag) = await Api.GetContactRawAsync(entry.BookId, entry.Contact.Id);
         selectedRaw = vcard;
         selectedEtag = etag;
         editBuffer = vcard;
+        // The structured view for the field form (ADR 0082), with its own ETag for the conditional save.
+        (card, cardEtag) = await Api.GetContactCardAsync(entry.BookId, entry.Contact.Id);
         // The server resolves + caches the photo (inline or external URL), so we just fetch bytes (ADR 0037).
         selectedPhoto = await Api.GetContactPhotoDataUrlAsync(entry.BookId, entry.Contact.Id);
     }
+
+    private void StartCardEdit()
+    {
+        cardMessage = null;
+        edit = new CardEdit
+        {
+            Fn = card?.FormattedName,
+            Given = card?.GivenName,
+            Family = card?.FamilyName,
+            Org = card?.Organization,
+            Title = card?.Title,
+            Birthday = card?.Birthday,
+            Url = card?.Url,
+            Note = card?.Note,
+            Emails = (card?.Emails ?? []).Select(e => new FieldRow { Value = e.Value, Type = e.Type }).ToList(),
+            Phones = (card?.Phones ?? []).Select(p => new FieldRow { Value = p.Value, Type = p.Type }).ToList(),
+            Addresses = (card?.Addresses ?? []).Select(a => new AddrRow
+            {
+                Type = a.Type, Street = a.Street, City = a.City, Region = a.Region, PostalCode = a.PostalCode, Country = a.Country,
+            }).ToList(),
+        };
+        cardEditing = true;
+    }
+
+    private void CancelCardEdit()
+    {
+        cardEditing = false;
+        cardMessage = null;
+    }
+
+    private async Task SaveCardAsync()
+    {
+        if (selected is null || selectedBookId is not { } id)
+        {
+            return;
+        }
+
+        var payload = new ContactCardDto(
+            Blank(edit.Fn), Blank(edit.Given), Blank(edit.Family), Blank(edit.Org), Blank(edit.Title),
+            edit.Emails.Where(e => !string.IsNullOrWhiteSpace(e.Value)).Select(e => new ContactFieldDto(e.Value.Trim(), Blank(e.Type))).ToList(),
+            edit.Phones.Where(p => !string.IsNullOrWhiteSpace(p.Value)).Select(p => new ContactFieldDto(p.Value.Trim(), Blank(p.Type))).ToList(),
+            edit.Addresses.Where(a => !AddrEmpty(a)).Select(a => new ContactAddressDto(
+                Blank(a.Type), Blank(a.Street), Blank(a.City), Blank(a.Region), Blank(a.PostalCode), Blank(a.Country))).ToList(),
+            Blank(edit.Birthday), Blank(edit.Url), Blank(edit.Note));
+
+        busy = true;
+        cardMessage = null;
+        var error = await Api.PutContactCardAsync(id, selected.Id, payload, cardEtag);
+        busy = false;
+
+        if (error is null)
+        {
+            cardEditing = false;
+            var contactId = selected.Id;
+            await ReloadAsync();
+            var again = entries!.FirstOrDefault(e => e.Contact.Id == contactId);
+            if (again is not null) { await SelectAsync(again); }
+        }
+        else
+        {
+            cardMessage = error;   // keep the form open with the edits + the reason
+        }
+    }
+
+    private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static bool AddrEmpty(AddrRow a) =>
+        string.IsNullOrWhiteSpace(a.Street) && string.IsNullOrWhiteSpace(a.City) && string.IsNullOrWhiteSpace(a.Region)
+        && string.IsNullOrWhiteSpace(a.PostalCode) && string.IsNullOrWhiteSpace(a.Country);
+
+    private static string TypeSuffix(string? type) => string.IsNullOrWhiteSpace(type) ? string.Empty : $" ({type})";
+
+    private static string FormatAddress(ContactAddressDto a) =>
+        string.Join(", ", new[] { a.Street, a.City, a.Region, a.PostalCode, a.Country }.Where(s => !string.IsNullOrWhiteSpace(s)));
 
     private void StartEdit()
     {
@@ -936,7 +1156,7 @@ else
         if (fresh is not null)
         {
             await SelectAsync(fresh);
-            StartEdit();
+            StartCardEdit();   // open the structured form for the new contact (ADR 0082)
         }
     }
 

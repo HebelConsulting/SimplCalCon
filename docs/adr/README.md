@@ -87,5 +87,6 @@ rather than an edit.
 | [0079](0079-auth-hygiene-token-pruning-and-session-expiry-banner.md) | Auth hygiene: OpenIddict token pruning + session-expiry banner |
 | [0080](0080-revision-history-retention.md) | Revision-history retention (prune old live-object revisions) |
 | [0081](0081-self-hosted-ntfy-demo.md) | Self-hosted ntfy for LAN push testing (opt-in `push` profile) |
+| [0082](0082-structured-contact-editor.md) | Structured (lossless) contact edit form |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

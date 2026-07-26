@@ -51,6 +51,17 @@ public sealed record ContactDto(
     Guid Id, string? FormattedName, string? Organization, IReadOnlyList<string> Emails, IReadOnlyList<string> Phones,
     bool HasPhoto = false);
 
+// Structured rich contact card for the lossless edit form (ADR 0082).
+public sealed record ContactCardDto(
+    string? FormattedName, string? GivenName, string? FamilyName, string? Organization, string? Title,
+    IReadOnlyList<ContactFieldDto> Emails, IReadOnlyList<ContactFieldDto> Phones,
+    IReadOnlyList<ContactAddressDto> Addresses, string? Birthday, string? Url, string? Note);
+
+public sealed record ContactFieldDto(string Value, string? Type);
+
+public sealed record ContactAddressDto(
+    string? Type, string? Street, string? City, string? Region, string? PostalCode, string? Country);
+
 /// <summary>RFC 7807 problem details (the fields the UI surfaces).</summary>
 public sealed record ProblemDto(string? Title, string? Detail, int? Status, string? ErrorCode);
 
