@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SimplCalCon.Application.Abstractions.Push;
@@ -34,17 +35,27 @@ public sealed class WebPushOptions
 /// </summary>
 internal sealed class WebPushConfiguration : IWebPushConfiguration
 {
-    public WebPushConfiguration(IOptions<WebPushOptions> options, ILogger<WebPushConfiguration> logger)
+    public WebPushConfiguration(
+        IOptions<WebPushOptions> options, IHostEnvironment environment, ILogger<WebPushConfiguration> logger)
     {
         var settings = options.Value;
         Subject = string.IsNullOrWhiteSpace(settings.Subject) ? "mailto:webpush@simplcalcon.example" : settings.Subject;
         SubscriptionTtlDays = settings.SubscriptionTtlDays > 0 ? settings.SubscriptionTtlDays : 30;
-        AllowUntrustedPushEndpointTls = settings.AllowUntrustedPushEndpointTls;
-        if (AllowUntrustedPushEndpointTls)
+
+        // Defense in depth (ADR 0081): honour the TLS-skip flag ONLY in Development, even if configured
+        // true — so it can never disable push-endpoint validation in a production deployment.
+        AllowUntrustedPushEndpointTls = settings.AllowUntrustedPushEndpointTls && environment.IsDevelopment();
+        if (settings.AllowUntrustedPushEndpointTls && !environment.IsDevelopment())
         {
             logger.LogWarning(
-                "WebDAV-Push: push-endpoint TLS validation is DISABLED (SimplCalCon:WebPush:AllowUntrustedPushEndpointTls) " +
-                "— demo/LAN only (self-hosted ntfy behind an internal CA). Never enable in production.");
+                "WebDAV-Push: SimplCalCon:WebPush:AllowUntrustedPushEndpointTls is set but IGNORED outside Development " +
+                "(environment is {Environment}) — push-endpoint TLS validation stays ON.", environment.EnvironmentName);
+        }
+        else if (AllowUntrustedPushEndpointTls)
+        {
+            logger.LogWarning(
+                "WebDAV-Push: push-endpoint TLS validation is DISABLED (SimplCalCon:WebPush:AllowUntrustedPushEndpointTls, " +
+                "Development only) — demo/LAN only (self-hosted ntfy behind an internal CA).");
         }
 
         if (!string.IsNullOrWhiteSpace(settings.VapidPublicKey) && !string.IsNullOrWhiteSpace(settings.VapidPrivateKey))

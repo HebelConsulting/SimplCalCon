@@ -30,16 +30,18 @@ LAN_HOST=… docker compose -f docker-compose.yaml -f docker-compose.lan.yaml --
   Caddy's internal CA. Rather than plumbing the CA into the container, a **Development/demo-only flag
   `SimplCalCon:WebPush:AllowUntrustedPushEndpointTls`** (default **false**) makes **only the WebPush
   sender's `HttpClient`** skip cert validation (`DangerousAcceptAnyServerCertificateValidator`). It's set
-  `true` in the LAN override and logs a startup warning; it is off everywhere else and never affects
-  production. (An image chosen because it isn't a NuGet/npm package, ntfy sits outside the license gate;
-  its Apache-2.0 license fits the allowlist regardless.)
+  `true` in the LAN override and logs a startup warning. **Defense in depth: the flag is honoured only
+  when `IHostEnvironment.IsDevelopment()`** — if it's somehow set in a non-Development deployment it is
+  ignored (validation stays on) with a warning, so it can never disable TLS validation in production.
+  (ntfy isn't a NuGet/npm package so it sits outside the license gate; its Apache-2.0 license fits the
+  allowlist regardless.)
 
 ## Consequences
 
 - The full push path (SimplCalCon → self-hosted ntfy → ntfy app → DAVx⁵) can run entirely on the LAN,
   removing the public-relay WebSocket dependency that blocked on-device verification.
 - A TLS-validation-skip flag now exists. It is narrowly scoped (WebPush outbound only), off by default,
-  and loudly logged when on — but it is a real footgun if misconfigured in production; hence the naming
+  **inert outside Development**, and loudly logged — hence the naming
   (`AllowUntrusted…`) and the warning. Weighed against mounting the CA into the container, this is the
   lower-friction demo choice the maintainer selected.
 - Nothing changes for the default stack or production: no ntfy, no open 8443, flag off.
