@@ -30,9 +30,9 @@ the full **developer-machine testing workflow (with the internal certificate)** 
 | Account setup via `/.well-known/carddav` | ✅ macOS 15.7 | ✅ ¹ | ✅ ³ |
 | Discovers current-user-principal + addressbook-home-set | ✅ | ✅ | ✅ |
 | Default `contacts` address book appears | ✅ | ✅ | ✅ |
-| Create contact on device → appears on server | ⬜ | ⬜ | ⬜ |
-| Edit contact → ETag/If-Match update, no conflict | ⬜ | ⬜ | ⬜ |
-| Delete contact → removed on server | ⬜ | ⬜ | ⬜ |
+| Create contact on device → appears on server | ⬜ | ⬜ | ✅ ⁷ |
+| Edit contact → ETag/If-Match update, no conflict | ⬜ | ⬜ | ✅ ⁷ |
+| Delete contact → removed on server | ⬜ | ⬜ | ✅ ⁷ |
 | Change on server → syncs to device (sync-collection) | ✅ | ✅ delta ² | ✅ delta ⁴ |
 | Delete on server → removed on device (tombstone) | ⬜ | ⬜ | ⬜ |
 | Create a second address book (MKCOL) | ⬜ | ⬜ | ⬜ |
@@ -83,6 +83,12 @@ fresh `getetag` returned), edit = overwrite `PUT → 204`; a cross-calendar **mo
 ⁶ Thunderbird refreshes purely via `sync-collection` (RFC 6578) and issues **no `calendar-query`**, so
 the time-range path isn't exercised by this client (it is by DAVx⁵ and Apple). Not applicable rather
 than unverified.
+
+⁷ **Client→server contact CRUD confirmed**: create = `PUT …vcf → 201`, edit = `PUT → 204`, delete =
+`DELETE → 204`, all clean. **Server→device propagation** was also observed in the same session — a
+contact edited via the web UI (`PUT /api/address-books/.../raw`) and an event edited via REST
+(`PUT /api/calendars/.../events`) were both pulled by Thunderbird's next `sync-collection` REPORT. The
+**delete-on-server → tombstone-on-device** rows still await a server-originated *delete* to confirm.
 
 ## Outlook — CalDav Synchronizer add-in (classic Windows)
 
