@@ -50,4 +50,9 @@ LAN_HOST=… docker compose -f docker-compose.yaml -f docker-compose.lan.yaml --
 
 - Real TLS trust (mount + trust the CA) instead of the skip flag, if a self-hosted ntfy ever becomes a
   supported production topology rather than a test aid.
-- Automated verification of the on-device wake (still manual — needs a real DAVx⁵ device).
+- The on-device auto-wake. **Verified with this setup:** the encrypted push now reaches the phone's ntfy
+  app end to end (server → LAN ntfy → ntfy app confirmed receiving on DAVx⁵'s `up…` topic). The chain
+  stops at the **ntfy-app → DAVx⁵ UnifiedPush handoff** — DAVx⁵ doesn't turn the push into a sync (its
+  debug log was inconclusive). That's a DAVx⁵/UnifiedPush-client concern, outside SimplCalCon; see the
+  matrix footnote ⁵. (Gotcha: DAVx⁵ rotates its `up…` endpoint on restart and re-registers per collection
+  lazily, so push a change on a collection whose current endpoint the phone is subscribed to.)
