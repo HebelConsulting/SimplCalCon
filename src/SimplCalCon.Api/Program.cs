@@ -136,6 +136,12 @@ try
 
             options.SetAccessTokenLifetime(TimeSpan.FromMinutes(15));
 
+            // Refresh tokens (issued when the SPA requests offline_access) keep a session alive across
+            // idle/browser-restart without the interactive cookie (ADR 0076). 14 days, and rolling by
+            // default so each renewal rotates the token and re-slides the window; the token exchange
+            // re-checks the account is Active every time, so a deactivated user can't refresh.
+            options.SetRefreshTokenLifetime(TimeSpan.FromDays(14));
+
             if (builder.Environment.IsDevelopment())
             {
                 // Ephemeral in-memory keys: zero-setup local dev (tokens don't survive a restart).

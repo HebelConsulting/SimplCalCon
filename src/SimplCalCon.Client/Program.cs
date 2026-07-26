@@ -8,8 +8,12 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// HttpClient for /api with the access token attached (OIDC, ADR 0005/0010).
+// HttpClient for /api with the access token attached (OIDC, ADR 0005/0010). The SessionExpiredHandler
+// wraps the auth handler (registered first = outermost) so that when silent renewal ultimately fails —
+// token unavailable or a 401 — it redirects to login instead of leaving the page stuck (ADR 0076).
+builder.Services.AddTransient<SessionExpiredHandler>();
 builder.Services.AddHttpClient("SimplCalCon.Api", client => client.BaseAddress = new Uri(builder.HostEnvironment.BaseAddress))
+    .AddHttpMessageHandler<SessionExpiredHandler>()
     .AddHttpMessageHandler<BaseAddressAuthorizationMessageHandler>();
 builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("SimplCalCon.Api"));
 builder.Services.AddScoped<ApiClient>();
@@ -26,6 +30,9 @@ builder.Services.AddOidcAuthentication(options =>
     options.ProviderOptions.DefaultScopes.Add("email");
     options.ProviderOptions.DefaultScopes.Add("profile");
     options.ProviderOptions.DefaultScopes.Add("simplcalcon.api");
+    // Request a refresh token so the session renews silently via the refresh-token grant (no dependency
+    // on the interactive cookie / hidden iframe), surviving long idle and browser restarts (ADR 0076).
+    options.ProviderOptions.DefaultScopes.Add("offline_access");
 });
 
 await builder.Build().RunAsync();

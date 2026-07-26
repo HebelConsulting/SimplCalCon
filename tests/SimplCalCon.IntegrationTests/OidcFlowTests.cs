@@ -94,6 +94,82 @@ public sealed class OidcFlowTests(AuthWebApplicationFactory factory)
         Assert.Equal(idTokenSubject, userInfoBody.RootElement.GetProperty("sub").GetString());
     }
 
+    [Fact]
+    public async Task Offline_access_yields_a_refresh_token_that_renews_the_session()
+    {
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        var initial = await AuthenticateWithScopesAsync(client, "openid email profile simplcalcon.api offline_access");
+
+        // Requesting offline_access must produce a refresh token (ADR 0076) — this is what was missing.
+        var refreshToken = initial.RootElement.GetProperty("refresh_token").GetString();
+        Assert.False(string.IsNullOrEmpty(refreshToken));
+
+        // The refresh-token grant renews the session without any interactive cookie/iframe.
+        var renewed = await client.PostAsync("/connect/token", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["grant_type"] = "refresh_token",
+            ["refresh_token"] = refreshToken!,
+            ["client_id"] = AuthWebApplicationFactory.SpaClientId,
+        }));
+        Assert.Equal(HttpStatusCode.OK, renewed.StatusCode);
+
+        using var renewedBody = JsonDocument.Parse(await renewed.Content.ReadAsStringAsync());
+        var newAccessToken = renewedBody.RootElement.GetProperty("access_token").GetString();
+        Assert.False(string.IsNullOrEmpty(newAccessToken));
+
+        // The renewed access token works at a protected endpoint.
+        var probe = new HttpRequestMessage(HttpMethod.Get, "/connect/userinfo");
+        probe.Headers.Authorization = new AuthenticationHeaderValue("Bearer", newAccessToken);
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(probe)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Without_offline_access_no_refresh_token_is_issued()
+    {
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        var tokens = await AuthenticateWithScopesAsync(client, "openid email profile simplcalcon.api");
+
+        Assert.False(tokens.RootElement.TryGetProperty("refresh_token", out _));
+    }
+
+    // Drives login -> authorize (PKCE) -> code exchange for the given scopes and returns the token response.
+    private static async Task<JsonDocument> AuthenticateWithScopesAsync(HttpClient client, string scope)
+    {
+        var login = await client.PostAsync("/Account/Login", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["email"] = AuthWebApplicationFactory.DemoAdminEmail,
+            ["password"] = AuthWebApplicationFactory.DemoAdminPassword,
+            ["returnUrl"] = "/",
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
+
+        var verifier = Base64Url(RandomNumberGenerator.GetBytes(32));
+        var challenge = Base64Url(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
+
+        var authorize = await client.GetAsync(
+            "/connect/authorize" +
+            $"?client_id={AuthWebApplicationFactory.SpaClientId}" +
+            "&response_type=code" +
+            $"&redirect_uri={Uri.EscapeDataString(AuthWebApplicationFactory.RedirectUri)}" +
+            $"&scope={Uri.EscapeDataString(scope)}" +
+            $"&code_challenge={challenge}&code_challenge_method=S256&state=abc");
+        Assert.Equal(HttpStatusCode.Redirect, authorize.StatusCode);
+        var code = ParseQuery(authorize.Headers.Location!.Query)["code"];
+
+        var token = await client.PostAsync("/connect/token", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["grant_type"] = "authorization_code",
+            ["code"] = code,
+            ["redirect_uri"] = AuthWebApplicationFactory.RedirectUri,
+            ["client_id"] = AuthWebApplicationFactory.SpaClientId,
+            ["code_verifier"] = verifier,
+        }));
+        Assert.Equal(HttpStatusCode.OK, token.StatusCode);
+        return JsonDocument.Parse(await token.Content.ReadAsStringAsync());
+    }
+
     private static string JwtSubject(string jwt)
     {
         var part = jwt.Split('.')[1].Replace('-', '+').Replace('_', '/');
