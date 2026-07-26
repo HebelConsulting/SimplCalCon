@@ -129,19 +129,25 @@ Two-way sync via the third-party add-in against the standard `/dav/` surface (AD
   the event's own duration catches spanning occurrences). Recurring events also now
   contribute their real duration to free/busy and to `calendar-data expand`.
 
-## WebDAV-Push (ADR 0052) — 🔜 next to verify
+## WebDAV-Push (ADR 0052) — 🔜 in progress (registration verified)
 
-**This is the next manual-acceptance target** now that DAVx⁵ discovery + delta sync are verified
-(footnotes ¹²). It moves DAVx⁵ from *polling* to *pushed* sync; the acceptance steps below are not yet
-run against a real device.
+Moves DAVx⁵ from *polling* to *pushed* sync. **Advertisement + registration are verified** against a
+real device; the end-to-end fan-out is the remaining row.
 
 | Flow | DAVx⁵ (Android) |
 |---|---|
-| Collection PROPFIND advertises `push:transports` / `push:topic` | 🔜 |
-| DAVx⁵ `POST`s a `push-register` → `204` + `Location` + `Expires` | 🔜 |
+| Collection PROPFIND advertises `push:transports` / `push:topic` | ✅ ³ |
+| DAVx⁵ `POST`s a `push-register` → `204` (+ `Location` + `Expires`) | ✅ ³ |
 | Server change → encrypted `push-message` (topic + sync-token) delivered | 🔜 |
 | DAVx⁵ pulls the change via `sync-collection` within seconds, no manual refresh | 🔜 |
 | Unregister on account removal → `DELETE /dav/push-subscriptions/{id}` | 🔜 |
+
+³ **Verified over the LAN** (ephemeral VAPID, `docker-compose.lan.yaml`). DAVx⁵ delivers push over
+**UnifiedPush**, so the device needs a distributor app — tested with **ntfy**. With ntfy installed,
+DAVx⁵ read the push advertisement and `POST`ed a `push-register` per collection (`204`); **8
+subscriptions were stored** in `PushSubscriptions` (each an `https://ntfy.sh/up…?up=1` endpoint + p256dh
+key + auth-secret + expiry), no `4xx`/`5xx`. Without a UnifiedPush distributor DAVx⁵ silently polls and
+never registers.
 
 - **What's built:** the server implements the bitfire WebDAV-Push draft
   (`https://bitfire.at/webdav-push`) over Web Push — collections advertise
@@ -149,11 +155,9 @@ run against a real device.
   and every change fans out an encrypted `push-message` (topic + `{DAV:}sync-token`) so the client then
   pulls via `sync-collection`. Automated tests cover advertisement, register/unregister, and change
   fan-out with a capturing sender.
-- **What still needs a real device:** RFC 8291 aes128gcm encryption + VAPID + real push-service
-  delivery end-to-end. **To test:** run with a configured (or dev-ephemeral) VAPID pair
-  (`SimplCalCon:WebPush`), add the account in DAVx⁵, confirm it registers (watch for the `push-register`
-  `POST` in the `/dav` logs — enable the wire trace to see the advertisement + register bodies), then
-  edit an event/contact **from another client** and confirm DAVx⁵ syncs within seconds without a manual
-  refresh. Record the outcomes in the table above.
+- **Remaining:** the real-device **fan-out** (RFC 8291 aes128gcm encryption + VAPID + ntfy delivery →
+  device syncs within seconds of a change made elsewhere). Setup + test steps are in
+  [`manual.md`](manual.md#instant-sync-with-webdav-push-davx--ntfy) and
+  [`dav-device-testing.md`](dav-device-testing.md) §7b.
 - **Apple Calendar/Contacts do not use WebDAV-Push** (they use proprietary APNs push), so they are
   unaffected and keep polling.

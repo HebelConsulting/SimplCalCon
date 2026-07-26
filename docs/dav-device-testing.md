@@ -117,19 +117,29 @@ WebDAV-Push (ADR 0052) is on. Confirm it and run the push acceptance flow:
 docker compose logs api | grep -i 'EPHEMERAL VAPID'   # startup line = push enabled (keys reset on restart)
 ```
 
-Then, with DAVx⁵ connected over the LAN:
-1. In DAVx⁵, ensure the account's sync uses **push** (it reads `push:transports`/`push:topic` from the
-   collection PROPFIND automatically — no manual VAPID key needed).
-2. Watch for DAVx⁵'s `push-register` and the server's fan-out (enable the wire trace to see the
-   advertisement + register bodies):
+**DAVx⁵ delivers push over UnifiedPush, not Google FCM**, so the Android device needs a **UnifiedPush
+distributor** app — the simplest is **ntfy** (F-Droid / Play Store). Without one, DAVx⁵ has no push
+endpoint and silently falls back to polling (you'll see a full sync but **no `push-register` POST**).
+
+Then, over the LAN:
+1. Install **ntfy** on the device and open it once (registers it as the UnifiedPush distributor).
+2. Sync the DAVx⁵ account once — it auto-reads `push:transports`/`push:topic` from the collection
+   PROPFIND and registers automatically (no manual VAPID key on the device).
+3. Confirm registration — a `push-register` **`POST` to each collection → `204`**. The bodies aren't in
+   the request-summary log; enable the **wire trace** to see the advertisement + register XML, or check
+   the stored subscriptions directly:
    ```bash
-   docker compose logs -f api | grep -iE 'push-register|/dav/push-subscriptions'
+   docker compose exec db psql -U postgres -d simplcalcon -c \
+     'SELECT substring("Endpoint" for 45), "CollectionId", "ExpiresAt" FROM "PushSubscriptions";'
    ```
-3. Edit an event/contact **from another client** (the web UI, or Thunderbird) and confirm DAVx⁵ syncs
+   (The `Endpoint` is the device's ntfy URL, e.g. `https://ntfy.sh/up…?up=1`.)
+4. Edit an event/contact **from another client** (the web UI, or Thunderbird) and confirm DAVx⁵ syncs
    **within seconds, with no manual refresh**. Fill in the WebDAV-Push checklist in the acceptance matrix.
 
-> Requires a DAVx⁵ device with Google Play Services (the push transport). Ephemeral keys reset on every
-> api restart — any existing device subscription drops and DAVx⁵ re-registers on its next sync.
+> **Verified so far:** advertisement + `push-register` (DAVx⁵ over the LAN with the ntfy distributor —
+> 8 subscriptions stored, `204`s, no errors). The end-to-end fan-out (server → ntfy → device) is the
+> remaining row. Ephemeral keys reset on every api restart — existing subscriptions drop and DAVx⁵
+> re-registers on its next sync.
 
 ## 8. Tear down
 
