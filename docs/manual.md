@@ -271,8 +271,20 @@ change. (Apple Calendar/Contacts don't use this — they have their own push —
   `curl -s 'https://ntfy.sh/<topic>/json?poll=1&since=20m'` (the `<topic>` is the `up…` id from the
   device's endpoint). Base64 lines are the encrypted push messages that reached the push service; if
   they're there, the server did its job and the gap is on the device.
+- **ntfy can't connect** (e.g. it shows *"Websocket not supported, the server may not respond or address
+  might be incorrect"*): the ntfy app holds its live connection over a **WebSocket** to its push server,
+  and if that fails, messages reach ntfy but never reach the phone. This is an ntfy-client/network issue,
+  **independent of SimplCalCon** — check ntfy → **Settings → Default server** is exactly `https://ntfy.sh`
+  (not a custom/self-hosted URL that doesn't speak WebSocket); check the phone's **network isn't blocking
+  WebSocket** (test whether ntfy connects on cellular vs the LAN WiFi); and **update the ntfy app**. If
+  the public relay stays unreachable, **self-host ntfy** on the LAN and point both ntfy's default server
+  and DAVx⁵'s UnifiedPush distributor at it.
 - With **ephemeral** dev keys, the VAPID pair changes on every server restart, which invalidates existing
   subscriptions — **re-sync DAVx⁵** after a restart. Production persistent keys don't have this problem.
+
+> **Scope note:** SimplCalCon's job ends at delivering the encrypted push to the push service (ntfy).
+> The last hop — push service → ntfy app → DAVx⁵ — is UnifiedPush/ntfy/device territory; the checks above
+> are for that hop, not the server.
 
 **On the server (operator) — enabling push:** WebDAV-Push is **off unless VAPID keys are present**
 (Web Push signing keys). Configure them under `SimplCalCon:WebPush` (env-var form in parentheses):

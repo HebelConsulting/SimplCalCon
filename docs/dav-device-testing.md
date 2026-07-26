@@ -152,6 +152,13 @@ Then, over the LAN:
 > - **Battery optimization** — exempt **ntfy** *and* **DAVx⁵** (Android Settings → Apps → battery →
 >   Unrestricted) and keep the ntfy app connected (it shows a persistent "connected" notification).
 >   Android doze killing ntfy's background socket is the usual reason a delivered push never wakes DAVx⁵.
+> - **ntfy can't connect** (*"Websocket not supported, the server may not respond or address might be
+>   incorrect"*) — ntfy's live delivery is a **WebSocket** to its push server; if it can't connect,
+>   messages reach ntfy but never the phone. Not a SimplCalCon issue: check ntfy → **Settings → Default
+>   server** = `https://ntfy.sh`, that the phone's network isn't **blocking WebSocket** (compare cellular
+>   vs the LAN WiFi), and **update the ntfy app**; or self-host ntfy on the LAN. (In this project's own
+>   testing this is exactly where the chain stopped — server-side fully verified, ntfy client couldn't
+>   hold its WebSocket.)
 > - **Ephemeral-key rotation** — the ephemeral VAPID pair regenerates on **every api restart**, which
 >   invalidates existing device subscriptions. **Re-sync DAVx⁵ to re-register after any restart**, and
 >   don't restart the api mid-test. A persistent `VapidPublicKey`/`VapidPrivateKey` (ADR 0052) avoids
