@@ -27,13 +27,13 @@ the full **developer-machine testing workflow (with the internal certificate)** 
 
 | Flow | iOS/macOS Contacts | Android (DAVx⁵) | Thunderbird |
 |---|---|---|---|
-| Account setup via `/.well-known/carddav` | ✅ macOS 15.7 | ✅ ¹ | ⬜ |
-| Discovers current-user-principal + addressbook-home-set | ✅ | ✅ | ⬜ |
-| Default `contacts` address book appears | ✅ | ✅ | ⬜ |
+| Account setup via `/.well-known/carddav` | ✅ macOS 15.7 | ✅ ¹ | ✅ ³ |
+| Discovers current-user-principal + addressbook-home-set | ✅ | ✅ | ✅ |
+| Default `contacts` address book appears | ✅ | ✅ | ✅ |
 | Create contact on device → appears on server | ⬜ | ⬜ | ⬜ |
 | Edit contact → ETag/If-Match update, no conflict | ⬜ | ⬜ | ⬜ |
 | Delete contact → removed on server | ⬜ | ⬜ | ⬜ |
-| Change on server → syncs to device (sync-collection) | ✅ | ✅ delta ² | ⬜ |
+| Change on server → syncs to device (sync-collection) | ✅ | ✅ delta ² | ✅ delta ⁴ |
 | Delete on server → removed on device (tombstone) | ⬜ | ⬜ | ⬜ |
 | Create a second address book (MKCOL) | ⬜ | ⬜ | ⬜ |
 
@@ -41,14 +41,14 @@ the full **developer-machine testing workflow (with the internal certificate)** 
 
 | Flow | iOS/macOS Calendar | Android (DAVx⁵) | Thunderbird |
 |---|---|---|---|
-| Account setup via `/.well-known/caldav` | ✅ macOS 15.7 | ✅ ¹ | ⬜ |
-| Discovers calendar-home-set | ✅ | ✅ | ⬜ |
-| Default `calendar` appears | ✅ | ✅ | ⬜ |
-| Create event on device → appears on server | ✅ | ⬜ | ⬜ |
+| Account setup via `/.well-known/caldav` | ✅ macOS 15.7 | ✅ ¹ | ✅ ³ |
+| Discovers calendar-home-set | ✅ | ✅ | ✅ |
+| Default `calendar` appears | ✅ | ✅ | ✅ |
+| Create event on device → appears on server | ✅ | ⬜ | ✅ ⁵ |
 | Recurring event syncs and expands in views | ⬜ | ⬜ | ⬜ |
 | Task (VTODO) create/sync (Reminders / Tasks.org) | ⬜ | ⬜ | ⬜ |
-| Time-range refresh (calendar-query) returns the window | ⬜ | ✅ | ⬜ |
-| Edit → ETag/If-Match update | ⬜ | ⬜ | ⬜ |
+| Time-range refresh (calendar-query) returns the window | ⬜ | ✅ | n/a ⁶ |
+| Edit → ETag/If-Match update | ⬜ | ⬜ | ✅ ⁵ |
 | Delete on server → removed on device (sync-collection) | ⬜ | ⬜ | ⬜ |
 | Create a second calendar (MKCALENDAR) | ⬜ | ⬜ | ⬜ |
 
@@ -62,6 +62,27 @@ collection (a `getctag`/`sync-token` PROPFIND, skipping unchanged ones), then is
 `sync-collection` REPORT carrying its **stored `sync-token`** (RFC 6578, e.g. `…/ns/sync/5`) and
 `addressbook-multiget`/`calendar-multiget`s only the changed resources — an incremental delta, not a
 full re-fetch. (The larger first-connect sync is a one-time full population.)
+
+³ Thunderbird verified on this dev machine over `http://localhost:9080` (Thunderbird accepts plain
+HTTP; no cert needed on-box). **Well-known auto-discovery confirmed** when pointed at the bare host:
+`PROPFIND /.well-known/caldav → 301` and `/.well-known/carddav → 301`, after which Thunderbird follows
+the redirect to `/dav/`, discovers the principal + both home-sets, and enumerates all owned/shared
+collections — every response `207`, no `4xx`/`5xx`, no unhandled-DAV `405`/`501` warnings. (Given the
+explicit `/dav/` collection URL instead, it connects straight there and skips well-known — expected.)
+Thunderbird also probes `PUT /` during autoconfig, which the root correctly rejects with `405` without
+affecting discovery.
+
+⁴ **Delta sync confirmed** via the wire trace: Thunderbird's `sync-collection` REPORTs each replay its
+**stored `sync-token`** (RFC 6578) and receive the incremented token in the response — incremental
+delta, not a full re-fetch.
+
+⁵ **Client→server event CRUD confirmed** via the wire trace: create = `PUT …ics → 201` (VEVENT body,
+fresh `getetag` returned), edit = overwrite `PUT → 204`; a cross-calendar **move** (same UID `PUT →
+201` in the target + `DELETE → 204` from the source) also round-tripped cleanly.
+
+⁶ Thunderbird refreshes purely via `sync-collection` (RFC 6578) and issues **no `calendar-query`**, so
+the time-range path isn't exercised by this client (it is by DAVx⁵ and Apple). Not applicable rather
+than unverified.
 
 ## Outlook — CalDav Synchronizer add-in (classic Windows)
 
