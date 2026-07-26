@@ -182,11 +182,68 @@ Add a **CardDAV** account the same way (User Name = email, Password = app passwo
 > address books, use Thunderbird, iOS, or DAVx5**, all of which show every book. (macOS Calendar has
 > no equivalent limit.)
 
-### Thunderbird / iOS / DAVx5
+> **Devices need a reachable host + a trusted certificate.** `localhost` only works on the machine
+> running the stack. A phone or another computer must reach the server by LAN IP or DNS name, over
+> HTTPS, with a certificate its OS trusts — either a real (e.g. Let's Encrypt) certificate in
+> production, or the demo Caddy root CA installed on the device. Replace `your-host` below accordingly.
 
-These clients discover everything from the same base URL (`https://localhost/dav/`) with your email
-+ app password, and show **all** calendars and address books. Remember the Thunderbird-specific CA
-import noted above.
+### Thunderbird (CalDAV + CardDAV)
+
+1. Import the proxy root CA into **Thunderbird's own** store: **Settings → Privacy & Security →
+   Certificates → Manage Certificates → Authorities → Import** (Thunderbird ignores the OS store).
+2. **Calendar:** **New Calendar → On the Network**; Username = your email, Location =
+   `https://your-host/dav/`. Thunderbird discovers every calendar; pick which to add.
+3. **Address book:** **Address Book → New → CardDAV Address Book**; Username = email, Location =
+   `https://your-host/dav/`. Enter the app password when prompted. All books appear.
+
+### iOS / iPadOS (Apple Calendar + Contacts)
+
+1. Install a trusted certificate: a real cert in production, or push the demo root CA to the device
+   (email/AirDrop the `.crt`, install the profile, then **Settings → General → About → Certificate
+   Trust Settings** and enable full trust).
+2. **Calendar:** **Settings → Calendar → Accounts → Add Account → Other → Add CalDAV Account.**
+   Server = `your-host`, User Name = email, Password = app password. (iOS derives the `/dav/` path
+   and discovers your calendars.)
+3. **Contacts:** **Settings → Contacts → Accounts → Add Account → Other → Add CardDAV Account**, same
+   values. iOS shows all address books (unlike macOS Contacts).
+
+### DAVx⁵ (Android)
+
+1. Trust the certificate (real cert, or install the demo root CA via **Settings → Security →
+   Encryption & credentials → Install a certificate → CA certificate**).
+2. **Add account → Login with URL and user name.** Base URL = `https://your-host/dav/`,
+   User name = email, Password = app password. DAVx⁵ discovers all calendars + address books; choose
+   which to sync and set the sync interval.
+3. If VAPID keys are configured (ADR 0052), DAVx⁵ receives **WebDAV-Push** and syncs within seconds of
+   a server-side change instead of polling.
+
+### Microsoft Outlook (classic Windows) — CalDav Synchronizer add-in
+
+Outlook has no native CalDAV/CardDAV (see [`outlook-gap-analysis.md`](outlook-gap-analysis.md)); the
+open-source **Outlook CalDav Synchronizer** add-in provides two-way sync.
+
+1. Install the add-in from <https://caldavsynchronizer.org/> and restart Outlook.
+2. **CalDav Synchronizer → Synchronization Profiles → add → Generic CalDAV/CardDAV.**
+3. Set the DAV URL to `https://your-host/dav/` (or a specific collection URL), Username = email,
+   Password = app password, then **Test or discover settings** to pick the calendar/address book.
+4. Choose the sync interval and direction (two-way), and add one profile per collection.
+5. For a **read-only** view instead (any Outlook variant, no add-in), use the subscription feed below.
+
+### Wire smoke test (before trying a client)
+
+Confirm the deployment, app-password auth, and TLS work end-to-end with the bundled harness — it does
+exactly what a client's first connection does (discovery → home-sets → a PUT/GET/REPORT/DELETE
+round-trip):
+
+```bash
+scripts/dav-smoke.sh https://your-host you@example.com "your-app-password"
+```
+
+All green means a real client should connect with the same URL + credentials; a failure pinpoints
+whether it's discovery, auth, or TLS before you blame the client. For a self-signed demo cert the
+script skips TLS verification (set `DAV_SMOKE_STRICT_TLS=1` to enforce it against a real cert). For a
+deeper look, enable the DAV wire trace (`Serilog__MinimumLevel__Override__SimplCalCon.Dav.Wire=Verbose`)
+to log full request/response bodies (ADR 0033) — off by default, and never in production.
 
 ### Finding your principal path (advanced)
 
