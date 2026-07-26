@@ -51,6 +51,47 @@ public sealed class RetentionServiceTests
         Assert.True(await verify.ContactObjects.AnyAsync(o => o.Id == live));
     }
 
+    [Fact]
+    public async Task Prunes_old_revisions_beyond_the_keep_minimum_but_keeps_recent_and_the_floor()
+    {
+        var bookId = Guid.NewGuid();
+        var contactId = Guid.NewGuid();
+        var old = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc);      // before Cutoff (2025-06-01)
+        var recent = new DateTime(2025, 12, 1, 0, 0, 0, DateTimeKind.Utc);  // after Cutoff
+
+        await using (var seed = _database.CreateContext())
+        {
+            SeedOwner(seed, bookId);
+            var contact = Contact(contactId, bookId, "c", deletedAt: null);
+            contact.RevisionNumber = 10;   // the live counter = 10 revisions (1..10)
+            seed.ContactObjects.Add(contact);
+            for (long n = 1; n <= 10; n++)
+            {
+                seed.ObjectRevisions.Add(new ObjectRevision
+                {
+                    Id = Guid.NewGuid(), ObjectId = contactId, RevisionNumber = n, Blob = "x",
+                    ETag = Guid.NewGuid(),
+                    Operation = n == 1 ? RevisionOperation.Created : RevisionOperation.Updated,
+                    CreatedAt = n <= 8 ? old : recent,   // 1-8 old, 9-10 recent
+                });
+            }
+            await seed.SaveChangesAsync();
+        }
+
+        int processed;
+        await using (var context = _database.CreateContext())
+        {
+            processed = await new RetentionService(context).PruneRevisionsAsync(Cutoff, keepMinimum: 3, batchSize: 100, default);
+        }
+
+        Assert.Equal(1, processed);
+        await using var verify = _database.CreateContext();
+        var remaining = await verify.ObjectRevisions
+            .Where(r => r.ObjectId == contactId).Select(r => r.RevisionNumber).OrderBy(n => n).ToListAsync();
+        // 1-7 pruned (old AND outside the last 3); #8 kept by the keep-min floor despite being old; 9-10 recent.
+        Assert.Equal([8L, 9L, 10L], remaining);
+    }
+
     private static ContactObject Contact(Guid id, Guid bookId, string uid, DateTime? deletedAt) => new()
     {
         Id = id, CollectionId = bookId, Uid = uid, ResourceName = $"{uid}.vcf",

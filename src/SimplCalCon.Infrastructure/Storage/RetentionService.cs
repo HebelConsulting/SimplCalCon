@@ -58,4 +58,31 @@ internal sealed class RetentionService(SimplCalConDbContext dbContext) : IRetent
         await transaction.CommitAsync(cancellationToken);
         return purged;
     }
+
+    public async Task<int> PruneRevisionsAsync(
+        DateTime cutoffUtc, int keepMinimum, int batchSize, CancellationToken cancellationToken)
+    {
+        // Objects that still have prunable history: a revision older than the cutoff AND outside the
+        // most-recent `keepMinimum` (RevisionNumber is a per-object monotonic counter on the object, so
+        // "outside the last N" is `RevisionNumber <= counter - keepMinimum"). Correlated EXISTS in a
+        // SELECT is provider-safe (unlike a correlated MAX inside ExecuteDelete).
+        var candidates = await dbContext.Objects
+            .Where(o => dbContext.ObjectRevisions.Any(r =>
+                r.ObjectId == o.Id && r.CreatedAt < cutoffUtc && r.RevisionNumber <= o.RevisionNumber - keepMinimum))
+            .OrderBy(o => o.Id)
+            .Select(o => new { o.Id, o.RevisionNumber })
+            .Take(batchSize)
+            .ToListAsync(cancellationToken);
+
+        foreach (var candidate in candidates)
+        {
+            // Plain comparisons only (captured constants) — translates on both providers.
+            var threshold = candidate.RevisionNumber - keepMinimum;
+            await dbContext.ObjectRevisions
+                .Where(r => r.ObjectId == candidate.Id && r.CreatedAt < cutoffUtc && r.RevisionNumber <= threshold)
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+
+        return candidates.Count;
+    }
 }
