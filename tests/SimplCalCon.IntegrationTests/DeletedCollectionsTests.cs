@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using SimplCalCon.Application.Abstractions.Storage;
 using SimplCalCon.Domain.Collections;
 using SimplCalCon.Domain.Principals;
 using SimplCalCon.Infrastructure.Persistence;
@@ -60,6 +61,65 @@ public sealed class DeletedCollectionsTests(AuthWebApplicationFactory factory) :
         Assert.DoesNotContain(await ListIdsAsync(client, "/api/calendars/deleted"), x => x == foreignId);
     }
 
+    [Fact]
+    public async Task Purge_hard_deletes_a_deleted_calendar_and_cascades_its_events()
+    {
+        var client = await AuthedClientAsync();
+
+        var id = (await Body(await client.PostAsJsonAsync("/api/calendars", new { name = "Purgeable" }))).GetProperty("id").GetGuid();
+        var eventId = (await Body(await client.PostAsJsonAsync($"/api/calendars/{id}/events", new
+        {
+            summary = "Doomed", startUtc = "2026-08-01T10:00:00Z", endUtc = "2026-08-01T11:00:00Z", isAllDay = false,
+        }))).GetProperty("id").GetGuid();
+
+        var etag = (await client.GetAsync($"/api/calendars/{id}")).Headers.ETag!.ToString();
+        using (var delete = new HttpRequestMessage(HttpMethod.Delete, $"/api/calendars/{id}"))
+        {
+            delete.Headers.TryAddWithoutValidation("If-Match", etag);
+            await client.SendAsync(delete);
+        }
+
+        // Purge the soft-deleted calendar — a plain DELETE on the deleted-set member, no If-Match.
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/calendars/deleted/{id}")).StatusCode);
+
+        // Gone from the deleted list, and the row + its event + revisions are physically gone.
+        Assert.DoesNotContain(await ListIdsAsync(client, "/api/calendars/deleted"), x => x == id);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SimplCalConDbContext>();
+        Assert.False(await db.Collections.AnyAsync(c => c.Id == id));
+        Assert.False(await db.Objects.AnyAsync(o => o.Id == eventId));
+        Assert.False(await db.ObjectRevisions.AnyAsync(r => r.ObjectId == eventId));
+    }
+
+    [Fact]
+    public async Task Purging_another_users_deleted_calendar_is_not_found()
+    {
+        var client = await AuthedClientAsync();
+        var foreignId = await SeedForeignDeletedCalendarAsync();
+
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/calendars/deleted/{foreignId}")).StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SimplCalConDbContext>();
+        Assert.True(await db.Collections.AnyAsync(c => c.Id == foreignId)); // untouched
+    }
+
+    [Fact]
+    public async Task Retention_sweep_purges_only_collections_deleted_before_the_cutoff()
+    {
+        var oldId = await SeedForeignDeletedCalendarAsync(deletedAt: DateTime.UtcNow.AddDays(-40));
+        var recentId = await SeedForeignDeletedCalendarAsync(deletedAt: DateTime.UtcNow.AddDays(-1));
+
+        using var scope = factory.Services.CreateScope();
+        var retention = scope.ServiceProvider.GetRequiredService<IRetentionService>();
+        var purged = await retention.PurgeDeletedCollectionsBeforeAsync(DateTime.UtcNow.AddDays(-30), 500, CancellationToken.None);
+
+        Assert.True(purged >= 1);
+        var db = scope.ServiceProvider.GetRequiredService<SimplCalConDbContext>();
+        Assert.False(await db.Collections.AnyAsync(c => c.Id == oldId));   // past cutoff → purged
+        Assert.True(await db.Collections.AnyAsync(c => c.Id == recentId)); // within window → kept
+    }
+
     private static async Task<IReadOnlyList<Guid>> ListIdsAsync(HttpClient client, string url) =>
         (await client.GetFromJsonAsync<JsonElement>(url)).GetProperty("items").EnumerateArray()
             .Select(c => c.GetProperty("id").GetGuid()).ToList();
@@ -75,7 +135,7 @@ public sealed class DeletedCollectionsTests(AuthWebApplicationFactory factory) :
         return client;
     }
 
-    private async Task<Guid> SeedForeignDeletedCalendarAsync()
+    private async Task<Guid> SeedForeignDeletedCalendarAsync(DateTime? deletedAt = null)
     {
         using var scope = factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<SimplCalConDbContext>();
@@ -102,7 +162,7 @@ public sealed class DeletedCollectionsTests(AuthWebApplicationFactory factory) :
             ResourceName = $"cal-{Guid.NewGuid():N}",
             CreatedAt = DateTime.UtcNow,
             IsDeleted = true,
-            DeletedAt = DateTime.UtcNow,
+            DeletedAt = deletedAt ?? DateTime.UtcNow,
         };
         dbContext.AddRange(owner, calendar);
         await dbContext.SaveChangesAsync();

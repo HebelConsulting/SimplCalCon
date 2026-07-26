@@ -113,6 +113,9 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
         return addressBook;
     }
 
+    public async Task<bool> PurgeAddressBookAsync(Guid id, Guid ownerId, CancellationToken cancellationToken) =>
+        await PurgeCollectionAsync(dbContext.AddressBooks, id, ownerId, cancellationToken);
+
     public async Task<Collection?> UpdateCollectionAsync(
         Guid collectionId, string newName, string? color, CancellationToken cancellationToken)
     {
@@ -294,6 +297,27 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
         calendar.DeletedAt = null;
         await dbContext.SaveChangesAsync(cancellationToken);
         return calendar;
+    }
+
+    public async Task<bool> PurgeCalendarAsync(Guid id, Guid ownerId, CancellationToken cancellationToken) =>
+        await PurgeCollectionAsync(dbContext.Calendars, id, ownerId, cancellationToken);
+
+    // Hard-deletes a soft-deleted, owner-owned collection (ADR 0077). Objects, revisions, and the child
+    // rows (ACL entries, push subscriptions, per-user colours, occurrences/attendees/photos) go via the
+    // FK cascade. Owner-scoped + IsDeleted-gated, so it can't hard-delete a live or someone else's one.
+    private async Task<bool> PurgeCollectionAsync<T>(
+        DbSet<T> set, Guid id, Guid ownerId, CancellationToken cancellationToken) where T : Collection
+    {
+        var collection = await set
+            .FirstOrDefaultAsync(c => c.Id == id && c.OwnerId == ownerId && c.IsDeleted, cancellationToken);
+        if (collection is null)
+        {
+            return false;
+        }
+
+        set.Remove(collection);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
     }
 
     public async Task<IReadOnlyList<CalendarObject>> ListCalendarObjectsAsync(

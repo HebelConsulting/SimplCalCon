@@ -410,6 +410,7 @@ button.danger:hover {
 .coll-swatch-static { flex: 0 0 auto; width: 1.05rem; height: 1.05rem; border-radius: 4px; border: 1px solid rgba(0, 0, 0, 0.15); }
 .coll-name-deleted { flex: 1 1 auto; min-width: 0; color: #667; }
 .coll-restore { margin-left: auto; }
+.coll-purge:hover { color: #c0392b; }
 
 /* A small colour chip for the list "colour" column and the detail pane. */
 .swatch {

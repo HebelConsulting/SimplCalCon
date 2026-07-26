@@ -70,6 +70,10 @@ public sealed class ApiClient(HttpClient http)
     public Task RestoreCollectionAsync(string kind, Guid id) =>
         http.PostAsync($"api/{kind}/{id}/restore", null);
 
+    // Permanently purge a soft-deleted collection (ADR 0077) — irreversible.
+    public Task PurgeCollectionAsync(string kind, Guid id) =>
+        http.DeleteAsync($"api/{kind}/deleted/{id}");
+
     public async Task<CalendarDto?> CreateCalendarAsync(string name) =>
         await (await http.PostAsJsonAsync("api/calendars", new { name })).Content.ReadFromJsonAsync<CalendarDto>();
 
