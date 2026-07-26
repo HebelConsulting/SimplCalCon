@@ -5,7 +5,7 @@ tests can't fully cover (ADR 0003). Integration tests assert the protocol at the
 level; this checklist tracks manual acceptance against the clients we commit to
 supporting. Run it against a deployed instance (an app password per device).
 
-Legend: ✅ verified · ⬜ not yet checked · ⚠️ works with caveat (note it).
+Legend: ✅ verified · ⬜ not yet checked · 🔜 next to verify · ⚠️ works with caveat (note it).
 
 **Before checking a client**, run the wire smoke test against the deployed instance — it does what a
 client's first connection does (discovery → home-sets → PUT/GET/REPORT/DELETE) and isolates
@@ -129,18 +129,31 @@ Two-way sync via the third-party add-in against the standard `/dav/` surface (AD
   the event's own duration catches spanning occurrences). Recurring events also now
   contribute their real duration to free/busy and to `calendar-data expand`.
 
-## WebDAV-Push (ADR 0052) — pending manual acceptance
+## WebDAV-Push (ADR 0052) — 🔜 next to verify
 
-- **DAVx5 (Android)** is the target client. The server implements the bitfire
-  WebDAV-Push draft (`https://bitfire.at/webdav-push`) over Web Push: collections
-  advertise `push:transports`/`push:topic`, clients `POST` a `push-register`
-  (→ `204` + `Location` + `Expires`) and receive an encrypted `push-message`
-  (topic + sync-token) on every change, then pull via `sync-collection`.
-- **Not yet verified against a real device.** Automated tests cover the wire pieces
-  (advertisement, register/unregister, change fan-out) with a capturing sender; the
-  RFC 8291 aes128gcm encryption + VAPID + real push-service delivery need a DAVx5
-  device and a live push endpoint. To test: run with a configured (or dev-ephemeral)
-  VAPID pair, add the account in DAVx5, confirm it registers, and edit an event/contact
-  from another client — DAVx5 should sync within seconds without a manual refresh.
-- **Apple Calendar/Contacts do not use WebDAV-Push** (they use proprietary APNs push),
-  so they are unaffected and keep polling.
+**This is the next manual-acceptance target** now that DAVx⁵ discovery + delta sync are verified
+(footnotes ¹²). It moves DAVx⁵ from *polling* to *pushed* sync; the acceptance steps below are not yet
+run against a real device.
+
+| Flow | DAVx⁵ (Android) |
+|---|---|
+| Collection PROPFIND advertises `push:transports` / `push:topic` | 🔜 |
+| DAVx⁵ `POST`s a `push-register` → `204` + `Location` + `Expires` | 🔜 |
+| Server change → encrypted `push-message` (topic + sync-token) delivered | 🔜 |
+| DAVx⁵ pulls the change via `sync-collection` within seconds, no manual refresh | 🔜 |
+| Unregister on account removal → `DELETE /dav/push-subscriptions/{id}` | 🔜 |
+
+- **What's built:** the server implements the bitfire WebDAV-Push draft
+  (`https://bitfire.at/webdav-push`) over Web Push — collections advertise
+  `push:transports`/`push:topic`, clients `POST` a `push-register` (→ `204` + `Location` + `Expires`),
+  and every change fans out an encrypted `push-message` (topic + `{DAV:}sync-token`) so the client then
+  pulls via `sync-collection`. Automated tests cover advertisement, register/unregister, and change
+  fan-out with a capturing sender.
+- **What still needs a real device:** RFC 8291 aes128gcm encryption + VAPID + real push-service
+  delivery end-to-end. **To test:** run with a configured (or dev-ephemeral) VAPID pair
+  (`SimplCalCon:WebPush`), add the account in DAVx⁵, confirm it registers (watch for the `push-register`
+  `POST` in the `/dav` logs — enable the wire trace to see the advertisement + register bodies), then
+  edit an event/contact **from another client** and confirm DAVx⁵ syncs within seconds without a manual
+  refresh. Record the outcomes in the table above.
+- **Apple Calendar/Contacts do not use WebDAV-Push** (they use proprietary APNs push), so they are
+  unaffected and keep polling.
