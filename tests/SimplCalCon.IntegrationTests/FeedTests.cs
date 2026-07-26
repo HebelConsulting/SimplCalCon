@@ -44,6 +44,45 @@ public sealed class FeedTests(AuthWebApplicationFactory factory) : IClassFixture
     }
 
     [Fact]
+    public async Task Feed_supports_conditional_get_with_etag()
+    {
+        var client = await AuthedClientAsync();
+        var id = (await Body(await client.PostAsJsonAsync("/api/calendars", new { name = "CondFeed" }))).GetProperty("id").GetGuid();
+        await client.PostAsJsonAsync($"/api/calendars/{id}/events", new
+        {
+            summary = "One",
+            startUtc = new DateTime(2026, 7, 15, 9, 0, 0, DateTimeKind.Utc),
+            isAllDay = false,
+        });
+        var token = (await Body(await client.PutAsync($"/api/calendars/{id}/feed", null))).GetProperty("feedToken").GetString();
+
+        var anon = factory.CreateClient();
+        var first = await anon.GetAsync($"/api/calendars/{id}/feed/{token}.ics");
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        var etag = first.Headers.ETag!.ToString();
+        Assert.False(string.IsNullOrWhiteSpace(etag));
+
+        // Same ETag echoed back → 304 Not Modified.
+        using var conditional = new HttpRequestMessage(HttpMethod.Get, $"/api/calendars/{id}/feed/{token}.ics");
+        conditional.Headers.TryAddWithoutValidation("If-None-Match", etag);
+        var notModified = await anon.SendAsync(conditional);
+        Assert.Equal(HttpStatusCode.NotModified, notModified.StatusCode);
+
+        // A change invalidates the ETag → 200 with a new one.
+        await client.PostAsJsonAsync($"/api/calendars/{id}/events", new
+        {
+            summary = "Two",
+            startUtc = new DateTime(2026, 7, 16, 9, 0, 0, DateTimeKind.Utc),
+            isAllDay = false,
+        });
+        using var afterChange = new HttpRequestMessage(HttpMethod.Get, $"/api/calendars/{id}/feed/{token}.ics");
+        afterChange.Headers.TryAddWithoutValidation("If-None-Match", etag);
+        var refreshed = await anon.SendAsync(afterChange);
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        Assert.NotEqual(etag, refreshed.Headers.ETag!.ToString());
+    }
+
+    [Fact]
     public async Task Address_book_feed_serves_vcard_with_a_valid_token()
     {
         var client = await AuthedClientAsync();

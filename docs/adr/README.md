@@ -76,5 +76,6 @@ rather than an edit.
 | [0068](0068-limit-recurrence-set.md) | calendar-data limit-recurrence-set (RFC 4791 §9.6.5) |
 | [0069](0069-subscription-feed.md) | Read-only subscription feeds (ICS/VCF capability-token URL) |
 | [0070](0070-partial-data-on-sync-collection.md) | Partial calendar-data/address-data on sync-collection |
+| [0071](0071-feed-conditional-get.md) | Conditional GET (ETag / 304) on the subscription feed |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).
