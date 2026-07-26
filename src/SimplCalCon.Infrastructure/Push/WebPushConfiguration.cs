@@ -19,6 +19,12 @@ public sealed class WebPushOptions
 
     /// <summary>Default subscription lifetime when the client doesn't request one.</summary>
     public int SubscriptionTtlDays { get; set; } = 30;
+
+    /// <summary>
+    /// DEMO/DEV ONLY (ADR 0081): skip TLS certificate validation when sending push to the endpoint —
+    /// needed for a self-hosted ntfy behind Caddy's internal CA on the LAN. Never enable in production.
+    /// </summary>
+    public bool AllowUntrustedPushEndpointTls { get; set; }
 }
 
 /// <summary>
@@ -33,6 +39,13 @@ internal sealed class WebPushConfiguration : IWebPushConfiguration
         var settings = options.Value;
         Subject = string.IsNullOrWhiteSpace(settings.Subject) ? "mailto:webpush@simplcalcon.example" : settings.Subject;
         SubscriptionTtlDays = settings.SubscriptionTtlDays > 0 ? settings.SubscriptionTtlDays : 30;
+        AllowUntrustedPushEndpointTls = settings.AllowUntrustedPushEndpointTls;
+        if (AllowUntrustedPushEndpointTls)
+        {
+            logger.LogWarning(
+                "WebDAV-Push: push-endpoint TLS validation is DISABLED (SimplCalCon:WebPush:AllowUntrustedPushEndpointTls) " +
+                "— demo/LAN only (self-hosted ntfy behind an internal CA). Never enable in production.");
+        }
 
         if (!string.IsNullOrWhiteSpace(settings.VapidPublicKey) && !string.IsNullOrWhiteSpace(settings.VapidPrivateKey))
         {
@@ -66,4 +79,6 @@ internal sealed class WebPushConfiguration : IWebPushConfiguration
     public string Subject { get; }
 
     public int SubscriptionTtlDays { get; }
+
+    public bool AllowUntrustedPushEndpointTls { get; }
 }

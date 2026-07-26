@@ -164,6 +164,25 @@ Then, over the LAN:
 >   don't restart the api mid-test. A persistent `VapidPublicKey`/`VapidPrivateKey` (ADR 0052) avoids
 >   this entirely — see `manual.md` → "Instant sync with WebDAV-Push".
 
+### Reliable push via a self-hosted ntfy on the LAN (ADR 0081)
+
+If the public `ntfy.sh` WebSocket won't connect from the device, keep the whole push path on the LAN by
+running a local ntfy — add **`--profile push`**:
+
+```bash
+LAN_HOST=10.0.2.23 docker compose -f docker-compose.yaml -f docker-compose.lan.yaml --profile push up -d
+```
+
+- Caddy fronts the local ntfy at **`https://<LAN_HOST>:8443`** with the same internal CA the phone
+  already trusts (from step 4). The api is configured to trust it too, via the demo-only flag
+  `SimplCalCon__WebPush__AllowUntrustedPushEndpointTls=true` (set in the LAN override; **never in
+  production**).
+- In the **ntfy Android app → Settings → Default server**, set `https://<LAN_HOST>:8443`. Then remove and
+  re-add the DAVx⁵ account (or re-sync) so it registers a UnifiedPush endpoint on the local server.
+- Now edit an event/contact from another client — the push travels SimplCalCon → local ntfy → phone,
+  entirely on the LAN. Watch: `docker compose logs -f ntfy` (delivery) and the `/dav` log for DAVx⁵'s
+  follow-up `sync-collection`.
+
 ## 8. Tear down
 
 ```bash
