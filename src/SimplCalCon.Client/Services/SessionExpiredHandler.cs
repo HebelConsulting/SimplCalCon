@@ -14,7 +14,7 @@ namespace SimplCalCon.Client.Services;
 /// (capturing the current page as the return URL) instead of leaving the SPA showing broken 401s until
 /// the user manually reloads — the reported idle-expiry bug.
 /// </summary>
-public sealed class SessionExpiredHandler(NavigationManager navigation) : DelegatingHandler
+public sealed class SessionExpiredHandler(NavigationManager navigation, SessionState sessionState) : DelegatingHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
@@ -46,6 +46,8 @@ public sealed class SessionExpiredHandler(NavigationManager navigation) : Delega
             return;
         }
 
+        // Flag the reason so the login page can show a "session expired" banner (ADR 0079).
+        sessionState.SessionExpired = true;
         navigation.NavigateToLogin("authentication/login");
     }
 }

@@ -1,8 +1,26 @@
 @page "/authentication/{action}"
+@using SimplCalCon.Client.Services
+@inject SessionState SessionState
+
+@if (showExpired)
+{
+    <div class="session-expired-banner" role="alert">
+        ⚠ Your session expired — signing you back in…
+    </div>
+}
 
 <RemoteAuthenticatorView Action="@Action" />
 
 @code {
     [Parameter]
     public string? Action { get; set; }
+
+    private bool showExpired;
+
+    protected override void OnInitialized()
+    {
+        // Show the banner once on the login redirect that expiry caused, then clear the flag (ADR 0079).
+        showExpired = SessionState.SessionExpired && string.Equals(Action, "login", StringComparison.OrdinalIgnoreCase);
+        SessionState.SessionExpired = false;
+    }
 }
