@@ -77,6 +77,7 @@ public static class DependencyInjection
         services.AddHostedService<Storage.OccurrenceRollForwardService>();
         services.AddScoped<IObjectStore, ObjectStore>();
         services.AddScoped<IObjectImportExport, ObjectImportExport>();
+        services.AddSingleton<IContactCardComposer, ContactCardComposer>();
         services.AddScoped<IContactPhotoService, ContactPhotoService>();
         services.AddHostedService<Storage.ContactPhotoRefreshService>();
         services.AddScoped<IRetentionService, Storage.RetentionService>();

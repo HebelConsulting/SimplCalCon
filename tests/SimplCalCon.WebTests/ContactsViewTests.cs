@@ -63,6 +63,39 @@ public sealed class ContactsViewTests : TestContext
     }
 
     [Fact]
+    public void Selecting_a_contact_shows_the_structured_card_and_edit_opens_the_form()
+    {
+        var contactId = Guid.NewGuid();
+        this.UseFakeApi(new Dictionary<string, string>
+        {
+            ["/api/address-books"] = ApiHarness.List(new { id = Friends, name = "Friends", color = "#00ff00", shared = false }),
+            [$"/api/address-books/{Friends}/contacts"] = ApiHarness.List(
+                new { id = contactId, formattedName = "Alice", organization = "Acme", emails = new[] { "alice@x.test" }, phones = Array.Empty<string>(), hasPhoto = false }),
+            [$"/api/address-books/{Friends}/contacts/{contactId}/card"] = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                formattedName = "Alice", givenName = "Alice", familyName = "Anderson", organization = "Acme", title = (string?)null,
+                emails = new[] { new { value = "alice@x.test", type = "work" } },
+                phones = Array.Empty<object>(), addresses = Array.Empty<object>(),
+                birthday = (string?)null, url = (string?)null, note = (string?)null,
+            }),
+        });
+
+        var cut = RenderComponent<Contacts>();
+        cut.FindAll(".contact-table tbody tr")[0].Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotEmpty(cut.FindAll(".card-view"));   // structured read-only view
+            Assert.Contains("alice@x.test", cut.Markup);
+            Assert.Contains("Acme", cut.Markup);
+        });
+
+        // Edit opens the structured field form.
+        cut.Find(".detail-card .detail-vcard-actions button").Click();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".card-form")));
+    }
+
+    [Fact]
     public void Photo_filter_is_tri_state_any_with_without()
     {
         var cut = RenderContacts();   // Alice has a photo, Bob does not

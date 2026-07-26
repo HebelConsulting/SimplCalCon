@@ -357,6 +357,24 @@ button.danger:hover {
 
 .hint { font-size: 0.78rem; color: #889; }
 
+/* Structured contact card view + edit form (ADR 0082). */
+.card-view { display: grid; grid-template-columns: max-content 1fr; gap: 0.2rem 0.8rem; margin: 0.4rem 0; }
+.card-view dt { color: #778; font-size: 0.8rem; }
+.card-view dd { margin: 0; word-break: break-word; }
+.card-view dd.card-note { white-space: pre-wrap; }
+.card-form { display: flex; flex-direction: column; gap: 0.4rem; margin: 0.4rem 0; }
+.card-form .form-row { display: flex; align-items: flex-start; gap: 0.5rem; }
+.card-form .form-row > label { flex: 0 0 6.5rem; padding-top: 0.35rem; color: #667; font-size: 0.85rem; }
+.card-form .form-row.form-row-top > label { padding-top: 0.15rem; }
+.card-form input, .card-form textarea, .card-form select { flex: 1 1 auto; min-width: 0; }
+.repeat { flex: 1 1 auto; display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.repeat-row { display: flex; gap: 0.3rem; align-items: center; }
+.repeat-addr { display: flex; flex-direction: column; gap: 0.3rem; padding-bottom: 0.3rem; border-bottom: 1px dashed #e2e2e8; }
+.repeat-del { flex: 0 0 auto; background: none; border: none; color: #a55; cursor: pointer; }
+.repeat-add { align-self: flex-start; background: none; border: 1px dashed #bcd; color: #36c; border-radius: 5px; cursor: pointer; font-size: 0.8rem; padding: 0.1rem 0.5rem; }
+.detail-advanced { margin-top: 0.6rem; }
+.detail-advanced > summary { cursor: pointer; color: #778; font-size: 0.85rem; }
+
 /* Compact tri-state photo filter in the Contacts list (ADR 0036). */
 .photo-filter { font-size: 0.78rem; padding: 0.15rem 0.25rem; }
 

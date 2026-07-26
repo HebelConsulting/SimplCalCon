@@ -191,6 +191,43 @@ public sealed class ApiClient(HttpClient http)
         return (await response.Content.ReadAsStringAsync(), response.Headers.ETag?.ToString());
     }
 
+    /// <summary>The contact's structured card (ADR 0082) plus its ETag (for a conditional save).</summary>
+    public async Task<(ContactCardDto? Card, string? ETag)> GetContactCardAsync(Guid addressBookId, Guid id)
+    {
+        using var response = await http.GetAsync($"api/address-books/{addressBookId}/contacts/{id}/card");
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<ContactCardDto>(), response.Headers.ETag?.ToString());
+    }
+
+    /// <summary>Saves the structured card (merged losslessly, ADR 0082). Null on success, else the rejection message.</summary>
+    public async Task<string?> PutContactCardAsync(Guid addressBookId, Guid id, ContactCardDto card, string? etag)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, $"api/address-books/{addressBookId}/contacts/{id}/card")
+        {
+            Content = JsonContent.Create(card),
+        };
+        if (etag is not null)
+        {
+            request.Headers.TryAddWithoutValidation("If-Match", etag);
+        }
+
+        var response = await http.SendAsync(request);
+        if (response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        try
+        {
+            var problem = await response.Content.ReadFromJsonAsync<ProblemDto>();
+            return problem?.Detail ?? $"Save failed ({(int)response.StatusCode}).";
+        }
+        catch
+        {
+            return $"Save failed ({(int)response.StatusCode}).";
+        }
+    }
+
     /// <summary>
     /// Fetches the contact's photo through the server (ADR 0037) — the server resolves inline or
     /// external PHOTOs and caches them — as a data URL, or null if the contact has no photo.
