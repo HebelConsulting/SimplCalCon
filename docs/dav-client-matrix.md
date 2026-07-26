@@ -129,17 +129,18 @@ Two-way sync via the third-party add-in against the standard `/dav/` surface (AD
   the event's own duration catches spanning occurrences). Recurring events also now
   contribute their real duration to free/busy and to `calendar-data expand`.
 
-## WebDAV-Push (ADR 0052) — 🔜 in progress (registration verified)
+## WebDAV-Push (ADR 0052) — ✅ server-side verified end-to-end
 
-Moves DAVx⁵ from *polling* to *pushed* sync. **Advertisement + registration are verified** against a
-real device; the end-to-end fan-out is the remaining row.
+Moves DAVx⁵ from *polling* to *pushed* sync. **The whole server pipeline is verified against a real
+device** — advertise, register, encrypt, and deliver to the push service. The only unproven link is the
+device actually waking, which is a device push-app/battery-config matter, not a server one.
 
 | Flow | DAVx⁵ (Android) |
 |---|---|
 | Collection PROPFIND advertises `push:transports` / `push:topic` | ✅ ³ |
 | DAVx⁵ `POST`s a `push-register` → `204` (+ `Location` + `Expires`) | ✅ ³ |
-| Server change → encrypted `push-message` (topic + sync-token) delivered | 🔜 |
-| DAVx⁵ pulls the change via `sync-collection` within seconds, no manual refresh | 🔜 |
+| Server change → encrypted `push-message` (topic + sync-token) delivered to the push service | ✅ ⁴ |
+| DAVx⁵ wakes and pulls the change via `sync-collection` within seconds | ⚠️ ⁴ |
 | Unregister on account removal → `DELETE /dav/push-subscriptions/{id}` | 🔜 |
 
 ³ **Verified over the LAN** (ephemeral VAPID, `docker-compose.lan.yaml`). DAVx⁵ delivers push over
@@ -149,14 +150,24 @@ subscriptions were stored** in `PushSubscriptions` (each an `https://ntfy.sh/up�
 key + auth-secret + expiry), no `4xx`/`5xx`. Without a UnifiedPush distributor DAVx⁵ silently polls and
 never registers.
 
+⁴ **Server fan-out verified end-to-end.** After a change (made from the web UI), the server's encrypted
+`push-message`s were observed **cached at the ntfy topic** (`GET https://ntfy.sh/<topic>/json?poll=1` —
+base64 RFC 8291 aes128gcm ciphertext, one per change), with **no delivery error** logged. So the
+notifier → topic+sync-token → VAPID-signed encryption → push-service delivery chain is proven. The
+device did **not** auto-sync in the test, because Android **battery optimization** was killing the
+ntfy/DAVx⁵ background connection — a device-config issue: exempt ntfy (and DAVx⁵) from battery
+optimization and keep ntfy connected, then the change wakes the device within seconds. **Gotcha for
+testing:** ephemeral VAPID keys rotate on every api restart, invalidating existing device subscriptions
+— re-sync DAVx⁵ to re-register after any restart (a persistent VAPID pair avoids this — ADR 0052).
+
 - **What's built:** the server implements the bitfire WebDAV-Push draft
   (`https://bitfire.at/webdav-push`) over Web Push — collections advertise
   `push:transports`/`push:topic`, clients `POST` a `push-register` (→ `204` + `Location` + `Expires`),
   and every change fans out an encrypted `push-message` (topic + `{DAV:}sync-token`) so the client then
   pulls via `sync-collection`. Automated tests cover advertisement, register/unregister, and change
-  fan-out with a capturing sender.
-- **Remaining:** the real-device **fan-out** (RFC 8291 aes128gcm encryption + VAPID + ntfy delivery →
-  device syncs within seconds of a change made elsewhere). Setup + test steps are in
+  fan-out with a capturing sender; the real-device server fan-out is confirmed via the ntfy topic (⁴).
+- **Remaining:** only the on-device **wake** (ntfy → DAVx⁵), which is device push-app/battery config.
+  Setup, the ntfy verification method, and the battery-optimization note are in
   [`manual.md`](manual.md#instant-sync-with-webdav-push-davx--ntfy) and
   [`dav-device-testing.md`](dav-device-testing.md) §7b.
 - **Apple Calendar/Contacts do not use WebDAV-Push** (they use proprietary APNs push), so they are

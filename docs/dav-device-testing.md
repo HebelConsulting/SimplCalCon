@@ -108,7 +108,7 @@ docker compose logs api | grep -A1 'sync-collection'   # a stored <sync-token> i
 
 Record outcomes in the [acceptance matrix](dav-client-matrix.md).
 
-## 7b. Verify WebDAV-Push (DAVx⁵) — 🔜 the current next target
+## 7b. Verify WebDAV-Push (DAVx⁵) — ✅ server-side verified
 
 The LAN override enables **ephemeral VAPID keys** (`SimplCalCon__WebPush__AllowEphemeralKeys=true`), so
 WebDAV-Push (ADR 0052) is on. Confirm it and run the push acceptance flow:
@@ -133,13 +133,29 @@ Then, over the LAN:
      'SELECT substring("Endpoint" for 45), "CollectionId", "ExpiresAt" FROM "PushSubscriptions";'
    ```
    (The `Endpoint` is the device's ntfy URL, e.g. `https://ntfy.sh/up…?up=1`.)
-4. Edit an event/contact **from another client** (the web UI, or Thunderbird) and confirm DAVx⁵ syncs
-   **within seconds, with no manual refresh**. Fill in the WebDAV-Push checklist in the acceptance matrix.
+4. Edit an event/contact **from another client** (the web UI, or Thunderbird). The device should sync
+   **within seconds, with no manual refresh**.
+5. **Confirm the server fan-out independently of the phone** — poll the device's ntfy topic (the
+   `Endpoint` from step 3) for the messages the server sent (ntfy caches them):
+   ```bash
+   curl -s 'https://ntfy.sh/<topic>/json?poll=1&since=20m'   # <topic> = the up… id in the endpoint URL
+   ```
+   Each JSON line with `"encoding":"base64"` is one encrypted `push-message` (RFC 8291 aes128gcm) that
+   reached the push service — proof the server delivered it. No `Web Push send …` **Warning** in the api
+   log also means no delivery error.
 
-> **Verified so far:** advertisement + `push-register` (DAVx⁵ over the LAN with the ntfy distributor —
-> 8 subscriptions stored, `204`s, no errors). The end-to-end fan-out (server → ntfy → device) is the
-> remaining row. Ephemeral keys reset on every api restart — existing subscriptions drop and DAVx⁵
-> re-registers on its next sync.
+> **Verified end-to-end on the server side:** advertisement + `push-register` (8 subscriptions stored,
+> `204`s) **and** encrypted `push-message`s delivered — observed cached at the ntfy topic, one per
+> change, no send errors. The server pipeline works.
+>
+> **If the phone doesn't auto-sync** even though the messages reach ntfy, it's **device-side**:
+> - **Battery optimization** — exempt **ntfy** *and* **DAVx⁵** (Android Settings → Apps → battery →
+>   Unrestricted) and keep the ntfy app connected (it shows a persistent "connected" notification).
+>   Android doze killing ntfy's background socket is the usual reason a delivered push never wakes DAVx⁵.
+> - **Ephemeral-key rotation** — the ephemeral VAPID pair regenerates on **every api restart**, which
+>   invalidates existing device subscriptions. **Re-sync DAVx⁵ to re-register after any restart**, and
+>   don't restart the api mid-test. A persistent `VapidPublicKey`/`VapidPrivateKey` (ADR 0052) avoids
+>   this entirely — see `manual.md` → "Instant sync with WebDAV-Push".
 
 ## 8. Tear down
 
