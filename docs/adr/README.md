@@ -84,5 +84,6 @@ rather than an edit.
 | [0076](0076-spa-refresh-tokens-and-session-expiry-redirect.md) | SPA refresh tokens + redirect-to-login on session expiry |
 | [0077](0077-collection-purge-and-retention.md) | Permanent purge + auto-retention for deleted collections |
 | [0078](0078-mandatory-backup-before-purge.md) | Mandatory backup download before permanently purging a collection |
+| [0079](0079-auth-hygiene-token-pruning-and-session-expiry-banner.md) | Auth hygiene: OpenIddict token pruning + session-expiry banner |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

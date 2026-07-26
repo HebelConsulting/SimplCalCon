@@ -41,6 +41,7 @@ public static class DependencyInjection
         services.Configure<Storage.ContactPhotoOptions>(configuration.GetSection("SimplCalCon:ContactPhotos"));
         services.Configure<Storage.RetentionOptions>(configuration.GetSection("SimplCalCon:Retention"));
         services.Configure<Storage.OccurrenceOptions>(configuration.GetSection("SimplCalCon:Occurrences"));
+        services.Configure<Identity.TokenPruneOptions>(configuration.GetSection("SimplCalCon:Auth"));
 
         services.AddDbContext<SimplCalConDbContext>(options =>
         {
@@ -80,6 +81,8 @@ public static class DependencyInjection
         services.AddHostedService<Storage.ContactPhotoRefreshService>();
         services.AddScoped<IRetentionService, Storage.RetentionService>();
         services.AddHostedService<Storage.RetentionSweepService>();
+        // Prune stale OpenIddict tokens/authorizations (ADR 0079); on by default, opt-out via SimplCalCon:Auth:TokenPruneDays=0.
+        services.AddHostedService<Identity.TokenPruneService>();
 
         // Fetches external contact-photo URLs (ADR 0037). Guards against SSRF at connect time,
         // caps the response, and follows only a couple of redirects.

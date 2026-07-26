@@ -18,21 +18,23 @@ public sealed class SessionExpiredHandlerTests : TestContext
             Task.FromResult(new HttpResponseMessage(code));
     }
 
-    private static async Task<HttpResponseMessage> SendAsync(NavigationManager nav, HttpStatusCode inner)
+    private static async Task<HttpResponseMessage> SendAsync(NavigationManager nav, HttpStatusCode inner, SessionState? state = null)
     {
-        var handler = new SessionExpiredHandler(nav) { InnerHandler = new StubInner(inner) };
+        var handler = new SessionExpiredHandler(nav, state ?? new SessionState()) { InnerHandler = new StubInner(inner) };
         using var invoker = new HttpMessageInvoker(handler);
         return await invoker.SendAsync(new HttpRequestMessage(HttpMethod.Get, "http://localhost/api/me"), CancellationToken.None);
     }
 
     [Fact]
-    public async Task Redirects_to_login_on_401()
+    public async Task Redirects_to_login_on_401_and_flags_session_expired()
     {
         var nav = Services.GetRequiredService<NavigationManager>();
+        var state = new SessionState();
 
-        await SendAsync(nav, HttpStatusCode.Unauthorized);
+        await SendAsync(nav, HttpStatusCode.Unauthorized, state);
 
         Assert.Contains("authentication/login", nav.Uri);
+        Assert.True(state.SessionExpired); // the login page reads this to show the banner
     }
 
     [Fact]

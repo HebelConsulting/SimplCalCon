@@ -357,6 +357,19 @@ button.danger:hover {
 
 .hint { font-size: 0.78rem; color: #889; }
 
+/* Session-expiry banner on the login page (ADR 0079). */
+.session-expired-banner {
+    margin: 1rem auto;
+    max-width: 26rem;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid #f0c36d;
+    background: #fdf6e3;
+    color: #8a6d3b;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 0.9rem;
+}
+
 /* Type-the-name confirmation for irreversible collection deletes. */
 .confirm-hint { font-size: 0.85rem; color: #667; margin: 0.5rem 0 0.15rem; }
 .confirm-input { display: block; width: 100%; box-sizing: border-box; margin: 0.15rem 0 0.7rem; }
