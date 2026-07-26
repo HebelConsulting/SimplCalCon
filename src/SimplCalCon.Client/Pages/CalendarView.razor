@@ -31,12 +31,14 @@
 {
     <p>Loading…</p>
 }
-else if (calendars.Count == 0)
+else if (calendars.Count == 0 && deletedCalendars.Count == 0)
 {
     <p>No calendars yet — create one on the <a href="">Overview</a> tab.</p>
 }
 else
 {
+    @* With no live calendars but a deleted one, still render the pane so its "Deleted" footer
+       (restore/purge) is reachable — otherwise deleting your only calendar strands it (ADR 0078 gap). *@
     <div class="cal-layout">
         <CollectionsPane Heading="Calendars"
                          EmptyText="No calendars."
