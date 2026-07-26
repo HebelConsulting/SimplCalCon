@@ -63,11 +63,14 @@ collection (a `getctag`/`sync-token` PROPFIND, skipping unchanged ones), then is
 `addressbook-multiget`/`calendar-multiget`s only the changed resources — an incremental delta, not a
 full re-fetch. (The larger first-connect sync is a one-time full population.)
 
-³ Thunderbird verified on this dev machine over `http://localhost:9080/dav/` (Thunderbird accepts plain
-HTTP; no cert needed on-box). It connects via the **explicit collection URL**, not `/.well-known/`
-auto-discovery (so the well-known path itself is exercised only by iOS/macOS), but principal +
-home-set discovery and enumeration of all owned/shared collections succeeded; every response `207`,
-no `4xx`/`5xx` and no unhandled-DAV `405`/`501` warnings.
+³ Thunderbird verified on this dev machine over `http://localhost:9080` (Thunderbird accepts plain
+HTTP; no cert needed on-box). **Well-known auto-discovery confirmed** when pointed at the bare host:
+`PROPFIND /.well-known/caldav → 301` and `/.well-known/carddav → 301`, after which Thunderbird follows
+the redirect to `/dav/`, discovers the principal + both home-sets, and enumerates all owned/shared
+collections — every response `207`, no `4xx`/`5xx`, no unhandled-DAV `405`/`501` warnings. (Given the
+explicit `/dav/` collection URL instead, it connects straight there and skips well-known — expected.)
+Thunderbird also probes `PUT /` during autoconfig, which the root correctly rejects with `405` without
+affecting discovery.
 
 ⁴ **Delta sync confirmed** via the wire trace: Thunderbird's `sync-collection` REPORTs each replay its
 **stored `sync-token`** (RFC 6578) and receive the incremented token in the response — incremental
