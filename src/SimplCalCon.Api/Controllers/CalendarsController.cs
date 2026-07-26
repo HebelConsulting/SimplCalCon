@@ -141,6 +141,31 @@ public sealed class CalendarsController(
         return NoContent();
     }
 
+    // --- Deleted-collection recovery (ADR 0075): owner-only. Restore is If-Match-exempt (acts on an
+    //     already-deleted collection, like the object-trash restore in ADR 0028). ---
+
+    [HttpGet("deleted")]
+    public async Task<ActionResult<CollectionResource<CalendarResource>>> ListDeleted(CancellationToken cancellationToken)
+    {
+        var deleted = await repository.ListDeletedCalendarsAsync(CurrentUserId, cancellationToken);
+        return new CollectionResource<CalendarResource>
+        {
+            Items = deleted.Select(c => ResourceMapper.MapCalendar(c, CurrentUserId)).ToList(),
+            Links = { new Link("self", "/api/calendars/deleted") },
+        };
+    }
+
+    [HttpHead("deleted")]
+    public IActionResult HeadDeleted() => Ok();
+
+    [HttpPost("{id:guid}/restore")]
+    public async Task<ActionResult<CalendarResource>> Restore(Guid id, CancellationToken cancellationToken)
+    {
+        var restored = await repository.RestoreCalendarAsync(id, CurrentUserId, cancellationToken)
+            ?? throw new ResourceNotFoundException("Calendar", id);
+        return ResourceMapper.MapCalendar(restored, CurrentUserId);
+    }
+
     // --- Import / export (ADR 0013/0029). A bulk write/read is a genuine action, so a verb sub-resource is used. ---
 
     [HttpPost("{id:guid}/import")]

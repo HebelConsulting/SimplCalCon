@@ -29,6 +29,9 @@ public sealed class CalendarResource : HypermediaResource, IETaggedResource
     /// <summary>True when the calendar belongs to another user and is shared with the caller.</summary>
     public bool Shared { get; init; }
 
+    /// <summary>When the calendar was soft-deleted (ADR 0075); null for live calendars.</summary>
+    public DateTime? DeletedAt { get; init; }
+
     [JsonIgnore]
     public Guid ConcurrencyToken { get; init; }
 }
@@ -52,6 +55,9 @@ public sealed class AddressBookResource : HypermediaResource, IETaggedResource
     public string? FeedToken { get; init; }
 
     public bool Shared { get; init; }
+
+    /// <summary>When the address book was soft-deleted (ADR 0075); null for live address books.</summary>
+    public DateTime? DeletedAt { get; init; }
 
     [JsonIgnore]
     public Guid ConcurrencyToken { get; init; }

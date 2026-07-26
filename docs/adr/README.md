@@ -80,5 +80,6 @@ rather than an edit.
 | [0072](0072-multi-day-events-in-grid.md) | Multi-day events span the calendar grid (chip per covered day) |
 | [0073](0073-deep-comp-nesting.md) | Deep comp nesting in partial calendar-data (tree, exact) |
 | [0074](0074-collection-delete-type-to-confirm.md) | Type-the-name confirmation for collection deletes |
+| [0075](0075-deleted-collection-restore.md) | Self-service restore of deleted collections |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).
