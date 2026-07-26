@@ -154,11 +154,14 @@ never registers.
 `push-message`s were observed **cached at the ntfy topic** (`GET https://ntfy.sh/<topic>/json?poll=1` —
 base64 RFC 8291 aes128gcm ciphertext, one per change), with **no delivery error** logged. So the
 notifier → topic+sync-token → VAPID-signed encryption → push-service delivery chain is proven. The
-device did **not** auto-sync in the test, because Android **battery optimization** was killing the
-ntfy/DAVx⁵ background connection — a device-config issue: exempt ntfy (and DAVx⁵) from battery
-optimization and keep ntfy connected, then the change wakes the device within seconds. **Gotcha for
-testing:** ephemeral VAPID keys rotate on every api restart, invalidating existing device subscriptions
-— re-sync DAVx⁵ to re-register after any restart (a persistent VAPID pair avoids this — ADR 0052).
+device did **not** auto-sync in the test — the failure was the **ntfy client couldn't hold its WebSocket
+to ntfy.sh** (*"Websocket not supported…"*), so messages reached ntfy but never the phone. That's an
+ntfy-client/network hop **outside SimplCalCon** (check ntfy's default server + network WebSocket
+blocking + app version; or self-host ntfy). Also seen: Android **battery optimization** killing ntfy's
+background socket. **Testing gotcha:** ephemeral VAPID keys rotate on every api restart, invalidating
+existing device subscriptions — re-sync DAVx⁵ to re-register after any restart (a persistent VAPID pair
+avoids this — ADR 0052). Troubleshooting: `manual.md` → "Instant sync with WebDAV-Push" and
+`dav-device-testing.md` §7b.
 
 - **What's built:** the server implements the bitfire WebDAV-Push draft
   (`https://bitfire.at/webdav-push`) over Web Push — collections advertise
