@@ -81,5 +81,6 @@ rather than an edit.
 | [0073](0073-deep-comp-nesting.md) | Deep comp nesting in partial calendar-data (tree, exact) |
 | [0074](0074-collection-delete-type-to-confirm.md) | Type-the-name confirmation for collection deletes |
 | [0075](0075-deleted-collection-restore.md) | Self-service restore of deleted collections |
+| [0076](0076-spa-refresh-tokens-and-session-expiry-redirect.md) | SPA refresh tokens + redirect-to-login on session expiry |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).
