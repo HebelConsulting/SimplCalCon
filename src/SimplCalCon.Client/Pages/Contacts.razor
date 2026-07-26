@@ -18,7 +18,7 @@
             <button @onclick="OpenImport">Import</button>
             <button @onclick="ExportAsync">Export .vcf</button>
             <button @onclick="OpenRename">Rename</button>
-            <button @onclick="() => showDelete = true">Delete</button>
+            <button @onclick="OpenDelete">Delete</button>
             <button @onclick="() => showShare = true">Share</button>
             <a class="ribbon-btn" href="trash/address-books/@rid">Trash</a>
         }
@@ -283,8 +283,11 @@ else
 
 <Modal Visible="showDelete" Title="Delete address book" OnClose="() => showDelete = false">
     <p>Delete address book “<strong>@ActiveBookName</strong>”? Its contacts will no longer appear. This can be undone by an administrator.</p>
+    <p class="confirm-hint">To confirm, type the address book's name — <strong>@ActiveBookName</strong> — below.</p>
+    <input type="text" class="confirm-input" @bind="deleteConfirm" @bind:event="oninput"
+           placeholder="@ActiveBookName" autocomplete="off" aria-label="Type the address book name to confirm deletion" />
     <div class="form-actions">
-        <button class="danger" @onclick="DeleteAsync">Delete</button>
+        <button class="danger" @onclick="DeleteAsync" disabled="@(!DeleteConfirmed)">Delete</button>
         <button @onclick="() => showDelete = false">Cancel</button>
     </div>
 </Modal>
@@ -362,6 +365,7 @@ else
     private string renameColor = "#3B82F6";
     private string? renameError;
     private bool showDelete;
+    private string deleteConfirm = string.Empty;
     private string moveTarget = string.Empty;
     private string? moveError;
 
@@ -374,6 +378,11 @@ else
     private Guid? EffectiveId => activeId ?? books?.FirstOrDefault()?.Id;
     private AddressBookDto? ActiveBook => books?.FirstOrDefault(b => b.Id == EffectiveId);
     private string? ActiveBookName => ActiveBook?.Name;
+
+    // Type-to-confirm guard for the irreversible collection delete: exact (trimmed, case-sensitive) match.
+    private bool DeleteConfirmed =>
+        !string.IsNullOrWhiteSpace(ActiveBookName) &&
+        string.Equals(deleteConfirm.Trim(), ActiveBookName!.Trim(), StringComparison.Ordinal);
 
     private List<CollectionsPane.Item> PaneItems() =>
         (books ?? []).Select(b => new CollectionsPane.Item(
@@ -941,15 +950,22 @@ else
         }
     }
 
+    private void OpenDelete()
+    {
+        deleteConfirm = string.Empty;
+        showDelete = true;
+    }
+
     private async Task DeleteAsync()
     {
-        if (EffectiveId is not { } id)
+        if (EffectiveId is not { } id || !DeleteConfirmed)
         {
             return;
         }
 
         await Api.DeleteCollectionAsync("address-books", id);
         showDelete = false;
+        deleteConfirm = string.Empty;
         checkedIds.Remove(id);
         if (activeId == id)
         {
