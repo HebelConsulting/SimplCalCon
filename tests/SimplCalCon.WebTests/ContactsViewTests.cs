@@ -17,7 +17,7 @@ public sealed class ContactsViewTests : TestContext
                 new { id = Friends, name = "Friends", color = "#00ff00", shared = false },
                 new { id = Family, name = "Family", color = (string?)null, shared = false }),
             [$"/api/address-books/{Friends}/contacts"] = ApiHarness.List(
-                new { id = Guid.NewGuid(), formattedName = "Alice", organization = "Acme", emails = new[] { "alice@x.test" }, phones = Array.Empty<string>(), hasPhoto = false }),
+                new { id = Guid.NewGuid(), formattedName = "Alice", organization = "Acme", emails = new[] { "alice@x.test" }, phones = Array.Empty<string>(), hasPhoto = true }),
             [$"/api/address-books/{Family}/contacts"] = ApiHarness.List(
                 new { id = Guid.NewGuid(), formattedName = "Bob", organization = (string?)null, emails = Array.Empty<string>(), phones = new[] { "+123" }, hasPhoto = false }),
         });
@@ -58,6 +58,34 @@ public sealed class ContactsViewTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.DoesNotContain("Alice", cut.Markup);
+            Assert.Contains("Bob", cut.Markup);
+        });
+    }
+
+    [Fact]
+    public void Photo_filter_is_tri_state_any_with_without()
+    {
+        var cut = RenderContacts();   // Alice has a photo, Bob does not
+        var select = cut.Find(".photo-filter");
+
+        select.Change("With");
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Alice", cut.Markup);
+            Assert.DoesNotContain("Bob", cut.Markup);
+        });
+
+        select.Change("Without");
+        cut.WaitForAssertion(() =>
+        {
+            Assert.DoesNotContain("Alice", cut.Markup);
+            Assert.Contains("Bob", cut.Markup);
+        });
+
+        select.Change("Any");
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Alice", cut.Markup);
             Assert.Contains("Bob", cut.Markup);
         });
     }

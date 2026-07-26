@@ -3,8 +3,8 @@ namespace SimplCalCon.Api.Contracts;
 /// <summary>A tenant, for the platform-admin view (ADR 0034).</summary>
 public sealed record TenantResource(Guid Id, string Name, string Slug, string Status);
 
-/// <summary>A user within a tenant, for the tenant-admin view (ADR 0034).</summary>
-public sealed record AdminUserResource(Guid Id, string DisplayName, string Email, string Role, string Status);
+/// <summary>A user within a tenant, for the tenant-admin view (ADR 0034). <c>HasPhoto</c> drives the list thumbnail (ADR 0035).</summary>
+public sealed record AdminUserResource(Guid Id, string DisplayName, string Email, string Role, string Status, bool HasPhoto);
 
 /// <summary>A tenant's SMTP/iMIP settings for the tenant-admin view (ADR 0047/0056); passwords are never returned.</summary>
 public sealed record TenantEmailSettingsResource(

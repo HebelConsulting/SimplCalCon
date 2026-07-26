@@ -104,9 +104,11 @@ else
                                     <th><FilterInput @bind-Value="filterEmail" Placeholder="Filter…" /></th>
                                     <th><FilterInput @bind-Value="filterPhone" Placeholder="Filter…" /></th>
                                     <th class="photo-col">
-                                        <label title="Show only contacts that have a photo">
-                                            <input type="checkbox" @bind="filterPhotoOnly" /> only
-                                        </label>
+                                        <select class="photo-filter" @bind="filterPhoto" title="Filter by photo">
+                                            <option value="@PhotoFilter.Any">Any</option>
+                                            <option value="@PhotoFilter.With">With photo</option>
+                                            <option value="@PhotoFilter.Without">Without photo</option>
+                                        </select>
                                     </th>
                                 </tr>
                             </thead>
@@ -357,7 +359,9 @@ else
     private string filterOrg = string.Empty;
     private string filterEmail = string.Empty;
     private string filterPhone = string.Empty;
-    private bool filterPhotoOnly;
+    private PhotoFilter filterPhoto = PhotoFilter.Any;
+
+    private enum PhotoFilter { Any, With, Without }
 
     // Bulk move/delete (ADR 0055)
     private readonly HashSet<Guid> selectedIds = [];
@@ -694,7 +698,12 @@ else
         && Contains(e.Contact.Organization, filterOrg)
         && Contains(string.Join(" ", e.Contact.Emails), filterEmail)
         && Contains(string.Join(" ", e.Contact.Phones), filterPhone)
-        && (!filterPhotoOnly || e.Contact.HasPhoto);
+        && filterPhoto switch
+        {
+            PhotoFilter.With => e.Contact.HasPhoto,
+            PhotoFilter.Without => !e.Contact.HasPhoto,
+            _ => true,
+        };
 
     // --- Bulk selection (ADR 0055) ---
     private bool AllSelected => View().Any() && View().All(c => selectedIds.Contains(c.Contact.Id));
