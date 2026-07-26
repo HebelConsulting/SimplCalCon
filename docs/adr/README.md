@@ -75,5 +75,6 @@ rather than an edit.
 | [0067](0067-time-range-true-overlap.md) | Time-range matching: true RFC 4791 interval overlap |
 | [0068](0068-limit-recurrence-set.md) | calendar-data limit-recurrence-set (RFC 4791 §9.6.5) |
 | [0069](0069-subscription-feed.md) | Read-only subscription feeds (ICS/VCF capability-token URL) |
+| [0070](0070-partial-data-on-sync-collection.md) | Partial calendar-data/address-data on sync-collection |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

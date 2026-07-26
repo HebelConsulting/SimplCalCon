@@ -168,10 +168,13 @@ public sealed class CalDavCollectionController(
         }
 
         var request = PropRequest.FromProp(body.Element(DavNames.Prop));
+        // Honor a requested calendar-data subset/expand/limit on the sync response too (ADR 0054/0070).
+        var calendarData = DavDataRequest.ParseCalendarData(body.Descendants(DavNames.CalendarData).FirstOrDefault());
         var result = await repository.SyncCalendarAsync(calendar.Id, sinceToken, cancellationToken);
 
         var changed = result.Changed
-            .Select(o => CalDavResources.CalendarObjectResource(CalendarObjectHref(userId, cal, o.ResourceName), o))
+            .Select(o => CalDavResources.CalendarObjectResource(
+                CalendarObjectHref(userId, cal, o.ResourceName), o, FormatCalendar(o, calendarData)))
             .ToList();
 
         var document = MultiStatus.Build(request, changed);
