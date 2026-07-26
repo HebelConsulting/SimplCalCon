@@ -50,8 +50,8 @@ Legend: ✅ verified · ⬜ not yet checked · ⚠️ works with caveat (note it
   it. Served by `CardDavServiceController` (`~/` OPTIONS + PROPFIND). Verified end to
   end on macOS 15.7 via reverse-proxy body tracing (full sync incl. multiget).
 - `addressbook-query` / `calendar-query` filters are evaluated server-side, including
-  `text-match`, `is-not-defined`, and `param-filter` (ADR 0043/0054). Deep `allcomp`
-  nesting is approximated.
+  `text-match`, `is-not-defined`, and `param-filter` (ADR 0043/0054). Nested `<comp>`
+  selection is honored exactly, to any depth (ADR 0073).
 - `address-data` / `calendar-data` honor a requested `<comp>`/`<prop>` subset, and
   `calendar-data` supports `expand` (one VEVENT per occurrence) — ADR 0054.
   `limit-recurrence-set` is honored (master + only in-range overrides, ADR 0068); the

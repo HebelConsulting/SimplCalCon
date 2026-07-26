@@ -78,5 +78,6 @@ rather than an edit.
 | [0070](0070-partial-data-on-sync-collection.md) | Partial calendar-data/address-data on sync-collection |
 | [0071](0071-feed-conditional-get.md) | Conditional GET (ETag / 304) on the subscription feed |
 | [0072](0072-multi-day-events-in-grid.md) | Multi-day events span the calendar grid (chip per covered day) |
+| [0073](0073-deep-comp-nesting.md) | Deep comp nesting in partial calendar-data (tree, exact) |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

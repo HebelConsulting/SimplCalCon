@@ -31,22 +31,25 @@ internal sealed class DavDataFormatter : IDavDataFormatter
                 ? CalendarObjectParser.LimitRecurrenceSet(blob, limit.StartUtc, limit.EndUtc)
                 : blob;
 
-        return request.Components.Count == 0 ? working : Subset(working, request.Components);
+        return request.Root is null ? working : Subset(working, request.Root);
     }
 
     public string FormatContact(string blob, AddressDataRequest request) =>
         request.IsFull
             ? blob
-            : Subset(blob, new Dictionary<string, DavCompSelection>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["VCARD"] = new(AllProps: false, AllComps: true, request.Props),
-            });
+            // The top VCARD keeps only the requested properties (+ always-keep); vCards have no sub-components.
+            : Subset(blob, new DavCompSelection(AllProps: false, AllComps: true, request.Props, EmptyComps));
 
-    // Walk the raw (folded) lines, keeping/dropping whole logical lines and whole components per the selection.
-    private static string Subset(string blob, IReadOnlyDictionary<string, DavCompSelection> components)
+    private static readonly IReadOnlyDictionary<string, DavCompSelection> EmptyComps =
+        new Dictionary<string, DavCompSelection>();
+
+    // Walk the raw (folded) lines, keeping/dropping whole logical lines and whole components per the
+    // selection tree (ADR 0073). Each stack frame carries the selection node for that component; a null
+    // Selection means "keep everything below" (allcomp / an always-kept component like VTIMEZONE).
+    private static string Subset(string blob, DavCompSelection root)
     {
         var result = new StringBuilder();
-        var stack = new Stack<(string Name, bool Included)>();
+        var stack = new Stack<(bool Included, DavCompSelection? Selection)>();
         var keepPreviousLogicalLine = true;
 
         foreach (var raw in blob.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n'))
@@ -71,10 +74,9 @@ internal sealed class DavDataFormatter : IDavDataFormatter
             if (name.Equals("BEGIN", StringComparison.OrdinalIgnoreCase))
             {
                 var comp = raw[(raw.IndexOf(':') + 1)..].Trim();
-                var parentIncluded = stack.Count == 0 || stack.Peek().Included;
-                var included = parentIncluded && ComponentIncluded(comp, stack, components);
-                stack.Push((comp, included));
-                keepPreviousLogicalLine = included;
+                var frame = ResolveComp(comp, stack, root);
+                stack.Push(frame);
+                keepPreviousLogicalLine = frame.Included;
             }
             else if (name.Equals("END", StringComparison.OrdinalIgnoreCase))
             {
@@ -86,7 +88,8 @@ internal sealed class DavDataFormatter : IDavDataFormatter
             }
             else
             {
-                keepPreviousLogicalLine = stack.Count > 0 && stack.Peek().Included && PropertyKept(name, stack.Peek().Name, components);
+                var top = stack.Count > 0 ? stack.Peek() : (Included: true, Selection: (DavCompSelection?)root);
+                keepPreviousLogicalLine = top.Included && PropertyKept(name, top.Selection);
             }
 
             if (keepPreviousLogicalLine)
@@ -98,32 +101,41 @@ internal sealed class DavDataFormatter : IDavDataFormatter
         return result.ToString();
     }
 
-    private static bool ComponentIncluded(
-        string comp, Stack<(string Name, bool Included)> stack, IReadOnlyDictionary<string, DavCompSelection> components)
+    // Decide whether a component is kept and which selection node governs it (and its children).
+    private static (bool Included, DavCompSelection? Selection) ResolveComp(
+        string comp, Stack<(bool Included, DavCompSelection? Selection)> stack, DavCompSelection root)
     {
-        if (AlwaysKeepComps.Contains(comp) || components.ContainsKey(comp))
+        if (stack.Count == 0)
         {
-            return true;
+            return (true, root); // the top component (VCALENDAR / VCARD) — the request root governs it
         }
 
-        // Included when an ancestor selection allows all sub-components (or is itself unrestricted).
-        return stack.Count > 0
-            && components.TryGetValue(stack.Peek().Name, out var parent)
-            && parent.AllComps;
-    }
-
-    private static bool PropertyKept(
-        string propertyName, string componentName, IReadOnlyDictionary<string, DavCompSelection> components)
-    {
-        if (!components.TryGetValue(componentName, out var selection))
+        var parent = stack.Peek();
+        if (!parent.Included)
         {
-            return true; // component kept but not explicitly restricted → all its props
+            return (false, null);
         }
 
-        return selection.AllProps
-            || AlwaysKeepProps.Contains(propertyName)
-            || selection.Props.Contains(propertyName);
+        if (parent.Selection is not { } parentSel)
+        {
+            return (true, null); // parent is keep-all → keep this too, keep-all
+        }
+
+        if (parentSel.Comps.TryGetValue(comp, out var childSel))
+        {
+            return (true, childSel);
+        }
+
+        // allcomp, or an always-kept component (VTIMEZONE keeps the object valid) → keep it, keep-all.
+        return parentSel.AllComps || AlwaysKeepComps.Contains(comp) ? (true, null) : (false, null);
     }
+
+    // null selection = keep-all; otherwise keep by allprop / always-keep / explicit prop.
+    private static bool PropertyKept(string propertyName, DavCompSelection? selection) =>
+        selection is null
+        || selection.AllProps
+        || AlwaysKeepProps.Contains(propertyName)
+        || selection.Props.Contains(propertyName);
 
     // The property/component name of a content line: up to the first ';' or ':', with any group prefix stripped.
     private static string LogicalName(string line)
