@@ -1,0 +1,23 @@
+# Opt-in LAN override for on-device (iOS / iPadOS) CalDAV/CardDAV testing over HTTPS (ADR 0032).
+#
+# Apple clients require HTTPS with a trusted certificate, and the default proxy only serves
+# `localhost`. This override makes the Caddy proxy ALSO serve your machine's LAN IP/hostname, with a
+# tls-internal certificate whose SAN matches it — so an iPhone/iPad can add a CalDAV/CardDAV account
+# at https://<LAN_HOST>/dav/ after trusting Caddy's root CA once. The DAV surface uses app-password
+# auth and relative hrefs, so it just works from the device; the web UI/OIDC stay on localhost.
+#
+# Usage:
+#   LAN_HOST=10.0.2.23 docker compose -f docker-compose.yaml -f docker-compose.lan.yaml up -d
+#   docker compose exec proxy cat /data/caddy/pki/authorities/local/root.crt   # install/trust on the device
+#   # then on iOS: Settings > Calendar > Accounts > Add > Other > Add CalDAV Account
+#   #   Server = <LAN_HOST>, User = your email, Password = an app password
+#
+# DAVx5 (Android) does NOT need this — it can use plain http://<LAN_HOST>:9080/dav/ directly.
+# Also runs under `podman compose` (portable values only).
+services:
+  proxy:
+    environment:
+      - LAN_HOST=${LAN_HOST:?set LAN_HOST to your machine's LAN IP or hostname, e.g. LAN_HOST=192.168.1.50}
+    volumes:
+      # Replaces the localhost-only Caddyfile with one that also serves $LAN_HOST (same target path).
+      - ./deploy/Caddyfile.lan:/etc/caddy/Caddyfile:ro
