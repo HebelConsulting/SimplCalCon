@@ -34,6 +34,29 @@
     {
         <p class="pane-empty">@EmptyText</p>
     }
+
+    @* Deleted-collection recovery (ADR 0075): a collapsible list of the owner's soft-deleted
+       collections, each restorable in place. Hidden entirely when there are none. *@
+    @if (Deleted.Count > 0)
+    {
+        <div class="pane-deleted">
+            <button type="button" class="pane-deleted-toggle" @onclick="() => showDeleted = !showDeleted">
+                @(showDeleted ? "▾" : "▸") Deleted (@Deleted.Count)
+            </button>
+            @if (showDeleted)
+            {
+                @foreach (var d in Deleted)
+                {
+                    <div class="coll-row coll-row-deleted">
+                        <span class="coll-swatch coll-swatch-static" style="background:@d.Color"></span>
+                        <span class="coll-name-text coll-name-deleted" title="@d.Name">@d.Name</span>
+                        <button type="button" class="coll-reset coll-restore" title="Restore this collection"
+                                @onclick="() => OnRestore.InvokeAsync(d.Id)">↺</button>
+                    </div>
+                }
+            }
+        </div>
+    }
 </div>
 
 @code {
@@ -57,6 +80,14 @@
 
     /// <summary>Raised when the reset is clicked — clears the caller's personal colour.</summary>
     [Parameter] public EventCallback<Guid> OnColorReset { get; set; }
+
+    /// <summary>The owner's soft-deleted collections (ADR 0075); shown in a collapsible footer with a restore action.</summary>
+    [Parameter] public IReadOnlyList<Item> Deleted { get; set; } = [];
+
+    /// <summary>Raised when a deleted collection's restore (↺) is clicked.</summary>
+    [Parameter] public EventCallback<Guid> OnRestore { get; set; }
+
+    private bool showDeleted;
 
     private async Task ToggleChecked(Guid id)
     {

@@ -46,7 +46,9 @@ else
                          OnFilterChanged="OnFilterChangedAsync"
                          OnActiveChanged="OnActiveChangedAsync"
                          OnColorChanged="OnColorChangedAsync"
-                         OnColorReset="OnColorResetAsync" />
+                         OnColorReset="OnColorResetAsync"
+                         Deleted="DeletedPaneItems()"
+                         OnRestore="OnRestoreAsync" />
 
         <div class="cal-main">
             @if (entries is null)
@@ -459,6 +461,7 @@ else
     private sealed record CalEntry(EventDto Event, Guid CalId, string CalName, string Color);
 
     private IReadOnlyList<CalendarDto>? calendars;
+    private IReadOnlyList<CalendarDto> deletedCalendars = [];   // owner's soft-deleted calendars (ADR 0075)
     private readonly HashSet<Guid> checkedIds = [];   // visible collections (the filter)
     private Guid? activeId;                            // action target (New/Import/Share/…)
     private bool stateLoaded;
@@ -572,6 +575,19 @@ else
         (calendars ?? []).Select(c => new CollectionsPane.Item(
             c.Id, c.Name, CollectionColors.Effective(c.Id, c.MyColor, c.Color), c.MyColor is not null, c.Shared)).ToList();
 
+    private List<CollectionsPane.Item> DeletedPaneItems() =>
+        deletedCalendars.Select(c => new CollectionsPane.Item(
+            c.Id, c.Name, CollectionColors.Effective(c.Id, c.MyColor, c.Color), false, c.Shared)).ToList();
+
+    private async Task OnRestoreAsync(Guid id)
+    {
+        await Api.RestoreCollectionAsync("calendars", id);
+        calendars = await Api.GetCalendarsAsync();
+        deletedCalendars = await Api.GetDeletedCalendarsAsync();
+        checkedIds.Add(id);                 // show the restored calendar straight away
+        await OnFilterChangedAsync();       // persist, reload the merged view, re-subscribe
+    }
+
     private static readonly string[] WeekdayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
     private readonly HashSet<Guid> subscribedIds = [];
@@ -599,6 +615,7 @@ else
         if (calendars is null)
         {
             calendars = await Api.GetCalendarsAsync();
+            deletedCalendars = await Api.GetDeletedCalendarsAsync();
             await LoadStateAsync();
         }
 
@@ -1077,6 +1094,7 @@ else
         }
 
         calendars = await Api.GetCalendarsAsync();
+        deletedCalendars = await Api.GetDeletedCalendarsAsync();   // the just-deleted calendar now shows under "Deleted"
         activeId ??= calendars.FirstOrDefault()?.Id;
         await SaveStateAsync();
         await ReloadAllAsync();

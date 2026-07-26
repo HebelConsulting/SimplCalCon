@@ -44,7 +44,9 @@ else
                          OnFilterChanged="OnFilterChangedAsync"
                          OnActiveChanged="OnActiveChangedAsync"
                          OnColorChanged="OnColorChangedAsync"
-                         OnColorReset="OnColorResetAsync" />
+                         OnColorReset="OnColorResetAsync"
+                         Deleted="DeletedPaneItems()"
+                         OnRestore="OnRestoreAsync" />
 
         <div class="cal-main">
             @if (entries is null)
@@ -306,6 +308,7 @@ else
     private sealed record ContactEntry(ContactDto Contact, Guid BookId, string BookName, string Color);
 
     private IReadOnlyList<AddressBookDto>? books;
+    private IReadOnlyList<AddressBookDto> deletedBooks = [];   // owner's soft-deleted address books (ADR 0075)
     private readonly HashSet<Guid> checkedIds = [];
     private Guid? activeId;
     private bool stateLoaded;
@@ -388,6 +391,19 @@ else
         (books ?? []).Select(b => new CollectionsPane.Item(
             b.Id, b.Name, CollectionColors.Effective(b.Id, b.MyColor, b.Color), b.MyColor is not null, b.Shared)).ToList();
 
+    private List<CollectionsPane.Item> DeletedPaneItems() =>
+        deletedBooks.Select(b => new CollectionsPane.Item(
+            b.Id, b.Name, CollectionColors.Effective(b.Id, b.MyColor, b.Color), false, b.Shared)).ToList();
+
+    private async Task OnRestoreAsync(Guid id)
+    {
+        await Api.RestoreCollectionAsync("address-books", id);
+        books = await Api.GetAddressBooksAsync();
+        deletedBooks = await Api.GetDeletedAddressBooksAsync();
+        checkedIds.Add(id);                 // show the restored address book straight away
+        await OnFilterChangedAsync();       // persist, reload the merged view, re-subscribe
+    }
+
     private readonly HashSet<Guid> subscribedIds = [];
 
     protected override void OnInitialized() => Live.CollectionChanged += OnCollectionChanged;
@@ -397,6 +413,7 @@ else
         if (books is null)
         {
             books = await Api.GetAddressBooksAsync();
+            deletedBooks = await Api.GetDeletedAddressBooksAsync();
             await LoadStateAsync();
         }
 
@@ -973,6 +990,7 @@ else
         }
 
         books = await Api.GetAddressBooksAsync();
+        deletedBooks = await Api.GetDeletedAddressBooksAsync();   // the just-deleted book now shows under "Deleted"
         activeId ??= books.FirstOrDefault()?.Id;
         await SaveStateAsync();
         await ReloadAsync();

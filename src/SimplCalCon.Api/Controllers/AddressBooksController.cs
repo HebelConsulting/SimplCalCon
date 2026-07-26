@@ -139,6 +139,31 @@ public sealed class AddressBooksController(
         return NoContent();
     }
 
+    // --- Deleted-collection recovery (ADR 0075): owner-only. Restore is If-Match-exempt (acts on an
+    //     already-deleted collection, like the object-trash restore in ADR 0028). ---
+
+    [HttpGet("deleted")]
+    public async Task<ActionResult<CollectionResource<AddressBookResource>>> ListDeleted(CancellationToken cancellationToken)
+    {
+        var deleted = await repository.ListDeletedAddressBooksAsync(CurrentUserId, cancellationToken);
+        return new CollectionResource<AddressBookResource>
+        {
+            Items = deleted.Select(a => ResourceMapper.MapAddressBook(a, CurrentUserId)).ToList(),
+            Links = { new Link("self", "/api/address-books/deleted") },
+        };
+    }
+
+    [HttpHead("deleted")]
+    public IActionResult HeadDeleted() => Ok();
+
+    [HttpPost("{id:guid}/restore")]
+    public async Task<ActionResult<AddressBookResource>> Restore(Guid id, CancellationToken cancellationToken)
+    {
+        var restored = await repository.RestoreAddressBookAsync(id, CurrentUserId, cancellationToken)
+            ?? throw new ResourceNotFoundException("Address book", id);
+        return ResourceMapper.MapAddressBook(restored, CurrentUserId);
+    }
+
     // --- Import / export (ADR 0013/0029). A bulk write/read is a genuine action, so a verb sub-resource is used. ---
 
     [HttpPost("{id:guid}/import")]

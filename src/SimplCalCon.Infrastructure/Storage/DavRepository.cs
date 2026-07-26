@@ -91,6 +91,28 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
         return true;
     }
 
+    public async Task<IReadOnlyList<AddressBook>> ListDeletedAddressBooksAsync(Guid ownerId, CancellationToken cancellationToken) =>
+        await dbContext.AddressBooks
+            .Where(a => a.IsDeleted && a.OwnerId == ownerId)
+            .OrderByDescending(a => a.DeletedAt)
+            .ToListAsync(cancellationToken);
+
+    public async Task<AddressBook?> RestoreAddressBookAsync(Guid id, Guid ownerId, CancellationToken cancellationToken)
+    {
+        var addressBook = await dbContext.AddressBooks
+            .FirstOrDefaultAsync(a => a.Id == id && a.OwnerId == ownerId && a.IsDeleted, cancellationToken);
+
+        if (addressBook is null)
+        {
+            return null;
+        }
+
+        addressBook.IsDeleted = false;
+        addressBook.DeletedAt = null;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return addressBook;
+    }
+
     public async Task<Collection?> UpdateCollectionAsync(
         Guid collectionId, string newName, string? color, CancellationToken cancellationToken)
     {
@@ -250,6 +272,28 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
         calendar.DeletedAt = clock.UtcNow.UtcDateTime;
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;
+    }
+
+    public async Task<IReadOnlyList<Calendar>> ListDeletedCalendarsAsync(Guid ownerId, CancellationToken cancellationToken) =>
+        await dbContext.Calendars
+            .Where(c => c.IsDeleted && c.OwnerId == ownerId)
+            .OrderByDescending(c => c.DeletedAt)
+            .ToListAsync(cancellationToken);
+
+    public async Task<Calendar?> RestoreCalendarAsync(Guid id, Guid ownerId, CancellationToken cancellationToken)
+    {
+        var calendar = await dbContext.Calendars
+            .FirstOrDefaultAsync(c => c.Id == id && c.OwnerId == ownerId && c.IsDeleted, cancellationToken);
+
+        if (calendar is null)
+        {
+            return null;
+        }
+
+        calendar.IsDeleted = false;
+        calendar.DeletedAt = null;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return calendar;
     }
 
     public async Task<IReadOnlyList<CalendarObject>> ListCalendarObjectsAsync(

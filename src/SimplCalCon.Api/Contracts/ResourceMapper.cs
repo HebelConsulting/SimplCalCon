@@ -39,6 +39,7 @@ internal static partial class ResourceMapper
         SupportsEvents = calendar.SupportsEvents,
         SupportsTasks = calendar.SupportsTasks,
         Shared = calendar.OwnerId != currentUserId,
+        DeletedAt = calendar.DeletedAt,
         ConcurrencyToken = calendar.ConcurrencyToken,
         Links =
         {
@@ -56,6 +57,7 @@ internal static partial class ResourceMapper
         MyColor = myColor,
         FeedToken = addressBook.OwnerId == currentUserId ? addressBook.FeedToken : null,
         Shared = addressBook.OwnerId != currentUserId,
+        DeletedAt = addressBook.DeletedAt,
         ConcurrencyToken = addressBook.ConcurrencyToken,
         Links =
         {

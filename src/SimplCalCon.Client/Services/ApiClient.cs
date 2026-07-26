@@ -60,6 +60,16 @@ public sealed class ApiClient(HttpClient http)
     public async Task<IReadOnlyList<CalendarDto>> GetCalendarsAsync() =>
         (await http.GetFromJsonAsync<Collection<CalendarDto>>("api/calendars"))?.Items ?? [];
 
+    // Deleted-collection recovery (ADR 0075): the owner's soft-deleted collections + one-click restore.
+    public async Task<IReadOnlyList<CalendarDto>> GetDeletedCalendarsAsync() =>
+        (await http.GetFromJsonAsync<Collection<CalendarDto>>("api/calendars/deleted"))?.Items ?? [];
+
+    public async Task<IReadOnlyList<AddressBookDto>> GetDeletedAddressBooksAsync() =>
+        (await http.GetFromJsonAsync<Collection<AddressBookDto>>("api/address-books/deleted"))?.Items ?? [];
+
+    public Task RestoreCollectionAsync(string kind, Guid id) =>
+        http.PostAsync($"api/{kind}/{id}/restore", null);
+
     public async Task<CalendarDto?> CreateCalendarAsync(string name) =>
         await (await http.PostAsJsonAsync("api/calendars", new { name })).Content.ReadFromJsonAsync<CalendarDto>();
 

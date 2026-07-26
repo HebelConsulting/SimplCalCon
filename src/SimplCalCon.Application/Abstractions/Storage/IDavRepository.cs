@@ -107,6 +107,20 @@ public interface IDavRepository
 
     Task<DavCalendarSyncResult> SyncCalendarAsync(Guid collectionId, long? sinceToken, CancellationToken cancellationToken);
 
+    // --- Deleted-collection recovery (ADR 0075): owner-scoped list + restore over the soft-delete flag ---
+
+    /// <summary>Address books the owner has (soft-)deleted, most-recently-deleted first.</summary>
+    Task<IReadOnlyList<AddressBook>> ListDeletedAddressBooksAsync(Guid ownerId, CancellationToken cancellationToken);
+
+    /// <summary>Un-deletes the owner's deleted address book; returns it, or null if not found/not owned/not deleted.</summary>
+    Task<AddressBook?> RestoreAddressBookAsync(Guid id, Guid ownerId, CancellationToken cancellationToken);
+
+    /// <summary>Calendars the owner has (soft-)deleted, most-recently-deleted first.</summary>
+    Task<IReadOnlyList<Calendar>> ListDeletedCalendarsAsync(Guid ownerId, CancellationToken cancellationToken);
+
+    /// <summary>Un-deletes the owner's deleted calendar; returns it, or null if not found/not owned/not deleted.</summary>
+    Task<Calendar?> RestoreCalendarAsync(Guid id, Guid ownerId, CancellationToken cancellationToken);
+
     // --- Trash & version history (ADR 0028) ---
 
     Task<IReadOnlyList<CalendarObject>> ListTrashedCalendarObjectsAsync(Guid collectionId, CancellationToken cancellationToken);
