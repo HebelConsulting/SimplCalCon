@@ -55,8 +55,11 @@ else
                 @foreach (var u in users)
                 {
                     <li class="@(selected?.Id == u.Id ? "selected" : null)" @onclick="() => selected = u">
-                        <span class="admin-user-name">@u.DisplayName</span>
-                        <span class="admin-user-meta">@u.Email · @u.Role · @u.Status</span>
+                        <Avatar Path="@($"api/users/{u.Id}/photo")" Initials="@Initials(u)" HasPhoto="u.HasPhoto" @key="u.Id" />
+                        <span class="admin-user-text">
+                            <span class="admin-user-name">@u.DisplayName</span>
+                            <span class="admin-user-meta">@u.Email · @u.Role · @u.Status</span>
+                        </span>
                     </li>
                 }
             </ul>

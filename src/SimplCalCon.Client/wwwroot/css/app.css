@@ -357,6 +357,26 @@ button.danger:hover {
 
 .hint { font-size: 0.78rem; color: #889; }
 
+/* Compact tri-state photo filter in the Contacts list (ADR 0036). */
+.photo-filter { font-size: 0.78rem; padding: 0.15rem 0.25rem; }
+
+/* Small read-only avatar thumbnail (photo or initials) — Admin user list (ADR 0035). */
+.avatar-thumb {
+    flex: 0 0 auto;
+    width: 1.7rem;
+    height: 1.7rem;
+    border-radius: 50%;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #d7e3f4;
+    color: #345;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+.avatar-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
 /* Session-expiry banner on the login page (ADR 0079). */
 .session-expired-banner {
     margin: 1rem auto;

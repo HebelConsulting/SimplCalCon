@@ -189,11 +189,19 @@ public sealed class AdminController(
             .OrderBy(u => u.Email)
             .ToListAsync(cancellationToken);
 
+        // Which of these users have a profile photo (a computed exists-check — ADR 0035; no schema change).
+        var userIds = users.Select(u => u.Id).ToList();
+        var withPhoto = (await dbContext.UserProfilePhotos
+            .Where(p => userIds.Contains(p.UserId))
+            .Select(p => p.UserId)
+            .ToListAsync(cancellationToken)).ToHashSet();
+
         return new CollectionResource<AdminUserResource>
         {
             Items = users
                 .Select(u => new AdminUserResource(
-                    u.Id, u.DisplayName, u.Email, u.TenantRole?.ToString().ToLowerInvariant() ?? "member", u.Status.ToString()))
+                    u.Id, u.DisplayName, u.Email, u.TenantRole?.ToString().ToLowerInvariant() ?? "member",
+                    u.Status.ToString(), withPhoto.Contains(u.Id)))
                 .ToList(),
             Links = { new Link("self", "/api/admin/users") },
         };

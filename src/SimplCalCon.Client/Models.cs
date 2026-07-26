@@ -92,4 +92,4 @@ public sealed record TakeoutImportResultDto(
 
 public sealed record TenantDto(Guid Id, string Name, string Slug, string Status);
 
-public sealed record AdminUserDto(Guid Id, string DisplayName, string Email, string Role, string Status);
+public sealed record AdminUserDto(Guid Id, string DisplayName, string Email, string Role, string Status, bool HasPhoto = false);

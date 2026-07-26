@@ -1,0 +1,45 @@
+@* Small read-only avatar thumbnail (ADR 0035): the user's photo when they have one, else initials.
+   Fetches the bearer-protected photo lazily and only when HasPhoto, so a list of users without photos
+   makes no image requests. @key by the row id so it re-fetches when reused for a different user. *@
+@inject ApiClient Api
+
+<span class="avatar-thumb" title="@Title">
+    @if (photoUrl is not null)
+    {
+        <img src="@photoUrl" alt="@Initials" />
+    }
+    else
+    {
+        @Initials
+    }
+</span>
+
+@code {
+    /// <summary>The bearer-protected photo endpoint, e.g. <c>api/users/{id}/photo</c>.</summary>
+    [Parameter] public string? Path { get; set; }
+
+    /// <summary>Initials fallback shown when there's no photo.</summary>
+    [Parameter] public string Initials { get; set; } = "?";
+
+    /// <summary>Whether the user has a photo — gates the fetch (avoids a wasted 404 per photo-less user).</summary>
+    [Parameter] public bool HasPhoto { get; set; }
+
+    [Parameter] public string? Title { get; set; }
+
+    private string? photoUrl;
+    private string? loadedPath;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (HasPhoto && Path is not null && Path != loadedPath)
+        {
+            loadedPath = Path;
+            photoUrl = await Api.GetPhotoDataUrlAsync(Path);
+        }
+        else if (!HasPhoto && photoUrl is not null)
+        {
+            photoUrl = null;
+            loadedPath = null;
+        }
+    }
+}
