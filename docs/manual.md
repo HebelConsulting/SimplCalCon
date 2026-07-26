@@ -261,6 +261,19 @@ change. (Apple Calendar/Contacts don't use this — they have their own push —
 3. **Verify:** change an event/contact from another client (the web UI or Thunderbird) — the Android
    device should update within seconds without you touching it.
 
+**If the device doesn't update** (but the server side is fine — this is almost always device config):
+
+- **Battery optimization** is the usual culprit — Android doze kills the ntfy background connection, so a
+  delivered push never wakes DAVx⁵. Set **both ntfy and DAVx⁵** to **Unrestricted** battery use (Android
+  Settings → Apps → the app → Battery), and keep the ntfy app connected (it shows a persistent
+  "connected" notification).
+- To confirm the **server** actually delivered (independent of the phone), poll the device's ntfy topic —
+  `curl -s 'https://ntfy.sh/<topic>/json?poll=1&since=20m'` (the `<topic>` is the `up…` id from the
+  device's endpoint). Base64 lines are the encrypted push messages that reached the push service; if
+  they're there, the server did its job and the gap is on the device.
+- With **ephemeral** dev keys, the VAPID pair changes on every server restart, which invalidates existing
+  subscriptions — **re-sync DAVx⁵** after a restart. Production persistent keys don't have this problem.
+
 **On the server (operator) — enabling push:** WebDAV-Push is **off unless VAPID keys are present**
 (Web Push signing keys). Configure them under `SimplCalCon:WebPush` (env-var form in parentheses):
 
