@@ -16,3 +16,11 @@ localhost, {$LAN_HOST} {
 	tls internal
 	reverse_proxy api:9080
 }
+
+# Self-hosted ntfy for WebDAV-Push (ADR 0081), fronted over HTTPS on :8443 with the same internal CA.
+# Only reachable when the `push` compose profile is active (the ntfy upstream is otherwise not running —
+# Caddy resolves it lazily per request, so this block is harmless when ntfy is absent).
+localhost:8443, {$LAN_HOST}:8443 {
+	tls internal
+	reverse_proxy ntfy:80
+}

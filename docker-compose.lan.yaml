@@ -18,10 +18,18 @@
 # This override is also the on-device WebDAV-Push (ADR 0052) test bed: it enables ephemeral VAPID keys
 # so DAVx5 can register for and receive push notifications. Ephemeral keys reset on restart (any device
 # subscriptions drop) — fine for testing, never production (set real VapidPublicKey/PrivateKey there).
+#
+# Self-hosted ntfy for reliable push delivery (ADR 0081): add `--profile push` to also run a local ntfy
+# behind Caddy at https://<LAN_HOST>:8443, so DAVx5's UnifiedPush stays on the LAN instead of the public
+# ntfy.sh (whose WebSocket the device/network may block). Point the ntfy Android app's default server at
+# https://<LAN_HOST>:8443 (the phone already trusts the Caddy root CA from the DAV step). Example:
+#   LAN_HOST=10.0.2.23 docker compose -f docker-compose.yaml -f docker-compose.lan.yaml --profile push up -d
 services:
   proxy:
     environment:
       - LAN_HOST=${LAN_HOST:?set LAN_HOST to your machine's LAN IP or hostname, e.g. LAN_HOST=192.168.1.50}
+    ports:
+      - "8443:8443"   # HTTPS front for the self-hosted ntfy (ADR 0081, --profile push)
     volumes:
       # Replaces the localhost-only Caddyfile with one that also serves $LAN_HOST (same target path).
       - ./deploy/Caddyfile.lan:/etc/caddy/Caddyfile:ro
@@ -30,3 +38,19 @@ services:
       # WebDAV-Push (ADR 0052): generate an ephemeral VAPID pair so push is enabled for device testing.
       # Implicit in Development already; set explicitly here so push testing is intentional for this override.
       SimplCalCon__WebPush__AllowEphemeralKeys: "true"
+      # Demo/LAN only (ADR 0081): the api sends push to the self-hosted ntfy behind Caddy's internal CA,
+      # so skip push-endpoint TLS validation. NEVER set this in production.
+      SimplCalCon__WebPush__AllowUntrustedPushEndpointTls: "true"
+
+  # Self-hosted ntfy (Apache-2.0), opt-in via `--profile push` (ADR 0081). Caddy fronts it over HTTPS at
+  # https://<LAN_HOST>:8443; ntfy itself only listens on the internal compose network. Ephemeral (no
+  # volume) — a throwaway relay for push testing.
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    profiles: ["push"]
+    restart: unless-stopped
+    command: serve
+    environment:
+      NTFY_BASE_URL: "https://${LAN_HOST}:8443"
+      NTFY_LISTEN_HTTP: ":80"
+      NTFY_BEHIND_PROXY: "true"
