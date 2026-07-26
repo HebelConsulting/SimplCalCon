@@ -34,7 +34,7 @@ the full **developer-machine testing workflow (with the internal certificate)** 
 | Edit contact → ETag/If-Match update, no conflict | ⬜ | ⬜ | ✅ ⁷ |
 | Delete contact → removed on server | ⬜ | ⬜ | ✅ ⁷ |
 | Change on server → syncs to device (sync-collection) | ✅ | ✅ delta ² | ✅ delta ⁴ |
-| Delete on server → removed on device (tombstone) | ⬜ | ⬜ | ⬜ |
+| Delete on server → removed on device (tombstone) | ⬜ | ⬜ | ✅ ⁸ |
 | Create a second address book (MKCOL) | ⬜ | ⬜ | ⬜ |
 
 ## CalDAV (ADR 0022)
@@ -49,7 +49,7 @@ the full **developer-machine testing workflow (with the internal certificate)** 
 | Task (VTODO) create/sync (Reminders / Tasks.org) | ⬜ | ⬜ | ⬜ |
 | Time-range refresh (calendar-query) returns the window | ⬜ | ✅ | n/a ⁶ |
 | Edit → ETag/If-Match update | ⬜ | ⬜ | ✅ ⁵ |
-| Delete on server → removed on device (sync-collection) | ⬜ | ⬜ | ⬜ |
+| Delete on server → removed on device (sync-collection) | ⬜ | ⬜ | ✅ ⁸ |
 | Create a second calendar (MKCALENDAR) | ⬜ | ⬜ | ⬜ |
 
 ¹ DAVx⁵ (Android) verified against a deployed instance over the LAN via *Login with URL and user name*
@@ -87,8 +87,13 @@ than unverified.
 ⁷ **Client→server contact CRUD confirmed**: create = `PUT …vcf → 201`, edit = `PUT → 204`, delete =
 `DELETE → 204`, all clean. **Server→device propagation** was also observed in the same session — a
 contact edited via the web UI (`PUT /api/address-books/.../raw`) and an event edited via REST
-(`PUT /api/calendars/.../events`) were both pulled by Thunderbird's next `sync-collection` REPORT. The
-**delete-on-server → tombstone-on-device** rows still await a server-originated *delete* to confirm.
+(`PUT /api/calendars/.../events`) were both pulled by Thunderbird's next `sync-collection` REPORT.
+
+⁸ **Delete-on-server → tombstone confirmed** via the wire trace: after a web-UI delete
+(`DELETE /api/calendars/.../events → 204`), Thunderbird's `sync-collection` REPORT returned the
+deleted resource's `<href>` with `<d:status>HTTP/1.1 404 Not Found</d:status>` and an advanced
+`<d:sync-token>` (RFC 6578) — the tombstone the client uses to remove the item locally. The same
+`404`-href tombstone was delivered for a deleted address-book object (`…vcf`).
 
 ## Outlook — CalDav Synchronizer add-in (classic Windows)
 
