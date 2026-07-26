@@ -7,8 +7,19 @@ supporting. Run it against a deployed instance (an app password per device).
 
 Legend: ✅ verified · ⬜ not yet checked · ⚠️ works with caveat (note it).
 
-**Microsoft Outlook** speaks no CalDAV/CardDAV — see the separate
-[Outlook gap analysis](outlook-gap-analysis.md) for how it interoperates (add-in / ICS feed / iMIP).
+**Before checking a client**, run the wire smoke test against the deployed instance — it does what a
+client's first connection does (discovery → home-sets → PUT/GET/REPORT/DELETE) and isolates
+deployment/auth/TLS problems from client quirks:
+
+```bash
+scripts/dav-smoke.sh https://your-host you@example.com "app-password"
+```
+
+Per-client setup steps are in [`manual.md`](manual.md#connecting-native-calendar--contacts-clients-caldavcarddav).
+
+**Microsoft Outlook** speaks no native CalDAV/CardDAV — see the separate
+[Outlook gap analysis](outlook-gap-analysis.md); it interoperates via the CalDav Synchronizer add-in
+(table below), the read-only ICS/VCF subscription feed (ADR 0069), or iMIP email invitations.
 
 ## CardDAV (ADR 0021)
 
@@ -38,6 +49,18 @@ Legend: ✅ verified · ⬜ not yet checked · ⚠️ works with caveat (note it
 | Edit → ETag/If-Match update | ⬜ | ⬜ | ⬜ |
 | Delete on server → removed on device (sync-collection) | ⬜ | ⬜ | ⬜ |
 | Create a second calendar (MKCALENDAR) | ⬜ | ⬜ | ⬜ |
+
+## Outlook — CalDav Synchronizer add-in (classic Windows)
+
+Two-way sync via the third-party add-in against the standard `/dav/` surface (ADR 0068 gap analysis).
+
+| Flow | Outlook (CalDav Synchronizer) |
+|---|---|
+| Profile connects to `https://…/dav/` with email + app password | ⬜ |
+| "Test or discover settings" lists calendars + address books | ⬜ |
+| Event/contact created in Outlook → appears on server | ⬜ |
+| Server change → syncs into Outlook | ⬜ |
+| Two-way edit → no duplicate/conflict | ⬜ |
 
 ## Notes / caveats
 
