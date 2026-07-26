@@ -15,4 +15,12 @@ public interface IRetentionService
     /// (their objects + revisions + child rows go via cascade, ADR 0077). Returns the count purged.
     /// </summary>
     Task<int> PurgeDeletedCollectionsBeforeAsync(DateTime cutoffUtc, int batchSize, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Prunes old revision history (ADR 0080): for up to <paramref name="batchSize"/> objects, removes
+    /// revisions older than <paramref name="cutoffUtc"/> that also fall outside the most-recent
+    /// <paramref name="keepMinimum"/> per object (so the latest history is always retained). Returns the
+    /// number of objects whose history was pruned this call.
+    /// </summary>
+    Task<int> PruneRevisionsAsync(DateTime cutoffUtc, int keepMinimum, int batchSize, CancellationToken cancellationToken);
 }
