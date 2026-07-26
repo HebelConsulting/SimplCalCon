@@ -237,8 +237,49 @@ which gives a public already-trusted `https://…` URL — handy for a one-off t
 2. **Add account → Login with URL and user name.** Base URL = `https://your-host/dav/`,
    User name = email, Password = app password. DAVx⁵ discovers all calendars + address books; choose
    which to sync and set the sync interval.
-3. If VAPID keys are configured (ADR 0052), DAVx⁵ receives **WebDAV-Push** and syncs within seconds of
-   a server-side change instead of polling.
+3. For instant sync instead of polling, set up **WebDAV-Push** — see the next section.
+
+### Instant sync with WebDAV-Push (DAVx⁵ + ntfy)
+
+SimplCalCon implements **WebDAV-Push** (ADR 0052): when a calendar/contact changes on the server, it
+pushes a notification to subscribed devices so they sync **within seconds**, instead of waiting for the
+next poll. DAVx⁵ is the supported client.
+
+**How it works.** DAVx⁵ delivers push over **UnifiedPush** (an open, Google-free push standard), so the
+Android device needs a **UnifiedPush distributor** app. The simplest is **ntfy**. DAVx⁵ then registers
+its push endpoint with SimplCalCon, and the server sends encrypted Web Push messages to it on every
+change. (Apple Calendar/Contacts don't use this — they have their own push — and Thunderbird polls.)
+
+**On the Android device (one-time):**
+
+1. Install a UnifiedPush distributor — **ntfy** from F-Droid or the Play Store — and **open it once** so
+   it registers as the system's push distributor. (By default it uses the public `ntfy.sh` relay; you
+   can point ntfy at your own self-hosted ntfy server for privacy.)
+2. Open DAVx⁵ and **sync the account once**. DAVx⁵ auto-detects that the server advertises push and
+   registers automatically — no extra DAVx⁵ setting. You can now raise the DAVx⁵ sync interval (or set
+   it to manual); push covers real-time updates.
+3. **Verify:** change an event/contact from another client (the web UI or Thunderbird) — the Android
+   device should update within seconds without you touching it.
+
+**On the server (operator) — enabling push:** WebDAV-Push is **off unless VAPID keys are present**
+(Web Push signing keys). Configure them under `SimplCalCon:WebPush` (env-var form in parentheses):
+
+| Setting | Purpose |
+|---|---|
+| `VapidPublicKey` (`SimplCalCon__WebPush__VapidPublicKey`) | VAPID public key — **required** for production push |
+| `VapidPrivateKey` (`SimplCalCon__WebPush__VapidPrivateKey`) | VAPID private key — **required**; keep secret |
+| `Subject` (`SimplCalCon__WebPush__Subject`) | VAPID contact, a `mailto:` or `https:` URL (defaults to a placeholder) |
+| `AllowEphemeralKeys` (`SimplCalCon__WebPush__AllowEphemeralKeys`) | Dev only: generate a throwaway pair at startup (resets on restart → subscriptions drop) |
+| `SubscriptionTtlDays` (`SimplCalCon__WebPush__SubscriptionTtlDays`) | How long a registration lasts before the device must re-register (default 30) |
+
+- **Generate a production key pair** once (e.g. `npx web-push generate-vapid-keys`) and supply both keys
+  via config/secrets. **Persist them** like the OIDC certificates — if the keys change, all existing
+  device subscriptions become undeliverable and devices must re-register.
+- **Development / demo:** `AllowEphemeralKeys=true` is already set (in `appsettings.Development.json`,
+  and explicitly in `docker-compose.lan.yaml`), so the demo stack has push enabled out of the box with a
+  throwaway key pair. The startup log confirms it: `WebDAV-Push: using EPHEMERAL VAPID keys …`.
+- With **no keys and no ephemeral flag**, push is simply disabled (clients fall back to polling) — the
+  startup log says `WebDAV-Push disabled: no VAPID key pair configured.`
 
 ### Microsoft Outlook (classic Windows) — CalDav Synchronizer add-in
 
