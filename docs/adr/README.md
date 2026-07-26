@@ -77,5 +77,6 @@ rather than an edit.
 | [0069](0069-subscription-feed.md) | Read-only subscription feeds (ICS/VCF capability-token URL) |
 | [0070](0070-partial-data-on-sync-collection.md) | Partial calendar-data/address-data on sync-collection |
 | [0071](0071-feed-conditional-get.md) | Conditional GET (ETag / 304) on the subscription feed |
+| [0072](0072-multi-day-events-in-grid.md) | Multi-day events span the calendar grid (chip per covered day) |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

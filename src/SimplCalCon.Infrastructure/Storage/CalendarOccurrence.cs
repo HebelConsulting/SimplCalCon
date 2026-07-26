@@ -161,10 +161,14 @@ internal static class CalendarOccurrence
             .GroupBy(e => e.DtStart!.AsUtc)
             .ToDictionary(g => g.Key, g => g.First().RecurrenceIdentifier!.StartTime.AsUtc);
 
-        var from = new CalDateTime(DateTime.SpecifyKind(fromUtc, DateTimeKind.Utc));
+        // Look back by the event duration so an occurrence starting before the window but overlapping it
+        // (a multi-day/all-day event) is still returned, then keep occurrences whose interval overlaps
+        // [fromUtc, toUtc) — start < toUtc (TakeWhile) && effective end >= fromUtc (ADR 0067/0072).
+        var from = new CalDateTime(DateTime.SpecifyKind(fromUtc - MaxOccurrenceDuration(calendar), DateTimeKind.Utc));
         return calendar.GetOccurrences(from)
             .TakeWhile(o => o.Period.StartTime?.AsUtc is { } s && s < toUtc)
-            .Where(o => o.Period.StartTime?.AsUtc is { } s && s >= fromUtc)
+            .Where(o => o.Period.StartTime?.AsUtc is not null
+                && (o.Period.EffectiveEndTime?.AsUtc ?? o.Period.StartTime!.AsUtc) >= fromUtc)
             .Select(o =>
             {
                 var start = o.Period.StartTime!.AsUtc;

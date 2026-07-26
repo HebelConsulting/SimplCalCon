@@ -193,6 +193,13 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* A continuation day of a multi-day event (ADR 0072): flatten the left edge to read as "continues". */
+.event-chip.chip-cont {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    opacity: 0.9;
+}
+
 /* ---- Modal inner forms ---- */
 .form-row {
     display: flex;
