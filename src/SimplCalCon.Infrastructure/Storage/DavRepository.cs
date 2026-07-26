@@ -116,6 +116,10 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
     public async Task<bool> PurgeAddressBookAsync(Guid id, Guid ownerId, CancellationToken cancellationToken) =>
         await PurgeCollectionAsync(dbContext.AddressBooks, id, ownerId, cancellationToken);
 
+    public async Task<AddressBook?> GetDeletedAddressBookByIdAsync(Guid id, Guid ownerId, CancellationToken cancellationToken) =>
+        await dbContext.AddressBooks
+            .FirstOrDefaultAsync(a => a.Id == id && a.OwnerId == ownerId && a.IsDeleted, cancellationToken);
+
     public async Task<Collection?> UpdateCollectionAsync(
         Guid collectionId, string newName, string? color, CancellationToken cancellationToken)
     {
@@ -301,6 +305,10 @@ internal sealed class DavRepository(SimplCalConDbContext dbContext, IClock clock
 
     public async Task<bool> PurgeCalendarAsync(Guid id, Guid ownerId, CancellationToken cancellationToken) =>
         await PurgeCollectionAsync(dbContext.Calendars, id, ownerId, cancellationToken);
+
+    public async Task<Calendar?> GetDeletedCalendarByIdAsync(Guid id, Guid ownerId, CancellationToken cancellationToken) =>
+        await dbContext.Calendars
+            .FirstOrDefaultAsync(c => c.Id == id && c.OwnerId == ownerId && c.IsDeleted, cancellationToken);
 
     // Hard-deletes a soft-deleted, owner-owned collection (ADR 0077). Objects, revisions, and the child
     // rows (ACL entries, push subscriptions, per-user colours, occurrences/attendees/photos) go via the

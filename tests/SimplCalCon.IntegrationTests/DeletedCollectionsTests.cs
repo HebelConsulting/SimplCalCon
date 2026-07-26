@@ -92,6 +92,42 @@ public sealed class DeletedCollectionsTests(AuthWebApplicationFactory factory) :
     }
 
     [Fact]
+    public async Task Deleted_calendar_export_returns_its_data_for_the_owner()
+    {
+        var client = await AuthedClientAsync();
+
+        var id = (await Body(await client.PostAsJsonAsync("/api/calendars", new { name = "BackupMe" }))).GetProperty("id").GetGuid();
+        await client.PostAsJsonAsync($"/api/calendars/{id}/events", new
+        {
+            summary = "BackupMarkerEvent", startUtc = "2026-08-02T09:00:00Z", endUtc = "2026-08-02T10:00:00Z", isAllDay = false,
+        });
+
+        var etag = (await client.GetAsync($"/api/calendars/{id}")).Headers.ETag!.ToString();
+        using (var delete = new HttpRequestMessage(HttpMethod.Delete, $"/api/calendars/{id}"))
+        {
+            delete.Headers.TryAddWithoutValidation("If-Match", etag);
+            await client.SendAsync(delete);
+        }
+
+        // The pre-purge backup exports the soft-deleted collection (the normal export endpoint would 404).
+        var export = await client.GetAsync($"/api/calendars/deleted/{id}/export");
+        Assert.Equal(HttpStatusCode.OK, export.StatusCode);
+        Assert.Equal("text/calendar", export.Content.Headers.ContentType?.MediaType);
+        var body = await export.Content.ReadAsStringAsync();
+        Assert.Contains("BEGIN:VCALENDAR", body);
+        Assert.Contains("BackupMarkerEvent", body);
+    }
+
+    [Fact]
+    public async Task Exporting_another_users_deleted_calendar_is_not_found()
+    {
+        var client = await AuthedClientAsync();
+        var foreignId = await SeedForeignDeletedCalendarAsync();
+
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/calendars/deleted/{foreignId}/export")).StatusCode);
+    }
+
+    [Fact]
     public async Task Purging_another_users_deleted_calendar_is_not_found()
     {
         var client = await AuthedClientAsync();

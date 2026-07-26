@@ -176,6 +176,24 @@ public sealed class AddressBooksController(
         return NoContent();
     }
 
+    // Export a soft-deleted address book — the mandatory pre-purge backup (ADR 0078), owner-only.
+    [HttpGet("deleted/{id:guid}/export")]
+    public async Task<IActionResult> ExportDeleted(Guid id, CancellationToken cancellationToken)
+    {
+        var addressBook = await repository.GetDeletedAddressBookByIdAsync(id, CurrentUserId, cancellationToken)
+            ?? throw new ResourceNotFoundException("Address book", id);
+        var document = await importExport.ExportAsync(id, includeDeletedCollection: true, cancellationToken);
+        return Portability.Download(document, "text/vcard", $"{addressBook.ResourceName}.vcf");
+    }
+
+    [HttpHead("deleted/{id:guid}/export")]
+    public async Task<IActionResult> HeadExportDeleted(Guid id, CancellationToken cancellationToken)
+    {
+        _ = await repository.GetDeletedAddressBookByIdAsync(id, CurrentUserId, cancellationToken)
+            ?? throw new ResourceNotFoundException("Address book", id);
+        return Ok();
+    }
+
     // --- Import / export (ADR 0013/0029). A bulk write/read is a genuine action, so a verb sub-resource is used. ---
 
     [HttpPost("{id:guid}/import")]

@@ -178,6 +178,24 @@ public sealed class CalendarsController(
         return NoContent();
     }
 
+    // Export a soft-deleted calendar — the mandatory pre-purge backup (ADR 0078), owner-only.
+    [HttpGet("deleted/{id:guid}/export")]
+    public async Task<IActionResult> ExportDeleted(Guid id, CancellationToken cancellationToken)
+    {
+        var calendar = await repository.GetDeletedCalendarByIdAsync(id, CurrentUserId, cancellationToken)
+            ?? throw new ResourceNotFoundException("Calendar", id);
+        var document = await importExport.ExportAsync(id, includeDeletedCollection: true, cancellationToken);
+        return Portability.Download(document, "text/calendar", $"{calendar.ResourceName}.ics");
+    }
+
+    [HttpHead("deleted/{id:guid}/export")]
+    public async Task<IActionResult> HeadExportDeleted(Guid id, CancellationToken cancellationToken)
+    {
+        _ = await repository.GetDeletedCalendarByIdAsync(id, CurrentUserId, cancellationToken)
+            ?? throw new ResourceNotFoundException("Calendar", id);
+        return Ok();
+    }
+
     // --- Import / export (ADR 0013/0029). A bulk write/read is a genuine action, so a verb sub-resource is used. ---
 
     [HttpPost("{id:guid}/import")]

@@ -83,5 +83,6 @@ rather than an edit.
 | [0075](0075-deleted-collection-restore.md) | Self-service restore of deleted collections |
 | [0076](0076-spa-refresh-tokens-and-session-expiry-redirect.md) | SPA refresh tokens + redirect-to-login on session expiry |
 | [0077](0077-collection-purge-and-retention.md) | Permanent purge + auto-retention for deleted collections |
+| [0078](0078-mandatory-backup-before-purge.md) | Mandatory backup download before permanently purging a collection |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).
