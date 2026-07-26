@@ -15,7 +15,9 @@ deployment/auth/TLS problems from client quirks:
 scripts/dav-smoke.sh https://your-host you@example.com "app-password"
 ```
 
-Per-client setup steps are in [`manual.md`](manual.md#connecting-native-calendar--contacts-clients-caldavcarddav).
+Per-client setup steps are in [`manual.md`](manual.md#connecting-native-calendar--contacts-clients-caldavcarddav);
+the full **developer-machine testing workflow (with the internal certificate)** is in
+[`dav-device-testing.md`](dav-device-testing.md).
 
 **Microsoft Outlook** speaks no native CalDAV/CardDAV — see the separate
 [Outlook gap analysis](outlook-gap-analysis.md); it interoperates via the CalDav Synchronizer add-in
@@ -25,13 +27,13 @@ Per-client setup steps are in [`manual.md`](manual.md#connecting-native-calendar
 
 | Flow | iOS/macOS Contacts | Android (DAVx⁵) | Thunderbird |
 |---|---|---|---|
-| Account setup via `/.well-known/carddav` | ✅ macOS 15.7 | ⬜ | ⬜ |
-| Discovers current-user-principal + addressbook-home-set | ✅ | ⬜ | ⬜ |
-| Default `contacts` address book appears | ✅ | ⬜ | ⬜ |
+| Account setup via `/.well-known/carddav` | ✅ macOS 15.7 | ✅ ¹ | ⬜ |
+| Discovers current-user-principal + addressbook-home-set | ✅ | ✅ | ⬜ |
+| Default `contacts` address book appears | ✅ | ✅ | ⬜ |
 | Create contact on device → appears on server | ⬜ | ⬜ | ⬜ |
 | Edit contact → ETag/If-Match update, no conflict | ⬜ | ⬜ | ⬜ |
 | Delete contact → removed on server | ⬜ | ⬜ | ⬜ |
-| Change on server → syncs to device (sync-collection) | ✅ | ⬜ | ⬜ |
+| Change on server → syncs to device (sync-collection) | ✅ | ✅ delta ² | ⬜ |
 | Delete on server → removed on device (tombstone) | ⬜ | ⬜ | ⬜ |
 | Create a second address book (MKCOL) | ⬜ | ⬜ | ⬜ |
 
@@ -39,16 +41,27 @@ Per-client setup steps are in [`manual.md`](manual.md#connecting-native-calendar
 
 | Flow | iOS/macOS Calendar | Android (DAVx⁵) | Thunderbird |
 |---|---|---|---|
-| Account setup via `/.well-known/caldav` | ✅ macOS 15.7 | ⬜ | ⬜ |
-| Discovers calendar-home-set | ✅ | ⬜ | ⬜ |
-| Default `calendar` appears | ✅ | ⬜ | ⬜ |
+| Account setup via `/.well-known/caldav` | ✅ macOS 15.7 | ✅ ¹ | ⬜ |
+| Discovers calendar-home-set | ✅ | ✅ | ⬜ |
+| Default `calendar` appears | ✅ | ✅ | ⬜ |
 | Create event on device → appears on server | ✅ | ⬜ | ⬜ |
 | Recurring event syncs and expands in views | ⬜ | ⬜ | ⬜ |
 | Task (VTODO) create/sync (Reminders / Tasks.org) | ⬜ | ⬜ | ⬜ |
-| Time-range refresh (calendar-query) returns the window | ⬜ | ⬜ | ⬜ |
+| Time-range refresh (calendar-query) returns the window | ⬜ | ✅ | ⬜ |
 | Edit → ETag/If-Match update | ⬜ | ⬜ | ⬜ |
 | Delete on server → removed on device (sync-collection) | ⬜ | ⬜ | ⬜ |
 | Create a second calendar (MKCALENDAR) | ⬜ | ⬜ | ⬜ |
+
+¹ DAVx⁵ (Android) verified against a deployed instance over the LAN via *Login with URL and user name*
+at `http://<host>:9080/dav/` (Android accepts plain HTTP — no proxy or certificate needed). Account
+setup and full discovery of both home-sets succeeded; every response was `207` (bar the standard
+initial `401` Basic-auth challenge), with no `4xx`/`5xx` compatibility gaps.
+
+² **Delta sync confirmed** via the DAV wire trace (ADR 0033): on a re-sync DAVx⁵ CTag-gates each
+collection (a `getctag`/`sync-token` PROPFIND, skipping unchanged ones), then issues a
+`sync-collection` REPORT carrying its **stored `sync-token`** (RFC 6578, e.g. `…/ns/sync/5`) and
+`addressbook-multiget`/`calendar-multiget`s only the changed resources — an incremental delta, not a
+full re-fetch. (The larger first-connect sync is a one-time full population.)
 
 ## Outlook — CalDav Synchronizer add-in (classic Windows)
 

@@ -191,6 +191,9 @@ Add a **CardDAV** account the same way (User Name = email, Password = app passwo
 
 #### Demo LAN HTTPS override (for iOS/iPadOS)
 
+> For a full step-by-step (cert export, per-platform trust, verify, tear down) see
+> [`dav-device-testing.md`](dav-device-testing.md).
+
 The default demo proxy only serves `localhost`. Bring the stack up with the opt-in LAN override so the
 proxy **also** serves your machine's LAN IP/hostname over HTTPS (`docker-compose.lan.yaml`):
 
