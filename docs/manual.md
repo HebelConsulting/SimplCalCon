@@ -186,6 +186,24 @@ Add a **CardDAV** account the same way (User Name = email, Password = app passwo
 > running the stack. A phone or another computer must reach the server by LAN IP or DNS name, over
 > HTTPS, with a certificate its OS trusts — either a real (e.g. Let's Encrypt) certificate in
 > production, or the demo Caddy root CA installed on the device. Replace `your-host` below accordingly.
+> Good news: the DAV surface emits **relative** redirects/hrefs, so a client that connects by IP/name
+> stays there — there is no bounce back to `localhost` (ADR 0032).
+
+#### Demo LAN HTTPS override (for iOS/iPadOS)
+
+The default demo proxy only serves `localhost`. Bring the stack up with the opt-in LAN override so the
+proxy **also** serves your machine's LAN IP/hostname over HTTPS (`docker-compose.lan.yaml`):
+
+```bash
+LAN_HOST=10.0.2.23 docker compose -f docker-compose.yaml -f docker-compose.lan.yaml up -d
+docker compose exec proxy cat /data/caddy/pki/authorities/local/root.crt   # install/trust on the device
+```
+
+Set `LAN_HOST` to your machine's IP (`ipconfig getifaddr en0` on macOS) **or**, better, its `.local`
+mDNS hostname — a hostname avoids the IP-literal SNI limitation and iOS resolves `.local` via Bonjour.
+Then trust the printed root CA on the device once (AirDrop/email the `.crt`; on iOS install the profile,
+then **Settings → General → About → Certificate Trust Settings → enable full trust**). Only the proxy
+changes — the web UI/OIDC stay on `localhost`; DAV uses app-password auth, so device sync just works.
 
 ### Thunderbird (CalDAV + CardDAV)
 
@@ -198,14 +216,16 @@ Add a **CardDAV** account the same way (User Name = email, Password = app passwo
 
 ### iOS / iPadOS (Apple Calendar + Contacts)
 
-1. Install a trusted certificate: a real cert in production, or push the demo root CA to the device
-   (email/AirDrop the `.crt`, install the profile, then **Settings → General → About → Certificate
-   Trust Settings** and enable full trust).
+1. Make the server reachable over trusted HTTPS: in the demo, use the **LAN HTTPS override** above
+   (set `LAN_HOST`, trust the root CA on the device); in production, use a real cert + DNS name.
 2. **Calendar:** **Settings → Calendar → Accounts → Add Account → Other → Add CalDAV Account.**
-   Server = `your-host`, User Name = email, Password = app password. (iOS derives the `/dav/` path
-   and discovers your calendars.)
+   Server = `<LAN_HOST>` (or your domain), User Name = email, Password = app password. (iOS derives
+   the `/dav/` path and discovers your calendars.)
 3. **Contacts:** **Settings → Contacts → Accounts → Add Account → Other → Add CardDAV Account**, same
    values. iOS shows all address books (unlike macOS Contacts).
+
+Alternatively, skip the proxy/cert entirely with a tunnel (`cloudflared tunnel --url http://localhost:9080`),
+which gives a public already-trusted `https://…` URL — handy for a one-off test.
 
 ### DAVx⁵ (Android)
 

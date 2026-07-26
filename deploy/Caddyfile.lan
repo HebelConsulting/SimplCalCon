@@ -1,0 +1,18 @@
+# LAN front for on-device CalDAV/CardDAV testing (docker-compose.lan.yaml, ADR 0032).
+#
+# Serves BOTH localhost and the machine's LAN host ($LAN_HOST), so a phone/tablet can reach the DAV
+# surface over HTTPS by IP or hostname using Caddy's internal CA (persisted in the caddy-data volume;
+# for an IP, tls internal puts it in the certificate's SAN). Trust that root CA on the device once:
+#   docker compose exec proxy cat /data/caddy/pki/authorities/local/root.crt
+#
+# default_sni is essential when $LAN_HOST is a bare IP: clients don't send SNI for an IP literal
+# (SNI is for hostnames, RFC 6066), so without this Caddy can't pick a cert and the handshake fails
+# with a TLS "internal error". It tells Caddy which cert to present on a no-SNI connection.
+{
+	default_sni {$LAN_HOST}
+}
+
+localhost, {$LAN_HOST} {
+	tls internal
+	reverse_proxy api:9080
+}
