@@ -40,6 +40,13 @@ public interface IObjectImportExport
 
     /// <summary>Serializes the collection's live objects into one concatenated document.</summary>
     Task<string> ExportAsync(Guid collectionId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// As <see cref="ExportAsync(System.Guid,System.Threading.CancellationToken)"/>, but when
+    /// <paramref name="includeDeletedCollection"/> is true it also exports a soft-deleted collection —
+    /// used for the mandatory pre-purge backup (ADR 0078).
+    /// </summary>
+    Task<string> ExportAsync(Guid collectionId, bool includeDeletedCollection, CancellationToken cancellationToken);
 }
 
 public enum ImportConflictMode

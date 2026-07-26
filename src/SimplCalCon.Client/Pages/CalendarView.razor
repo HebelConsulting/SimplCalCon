@@ -453,13 +453,21 @@ else
 
 <Modal Visible="purgeId is not null" Title="Delete calendar permanently" OnClose="() => purgeId = null">
     <p><strong>Permanently delete</strong> “<strong>@purgeName</strong>” and <strong>all its events and history</strong>? This <strong>cannot be undone</strong>.</p>
-    <p class="confirm-hint">To confirm, type the calendar's name — <strong>@purgeName</strong> — below.</p>
+    <p class="confirm-hint">1. Download a backup first (required):</p>
+    <div class="form-actions">
+        <button type="button" @onclick="DownloadPurgeBackupAsync">@(purgeExported ? "✓ Backup downloaded — download again" : "Download backup (.ics)")</button>
+    </div>
+    <p class="confirm-hint">2. To confirm, type the calendar's name — <strong>@purgeName</strong> — below.</p>
     <input type="text" class="confirm-input" @bind="purgeConfirm" @bind:event="oninput"
            placeholder="@purgeName" autocomplete="off" aria-label="Type the calendar name to confirm permanent deletion" />
     <div class="form-actions">
-        <button class="danger" @onclick="PurgeAsync" disabled="@(!PurgeConfirmed)">Delete permanently</button>
+        <button class="danger" @onclick="PurgeAsync" disabled="@(!PurgeConfirmed || !purgeExported)">Delete permanently</button>
         <button @onclick="() => purgeId = null">Cancel</button>
     </div>
+    @if (!purgeExported)
+    {
+        <p class="confirm-hint">Download the backup to enable permanent deletion.</p>
+    }
 </Modal>
 
 @code {
@@ -604,6 +612,7 @@ else
     private Guid? purgeId;
     private string purgeName = string.Empty;
     private string purgeConfirm = string.Empty;
+    private bool purgeExported;   // a backup must be downloaded before purge is allowed (ADR 0078)
 
     private bool PurgeConfirmed =>
         !string.IsNullOrWhiteSpace(purgeName) &&
@@ -613,12 +622,25 @@ else
     {
         purgeName = deletedCalendars.FirstOrDefault(c => c.Id == id)?.Name ?? string.Empty;
         purgeConfirm = string.Empty;
+        purgeExported = false;
         purgeId = id;
+    }
+
+    private async Task DownloadPurgeBackupAsync()
+    {
+        if (purgeId is not { } id)
+        {
+            return;
+        }
+
+        var bytes = await Api.ExportDeletedCollectionAsync("calendars", id);
+        await JS.InvokeVoidAsync("simplDownload", $"{purgeName}.ics", "text/calendar", Convert.ToBase64String(bytes));
+        purgeExported = true;
     }
 
     private async Task PurgeAsync()
     {
-        if (purgeId is not { } id || !PurgeConfirmed)
+        if (purgeId is not { } id || !PurgeConfirmed || !purgeExported)
         {
             return;
         }
@@ -626,6 +648,7 @@ else
         await Api.PurgeCollectionAsync("calendars", id);
         purgeId = null;
         purgeConfirm = string.Empty;
+        purgeExported = false;
         deletedCalendars = await Api.GetDeletedCalendarsAsync();
     }
 

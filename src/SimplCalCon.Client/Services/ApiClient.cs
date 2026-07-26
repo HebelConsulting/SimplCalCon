@@ -74,6 +74,10 @@ public sealed class ApiClient(HttpClient http)
     public Task PurgeCollectionAsync(string kind, Guid id) =>
         http.DeleteAsync($"api/{kind}/deleted/{id}");
 
+    // Mandatory pre-purge backup (ADR 0078): export a soft-deleted collection's data.
+    public Task<byte[]> ExportDeletedCollectionAsync(string kind, Guid id) =>
+        http.GetByteArrayAsync($"api/{kind}/deleted/{id}/export");
+
     public async Task<CalendarDto?> CreateCalendarAsync(string name) =>
         await (await http.PostAsJsonAsync("api/calendars", new { name })).Content.ReadFromJsonAsync<CalendarDto>();
 

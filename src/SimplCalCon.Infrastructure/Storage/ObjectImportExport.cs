@@ -162,10 +162,13 @@ internal sealed class ObjectImportExport(
         return new ArchiveImportOutcome(created, new ImportOutcome(imported, skipped, failed, errors));
     }
 
-    public async Task<string> ExportAsync(Guid collectionId, CancellationToken cancellationToken)
+    public Task<string> ExportAsync(Guid collectionId, CancellationToken cancellationToken) =>
+        ExportAsync(collectionId, includeDeletedCollection: false, cancellationToken);
+
+    public async Task<string> ExportAsync(Guid collectionId, bool includeDeletedCollection, CancellationToken cancellationToken)
     {
         var collection = await dbContext.Collections
-            .FirstOrDefaultAsync(c => c.Id == collectionId && !c.IsDeleted, cancellationToken)
+            .FirstOrDefaultAsync(c => c.Id == collectionId && (includeDeletedCollection || !c.IsDeleted), cancellationToken)
             ?? throw new CollectionNotFoundException(collectionId);
 
         // Order by resource name (string) — SQLite can't ORDER BY the DateTime columns.
