@@ -69,6 +69,21 @@ public sealed class CalendarOccurrenceTests
         "DTSTART:20260907T000000Z\r\nDTEND:20260910T000000Z\r\nRRULE:FREQ=WEEKLY;COUNT=4\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
 
     [Fact]
+    public void Occurrences_includes_an_occurrence_spanning_into_the_window()
+    {
+        // Window Sep 8 12:00 → Sep 9 12:00 falls inside the first 3-day occurrence, which started Sep 7
+        // (before the window). The grid expansion must still return it (ADR 0072).
+        var from = new DateTime(2026, 9, 8, 12, 0, 0, DateTimeKind.Utc);
+        var to = new DateTime(2026, 9, 9, 12, 0, 0, DateTimeKind.Utc);
+
+        var occ = CalendarOccurrence.Occurrences(WeeklySpanning, from, to);
+
+        Assert.Single(occ);
+        Assert.Equal(7, occ[0].StartUtc.Day);                  // the occurrence that began Sep 7
+        Assert.Equal(10, occ[0].EndUtc.Day);                   // …and runs to Sep 10
+    }
+
+    [Fact]
     public void Overlaps_range_finds_an_occurrence_spanning_into_the_window()
     {
         // Tue 12:00 → Wed 12:00 is mid-occurrence: the occurrence started Monday (before the window)

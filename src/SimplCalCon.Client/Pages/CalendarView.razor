@@ -152,8 +152,8 @@ else
                                     <div class="day-number">@day.Day</div>
                                     @foreach (var e in EventsOn(day))
                                     {
-                                        <button class="event-chip" style="border-left:4px solid @e.Color" title="@($"{e.Event.Summary} · {e.CalName}")" @onclick="() => Select(e)">
-                                            <span class="chip-time">@(e.Event.IsAllDay ? "—" : LocalStart(e.Event)?.ToString("HH:mm"))</span> @e.Event.Summary
+                                        <button class="event-chip @(IsFirstDay(e.Event, day) ? "" : "chip-cont")" style="border-left:4px solid @e.Color" title="@($"{e.Event.Summary} · {e.CalName}")" @onclick="() => Select(e)">
+                                            <span class="chip-time">@ChipTime(e.Event, day)</span> @e.Event.Summary
                                         </button>
                                     }
                                 </div>
@@ -1098,7 +1098,17 @@ else
     }
 
     private IEnumerable<CalEntry> EventsOn(DateTime day) =>
-        (occEntries ?? []).Where(e => LocalStart(e.Event)?.Date == day.Date).OrderBy(e => e.Event.StartUtc);
+        (occEntries ?? []).Where(e => CoversDay(e.Event, day)).OrderBy(e => e.Event.StartUtc);
+
+    // A multi-day event covers every day from its start to its last day (ADR 0072); date maths in CalendarGrid.
+    private static bool CoversDay(EventDto e, DateTime day) =>
+        LocalStart(e) is { } start && CalendarGrid.CoversDay(start, e.EndUtc?.ToLocalTime(), day);
+
+    private static bool IsFirstDay(EventDto e, DateTime day) => LocalStart(e)?.Date == day.Date;
+
+    // Start day shows the time (or — for all-day); a continuation day shows a "continues" marker.
+    private static string ChipTime(EventDto e, DateTime day) =>
+        !IsFirstDay(e, day) ? "…" : e.IsAllDay ? "—" : LocalStart(e)?.ToString("HH:mm") ?? "";
 
     private string PeriodLabel => gridMode == Grid.Week
         ? $"{WeekStart(cursor):d MMM} – {WeekStart(cursor).AddDays(6):d MMM yyyy}"
