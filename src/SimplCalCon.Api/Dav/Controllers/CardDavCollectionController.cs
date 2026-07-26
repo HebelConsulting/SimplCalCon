@@ -152,10 +152,13 @@ public sealed class CardDavCollectionController(
         }
 
         var request = PropRequest.FromProp(body.Element(DavNames.Prop));
+        // Honor a requested address-data property subset on the sync response too (ADR 0054/0070).
+        var addressData = DavDataRequest.ParseAddressData(body.Descendants(DavNames.AddressData).FirstOrDefault());
         var result = await repository.SyncAsync(addressBook.Id, sinceToken, cancellationToken);
 
         var changed = result.Changed
-            .Select(o => CardDavResources.ContactObjectResource(ObjectHref(userId, book, o.ResourceName), o))
+            .Select(o => CardDavResources.ContactObjectResource(
+                ObjectHref(userId, book, o.ResourceName), o, FormatContact(o, addressData)))
             .ToList();
 
         var document = MultiStatus.Build(request, changed);

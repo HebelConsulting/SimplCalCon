@@ -133,6 +133,58 @@ public sealed class DavDepthTests(AuthWebApplicationFactory factory) : IClassFix
         Assert.DoesNotContain("MovedOutOfRange", xml);    // override outside the window
     }
 
+    [Fact]
+    public async Task Sync_collection_honors_a_calendar_data_prop_subset()
+    {
+        var (client, userId) = await DavTestUser.CreateAsync(factory, "depth-sync-cal");
+        var cal = await MkcalendarAsync(client, userId);
+        var path = $"/dav/calendars/{userId}/{cal}";
+        await Send(client, "PUT", $"{path}/e.ics", content: FullEvent("full@t"), contentType: "text/calendar");
+
+        var report = await Send(client, "REPORT", $"{path}/", body:
+            """
+            <D:sync-collection xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+              <D:sync-token/>
+              <D:prop>
+                <D:getetag/>
+                <C:calendar-data>
+                  <C:comp name="VCALENDAR"><C:comp name="VEVENT"><C:prop name="SUMMARY"/></C:comp></C:comp>
+                </C:calendar-data>
+              </D:prop>
+            </D:sync-collection>
+            """);
+
+        var xml = await report.Content.ReadAsStringAsync();
+        Assert.Contains("SUMMARY:Team", xml);
+        Assert.DoesNotContain("DESCRIPTION", xml); // subset applied on sync, not just multiget/query (ADR 0070)
+        Assert.DoesNotContain("LOCATION", xml);
+    }
+
+    [Fact]
+    public async Task Sync_collection_honors_an_address_data_prop_subset()
+    {
+        var (client, userId) = await DavTestUser.CreateAsync(factory, "depth-sync-card");
+        var book = await ContactsBookAsync(client, userId);
+        var path = $"/dav/addressbooks/{userId}/{book}";
+        await Send(client, "PUT", $"{path}/c.vcf", content: FullCard("c@t"), contentType: "text/vcard");
+
+        var report = await Send(client, "REPORT", $"{path}/", body:
+            """
+            <D:sync-collection xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:carddav">
+              <D:sync-token/>
+              <D:prop>
+                <D:getetag/>
+                <C:address-data><C:prop name="FN"/></C:address-data>
+              </D:prop>
+            </D:sync-collection>
+            """);
+
+        var xml = await report.Content.ReadAsStringAsync();
+        Assert.Contains("FN:", xml);
+        Assert.DoesNotContain("EMAIL", xml);
+        Assert.DoesNotContain("TEL", xml);
+    }
+
     private static string SeriesWithOverrides(string uid) =>
         "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\n" +
         $"BEGIN:VEVENT\r\nUID:{uid}\r\nDTSTART:20260701T090000Z\r\nDTEND:20260701T100000Z\r\nSUMMARY:Series\r\nRRULE:FREQ=WEEKLY;COUNT=10\r\nEND:VEVENT\r\n" +
