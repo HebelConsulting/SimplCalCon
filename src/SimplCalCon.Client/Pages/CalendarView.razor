@@ -19,7 +19,7 @@
         @if (EffectiveId is { } id)
         {
             <button @onclick="OpenRename">Rename</button>
-            <button @onclick="() => showDelete = true">Delete</button>
+            <button @onclick="OpenDelete">Delete</button>
             <button @onclick="() => showShare = true">Share</button>
             <a class="ribbon-btn" href="trash/calendars/@id">Trash</a>
         }
@@ -439,8 +439,11 @@ else
 
 <Modal Visible="showDelete" Title="Delete calendar" OnClose="() => showDelete = false">
     <p>Delete calendar “<strong>@ActiveCalendarName</strong>”? Its events will no longer appear. This can be undone by an administrator.</p>
+    <p class="confirm-hint">To confirm, type the calendar's name — <strong>@ActiveCalendarName</strong> — below.</p>
+    <input type="text" class="confirm-input" @bind="deleteConfirm" @bind:event="oninput"
+           placeholder="@ActiveCalendarName" autocomplete="off" aria-label="Type the calendar name to confirm deletion" />
     <div class="form-actions">
-        <button class="danger" @onclick="DeleteAsync">Delete</button>
+        <button class="danger" @onclick="DeleteAsync" disabled="@(!DeleteConfirmed)">Delete</button>
         <button @onclick="() => showDelete = false">Cancel</button>
     </div>
 </Modal>
@@ -545,6 +548,7 @@ else
     private string renameColor = "#3B82F6";
     private string? renameError;
     private bool showDelete;
+    private string deleteConfirm = string.Empty;
     private string moveTarget = string.Empty;
     private string? moveError;
 
@@ -558,6 +562,11 @@ else
     private Guid? EffectiveId => activeId ?? calendars?.FirstOrDefault()?.Id;
     private CalendarDto? ActiveCalendar => calendars?.FirstOrDefault(c => c.Id == EffectiveId);
     private string? ActiveCalendarName => ActiveCalendar?.Name;
+
+    // Type-to-confirm guard for the irreversible collection delete: exact (trimmed, case-sensitive) match.
+    private bool DeleteConfirmed =>
+        !string.IsNullOrWhiteSpace(ActiveCalendarName) &&
+        string.Equals(deleteConfirm.Trim(), ActiveCalendarName!.Trim(), StringComparison.Ordinal);
 
     private List<CollectionsPane.Item> PaneItems() =>
         (calendars ?? []).Select(c => new CollectionsPane.Item(
@@ -1045,15 +1054,22 @@ else
         }
     }
 
+    private void OpenDelete()
+    {
+        deleteConfirm = string.Empty;
+        showDelete = true;
+    }
+
     private async Task DeleteAsync()
     {
-        if (EffectiveId is not { } id)
+        if (EffectiveId is not { } id || !DeleteConfirmed)
         {
             return;
         }
 
         await Api.DeleteCollectionAsync("calendars", id);
         showDelete = false;
+        deleteConfirm = string.Empty;
         checkedIds.Remove(id);
         if (activeId == id)
         {
