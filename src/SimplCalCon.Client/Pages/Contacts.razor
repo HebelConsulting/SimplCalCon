@@ -29,12 +29,14 @@
 {
     <p>Loading…</p>
 }
-else if (books.Count == 0)
+else if (books.Count == 0 && deletedBooks.Count == 0)
 {
     <p>No address books yet — use <strong>New address book</strong> in the ribbon above.</p>
 }
 else
 {
+    @* With no live address books but a deleted one, still render the pane so its "Deleted" footer
+       (restore/purge) is reachable — otherwise deleting your only book strands it (ADR 0078 gap). *@
     <div class="cal-layout">
         <CollectionsPane Heading="Address books"
                          EmptyText="No address books."
