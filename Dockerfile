@@ -17,7 +17,9 @@ COPY --from=build /app ./
 USER app
 EXPOSE 9080
 
+# Use 127.0.0.1, not localhost: BusyBox wget resolves localhost to IPv6 ::1, but Kestrel binds IPv4
+# (0.0.0.0), so a localhost probe gets connection-refused and the container falsely reports unhealthy.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD wget -q -O - http://localhost:9080/health/ready || exit 1
+    CMD wget -q -O - http://127.0.0.1:9080/health/ready || exit 1
 
 ENTRYPOINT ["dotnet", "SimplCalCon.Api.dll"]
