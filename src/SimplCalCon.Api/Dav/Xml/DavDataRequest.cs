@@ -18,11 +18,9 @@ internal static class DavDataRequest
             return CalendarDataRequest.Full;
         }
 
-        var components = new Dictionary<string, DavCompSelection>(StringComparer.OrdinalIgnoreCase);
-        foreach (var comp in calendarData.Elements(DavNames.CalComp))
-        {
-            CollectComp(comp, components);
-        }
+        // At most one top-level <comp name="VCALENDAR"> (RFC 4791 §9.6.1); parse it into a component tree.
+        var rootComp = calendarData.Element(DavNames.CalComp);
+        var root = rootComp is null ? null : ParseComp(rootComp);
 
         var expandElement = calendarData.Element(DavNames.CalExpand);
         var expand = expandElement is not null
@@ -38,7 +36,7 @@ internal static class DavDataRequest
             ? new RecurrenceLimit(limitStart, limitEnd)
             : null;
 
-        return new CalendarDataRequest(components, expand, limit);
+        return new CalendarDataRequest(root, expand, limit);
     }
 
     public static AddressDataRequest ParseAddressData(XElement? addressData)
@@ -57,14 +55,9 @@ internal static class DavDataRequest
         return new AddressDataRequest(props);
     }
 
-    private static void CollectComp(XElement comp, Dictionary<string, DavCompSelection> components)
+    // Parse one <comp> into a selection node, recursing into nested <comp> children (ADR 0073).
+    private static DavCompSelection ParseComp(XElement comp)
     {
-        var name = comp.Attribute("name")?.Value;
-        if (string.IsNullOrEmpty(name))
-        {
-            return;
-        }
-
         var propElements = comp.Elements(DavNames.CalProp).ToList();
         var childComps = comp.Elements(DavNames.CalComp).ToList();
         var hasAllProp = comp.Element(DavNames.CalAllProp) is not null;
@@ -79,12 +72,16 @@ internal static class DavDataRequest
             .Select(n => n!)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        components[name] = new DavCompSelection(hasAllProp || noChildren, hasAllComp || noChildren, props);
-
+        var comps = new Dictionary<string, DavCompSelection>(StringComparer.OrdinalIgnoreCase);
         foreach (var child in childComps)
         {
-            CollectComp(child, components);
+            if (child.Attribute("name")?.Value is { Length: > 0 } childName)
+            {
+                comps[childName] = ParseComp(child);
+            }
         }
+
+        return new DavCompSelection(hasAllProp || noChildren, hasAllComp || noChildren, props, comps);
     }
 
     private static DateTime? ParseUtc(string? value)

@@ -134,6 +134,39 @@ public sealed class DavDepthTests(AuthWebApplicationFactory factory) : IClassFix
     }
 
     [Fact]
+    public async Task Multiget_honors_a_nested_comp_selection()
+    {
+        var (client, userId) = await DavTestUser.CreateAsync(factory, "depth-nest");
+        var cal = await MkcalendarAsync(client, userId);
+        var path = $"/dav/calendars/{userId}/{cal}";
+        const string blob =
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\nBEGIN:VEVENT\r\nUID:a@t\r\n" +
+            "DTSTAMP:20260715T090000Z\r\nDTSTART:20260715T090000Z\r\nSUMMARY:Team\r\nDESCRIPTION:Notes\r\n" +
+            "BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT10M\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        await Send(client, "PUT", $"{path}/a.ics", content: blob, contentType: "text/calendar");
+
+        // Keep VEVENT's SUMMARY and, nested, only ACTION inside its VALARM (ADR 0073).
+        var report = await Send(client, "REPORT", $"{path}/", body:
+            $"""
+            <C:calendar-multiget xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+              <D:prop><C:calendar-data>
+                <C:comp name="VCALENDAR"><C:comp name="VEVENT">
+                  <C:prop name="SUMMARY"/>
+                  <C:comp name="VALARM"><C:prop name="ACTION"/></C:comp>
+                </C:comp></C:comp>
+              </C:calendar-data></D:prop>
+              <D:href>{path}/a.ics</D:href>
+            </C:calendar-multiget>
+            """);
+
+        var xml = await report.Content.ReadAsStringAsync();
+        Assert.Contains("SUMMARY:Team", xml);
+        Assert.Contains("ACTION:DISPLAY", xml);   // nested VALARM component kept
+        Assert.DoesNotContain("DESCRIPTION", xml);
+        Assert.DoesNotContain("TRIGGER", xml);     // VALARM property not selected → dropped
+    }
+
+    [Fact]
     public async Task Sync_collection_honors_a_calendar_data_prop_subset()
     {
         var (client, userId) = await DavTestUser.CreateAsync(factory, "depth-sync-cal");
