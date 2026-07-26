@@ -108,6 +108,29 @@ docker compose logs api | grep -A1 'sync-collection'   # a stored <sync-token> i
 
 Record outcomes in the [acceptance matrix](dav-client-matrix.md).
 
+## 7b. Verify WebDAV-Push (DAVx⁵) — 🔜 the current next target
+
+The LAN override enables **ephemeral VAPID keys** (`SimplCalCon__WebPush__AllowEphemeralKeys=true`), so
+WebDAV-Push (ADR 0052) is on. Confirm it and run the push acceptance flow:
+
+```bash
+docker compose logs api | grep -i 'EPHEMERAL VAPID'   # startup line = push enabled (keys reset on restart)
+```
+
+Then, with DAVx⁵ connected over the LAN:
+1. In DAVx⁵, ensure the account's sync uses **push** (it reads `push:transports`/`push:topic` from the
+   collection PROPFIND automatically — no manual VAPID key needed).
+2. Watch for DAVx⁵'s `push-register` and the server's fan-out (enable the wire trace to see the
+   advertisement + register bodies):
+   ```bash
+   docker compose logs -f api | grep -iE 'push-register|/dav/push-subscriptions'
+   ```
+3. Edit an event/contact **from another client** (the web UI, or Thunderbird) and confirm DAVx⁵ syncs
+   **within seconds, with no manual refresh**. Fill in the WebDAV-Push checklist in the acceptance matrix.
+
+> Requires a DAVx⁵ device with Google Play Services (the push transport). Ephemeral keys reset on every
+> api restart — any existing device subscription drops and DAVx⁵ re-registers on its next sync.
+
 ## 8. Tear down
 
 ```bash

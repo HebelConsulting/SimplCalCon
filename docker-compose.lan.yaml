@@ -14,6 +14,10 @@
 #
 # DAVx5 (Android) does NOT need this — it can use plain http://<LAN_HOST>:9080/dav/ directly.
 # Also runs under `podman compose` (portable values only).
+#
+# This override is also the on-device WebDAV-Push (ADR 0052) test bed: it enables ephemeral VAPID keys
+# so DAVx5 can register for and receive push notifications. Ephemeral keys reset on restart (any device
+# subscriptions drop) — fine for testing, never production (set real VapidPublicKey/PrivateKey there).
 services:
   proxy:
     environment:
@@ -21,3 +25,8 @@ services:
     volumes:
       # Replaces the localhost-only Caddyfile with one that also serves $LAN_HOST (same target path).
       - ./deploy/Caddyfile.lan:/etc/caddy/Caddyfile:ro
+  api:
+    environment:
+      # WebDAV-Push (ADR 0052): generate an ephemeral VAPID pair so push is enabled for device testing.
+      # Implicit in Development already; set explicitly here so push testing is intentional for this override.
+      SimplCalCon__WebPush__AllowEphemeralKeys: "true"
