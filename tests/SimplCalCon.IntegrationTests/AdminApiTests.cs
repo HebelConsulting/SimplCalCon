@@ -52,16 +52,28 @@ public sealed class AdminApiTests(AuthWebApplicationFactory factory) : IClassFix
             }
         }
 
-        var token = await AuthFlow.GetDemoAdminAccessTokenAsync(factory);
-        var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        try
+        {
+            var token = await AuthFlow.GetDemoAdminAccessTokenAsync(factory);
+            var client = factory.CreateClient();
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var response = await client.GetFromJsonAsync<JsonElement>("/api/admin/users");
-        var items = response.GetProperty("items").EnumerateArray().ToList();
+            var response = await client.GetFromJsonAsync<JsonElement>("/api/admin/users");
+            var items = response.GetProperty("items").EnumerateArray().ToList();
 
-        Assert.All(items, u => Assert.True(u.TryGetProperty("hasPhoto", out _))); // field present on every row
-        var adminItem = items.Single(u => u.GetProperty("id").GetGuid() == adminId);
-        Assert.True(adminItem.GetProperty("hasPhoto").GetBoolean());              // reflects the seeded photo
+            Assert.All(items, u => Assert.True(u.TryGetProperty("hasPhoto", out _))); // field present on every row
+            var adminItem = items.Single(u => u.GetProperty("id").GetGuid() == adminId);
+            Assert.True(adminItem.GetProperty("hasPhoto").GetBoolean());              // reflects the seeded photo
+        }
+        finally
+        {
+            // The demo admin is shared across the whole run when CI uses a single
+            // Postgres database (SQLite isolates per factory). Remove the seeded
+            // photo so it doesn't leak into PhotoApiTests' "no photo yet" baseline.
+            using var scope = factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<SimplCalConDbContext>();
+            await db.UserProfilePhotos.Where(p => p.UserId == adminId).ExecuteDeleteAsync();
+        }
     }
 
     [Fact]
