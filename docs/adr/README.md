@@ -88,5 +88,6 @@ rather than an edit.
 | [0080](0080-revision-history-retention.md) | Revision-history retention (prune old live-object revisions) |
 | [0081](0081-self-hosted-ntfy-demo.md) | Self-hosted ntfy for LAN push testing (opt-in `push` profile) |
 | [0082](0082-structured-contact-editor.md) | Structured (lossless) contact edit form |
+| [0083](0083-data-protection-key-store.md) | Persist the Data Protection key ring in the database (EF Core key store) |
 
 The top-level specification tying these together: [`docs/spec.md`](../spec.md).

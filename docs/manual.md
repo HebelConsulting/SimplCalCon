@@ -375,7 +375,8 @@ The endpoint returns `404` until the key is configured.
 username, password, folder) and tick *Poll a mailbox*, then set
 `SimplCalCon:InboundEmail:PollerEnabled=true` (and optionally `PollSeconds`). The server polls each
 configured mailbox for unseen mail and marks handled messages read. The IMAP password is stored
-encrypted (Data Protection); like the OIDC certs, the DP keys must be persisted in production.
+encrypted (Data Protection); the DP key ring is persisted in the database, so it survives restarts
+with no extra operator setup (ADR 0083).
 
 However it arrives, an incoming **REQUEST** appears in the recipient's invitations (bell badge), a
 **REPLY** updates the organizer's event with the attendee's response, and a **CANCEL** removes the

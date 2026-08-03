@@ -9,6 +9,7 @@
     <!-- Provider-agnostic: the concrete providers live in the per-provider migration projects. -->
     <PackageReference Include="MailKit" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" />
     <PackageReference Include="OpenIddict.EntityFrameworkCore" />
     <PackageReference Include="Ical.Net" />
     <PackageReference Include="FolkerKinzel.VCards" />

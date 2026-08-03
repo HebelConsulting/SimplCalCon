@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -51,6 +52,16 @@ public static class DependencyInjection
 
         services.AddOpenIddict()
             .AddCore(options => options.UseEntityFrameworkCore().UseDbContext<SimplCalConDbContext>());
+
+        // Persist the Data Protection key ring in the DB (ADR 0083) so it survives
+        // restarts across every environment. Without this the default key ring is
+        // ephemeral/host-dependent: encrypted tenant SMTP/IMAP passwords (ADR 0047)
+        // become undecryptable and cookie sessions invalidate on restart. A stable
+        // application name keeps the key ring's purpose isolation consistent
+        // regardless of content root.
+        services.AddDataProtection()
+            .SetApplicationName("SimplCalCon")
+            .PersistKeysToDbContext<SimplCalConDbContext>();
 
         services.AddMemoryCache();
 
