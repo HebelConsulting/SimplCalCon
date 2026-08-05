@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SimplCalCon.Domain.Acl;
@@ -11,7 +12,8 @@ using SimplCalCon.Domain.Tenants;
 
 namespace SimplCalCon.Infrastructure.Persistence;
 
-public class SimplCalConDbContext(DbContextOptions<SimplCalConDbContext> options) : DbContext(options)
+public class SimplCalConDbContext(DbContextOptions<SimplCalConDbContext> options)
+    : DbContext(options), IDataProtectionKeyContext
 {
     private static readonly ValueConverter<DateTime, DateTime> UtcConverter = new(
         write => write.Kind == DateTimeKind.Utc ? write : write.ToUniversalTime(),
@@ -45,6 +47,10 @@ public class SimplCalConDbContext(DbContextOptions<SimplCalConDbContext> options
     public DbSet<AclEntry> AclEntries => Set<AclEntry>();
     public DbSet<UserCollectionColor> UserCollectionColors => Set<UserCollectionColor>();
     public DbSet<Domain.Push.PushSubscription> PushSubscriptions => Set<Domain.Push.PushSubscription>();
+
+    // ASP.NET Core Data Protection key ring, persisted so it survives restarts
+    // (ADR 0083). Backs the tenant SMTP/IMAP password encryption and cookie auth.
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

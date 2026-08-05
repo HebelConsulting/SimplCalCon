@@ -43,6 +43,10 @@
     <!-- Persistence (EF Core, dual provider: PostgreSQL + SQLite per ADR 0001) -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.10" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
+    <!-- Data Protection key ring persisted to the DbContext (ADR 0083): prevents an
+         ephemeral key ring that would make DP-encrypted data (tenant SMTP/IMAP
+         passwords) undecryptable after a restart. -->
+    <PackageVersion Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.10" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
   </ItemGroup>
